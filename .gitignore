@@ -1,0 +1,32 @@
+# 依赖
+node_modules/
+.pnp
+.pnp.js
+
+# 构建产物
+dist/
+.astro/
+
+# 日志
+*.log
+npm-debug.log*
+
+# 环境
+.env
+.env.*
+!.env.example
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 测试
+coverage/
+
+# 本地敏感信息
+.github_token
