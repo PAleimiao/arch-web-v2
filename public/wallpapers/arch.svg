@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1e3a"/>
+      <stop offset="100%" stop-color="#061018"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#g)"/>
+  <g transform="translate(960 540)" fill="none" stroke="#1793d1" stroke-opacity="0.35">
+    <path d="M-300 -260 L-180 -340 L-60 -260 L60 -340 L180 -260 L300 -340" stroke-width="2"/>
+    <path d="M-300 0 L-180 -80 L-60 0 L60 -80 L180 0 L300 -80" stroke-width="2"/>
+    <path d="M-300 260 L-180 180 L-60 260 L60 180 L180 260 L300 180" stroke-width="2"/>
+  </g>
+  <text x="960" y="600" text-anchor="middle" font-family="monospace" font-size="120" fill="#1793d1" opacity="0.18">ARCH</text>
+</svg>

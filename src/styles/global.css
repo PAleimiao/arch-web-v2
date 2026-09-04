@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-arch-bg: #0b0e14;
+  --color-arch-panel: #131722;
+  --color-arch-border: #232838;
+  --color-arch-text: #d7dae0;
+  --color-arch-muted: #7d8496;
+  --color-arch-accent: #1793d1;
+  --color-arch-accent-dim: #0f6a99;
+  --color-arch-green: #4ec9b0;
+  --color-arch-red: #e06c75;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-arch-bg);
+  color: var(--color-arch-text);
+  font-family:
+    'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', ui-monospace, monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+#os-root {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* 桌面图标网格 */
+.desktop-icon-label {
+  text-shadow: 0 1px 3px rgb(0 0 0 / 90%);
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3040;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4256;
+}
+
+/* 开机终端光标 */
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* 窗口进入动画 */
+@keyframes window-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-window-in {
+  animation: window-in 0.14s ease-out;
+}
