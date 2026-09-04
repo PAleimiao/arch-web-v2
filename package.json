@@ -1,0 +1,32 @@
+{
+  "name": "arch-web-v2",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "浏览器里的 Arch Linux 桌面环境 · Astro + React",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "create-app": "node scripts/create-app.mjs"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.545.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.3.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/react": "^4.4.0",
+    "@tailwindcss/vite": "^4.1.16",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "astro": "^5.15.0",
+    "tailwindcss": "^4.1.16",
+    "typescript": "^5.9.3"
+  }
+}
