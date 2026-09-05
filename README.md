@@ -63,6 +63,14 @@ node scripts/create-app.mjs music-player
 | OPFS + IndexedDB | 纯 IndexedDB | 性能优先 + 兼容性兜底 |
 | 不引入 shadcn/ui | — | 自己写小工具型组件更快 |
 
+## 在线预览
+
+GitHub Pages 自动部署：触发 push 到 `main` → Astro build → 部署到
+`https://PAleimiao.github.io/arch-web-v2/`。
+
+首次启用：仓库 **Settings → Pages → Build and deployment → Source** 选
+**GitHub Actions**，之后每次 push 都会自动部署。
+
 ## 路线图
 
 - [x] 骨架（壳、状态机、窗口管理）
