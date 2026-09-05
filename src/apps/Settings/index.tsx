@@ -1,4 +1,5 @@
-import { Monitor, Palette, Shield } from 'lucide-react';
+import { useState } from 'react';
+import { ImageUp, Monitor, Palette, Shield, Trash2 } from 'lucide-react';
 import { useOSStore } from '@/stores/useOSStore';
 import type { AppProps } from '@/shell/types';
 
@@ -12,6 +13,35 @@ const WALLPAPERS = [
 export default function Settings({ context }: AppProps) {
   const settings = useOSStore((s) => s.settings);
   const update = useOSStore((s) => s.updateSettings);
+  const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const isPreset = WALLPAPERS.some((w) => w.url === settings.wallpaper);
+  const isCustom = !isPreset;
+
+  const handleFile = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setUploadMsg({ ok: false, text: '请选择图片文件' });
+      return;
+    }
+    const MAX = 1.5 * 1024 * 1024; // 1.5MB，避免 localStorage 溢出
+    if (file.size > MAX) {
+      setUploadMsg({ ok: false, text: '图片超过 1.5MB，请压缩后再上传' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      try {
+        update({ wallpaper: dataUrl });
+        setUploadMsg({ ok: true, text: `已应用 ${file.name}` });
+      } catch {
+        setUploadMsg({ ok: false, text: '保存失败（存储已满）' });
+      }
+    };
+    reader.onerror = () => setUploadMsg({ ok: false, text: '读取失败' });
+    reader.readAsDataURL(file);
+  };
 
   return (
     <div className="flex h-full bg-arch-bg text-arch-text">
@@ -44,7 +74,10 @@ export default function Settings({ context }: AppProps) {
                 <button
                   key={w.id}
                   type="button"
-                  onClick={() => update({ wallpaper: w.url })}
+                  onClick={() => {
+                    update({ wallpaper: w.url });
+                    setUploadMsg(null);
+                  }}
                   className={`overflow-hidden rounded-lg border-2 transition ${
                     active
                       ? 'border-arch-accent'
@@ -59,7 +92,54 @@ export default function Settings({ context }: AppProps) {
                 </button>
               );
             })}
+
+            <label
+              className={`flex h-16 cursor-pointer items-center justify-center gap-1 rounded-lg border-2 border-dashed transition ${
+                isCustom
+                  ? 'border-arch-accent bg-arch-accent/10 text-arch-accent'
+                  : 'border-arch-border/60 text-arch-muted hover:border-arch-border hover:text-arch-text'
+              }`}
+              title="上传自己的图片（≤1.5MB，建议 JPG/PNG/WebP）"
+            >
+              <ImageUp size={18} />
+              <span className="text-[11px]">上传</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
           </div>
+
+          {isCustom && (
+            <div className="mt-2 flex items-center gap-2 text-[11px]">
+              <div
+                className="h-8 w-14 rounded border border-arch-border bg-cover bg-center"
+                style={{ backgroundImage: `url(${settings.wallpaper})` }}
+              />
+              <span className="flex-1 text-arch-muted">已应用自定义图片</span>
+              <button
+                onClick={() => {
+                  update({ wallpaper: '/wallpapers/grid.svg' });
+                  setUploadMsg({ ok: true, text: '已恢复默认壁纸' });
+                }}
+                className="flex items-center gap-1 rounded border border-arch-border px-2 py-1 text-arch-text hover:bg-white/10"
+              >
+                <Trash2 size={11} /> 清除
+              </button>
+            </div>
+          )}
+
+          {uploadMsg && (
+            <div
+              className={`mt-2 text-[11px] ${
+                uploadMsg.ok ? 'text-emerald-400' : 'text-rose-400'
+              }`}
+            >
+              {uploadMsg.text}
+            </div>
+          )}
         </section>
 
         <section>
