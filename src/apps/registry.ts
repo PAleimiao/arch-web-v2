@@ -156,6 +156,30 @@ export const APPS: AppMeta[] = [
     accent: '#c678dd',
     singleton: true,
   },
+  {
+    id: 'video',
+    name: '视频',
+    icon: Film,
+    category: '影音',
+    description: '本地视频与在线 URL，含 m3u8 / HLS 自动加载',
+    defaultWidth: 880,
+    defaultHeight: 560,
+    minWidth: 560,
+    minHeight: 380,
+    accent: '#be5046',
+  },
+  {
+    id: 'netease',
+    name: '在线音乐',
+    icon: Disc3,
+    category: '影音',
+    description: '搜索 / 播放 网易 / QQ / 酷我等音源',
+    defaultWidth: 880,
+    defaultHeight: 600,
+    minWidth: 720,
+    minHeight: 500,
+    accent: '#e84393',
+  },
 ];
 
 const cache = new Map<string, LazyExoticComponent<ComponentType<AppProps>>>();
