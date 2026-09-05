@@ -68,6 +68,17 @@ export default function FileManager({ context }: AppProps) {
 
   return (
     <div className="flex h-full flex-col bg-arch-panel/60 text-[12px] text-arch-text">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          void importImages(e.target.files);
+          e.target.value = '';
+        }}
+      />
       {/* 工具条 */}
       <div className="flex items-center gap-1 border-b border-arch-border px-2 py-1.5">
         <button
@@ -95,6 +106,15 @@ export default function FileManager({ context }: AppProps) {
         >
           <Plus size={14} />
         </button>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+          className="rounded p-1 transition hover:bg-white/10 disabled:opacity-50"
+          title="导入本地图片到画廊"
+        >
+          <ImagePlus size={14} />
+        </button>
         <span className="ml-2 flex-1 truncate font-mono text-[11px] text-arch-muted">
           {cwd}
         </span>
@@ -109,6 +129,11 @@ export default function FileManager({ context }: AppProps) {
           </button>
         )}
       </div>
+      {importMsg && (
+        <div className="border-b border-arch-border bg-arch-accent/10 px-3 py-1 text-[11px] text-arch-accent">
+          {importMsg}
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* 目录树 */}
