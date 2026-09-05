@@ -1,11 +1,21 @@
 import { useEffect } from 'react';
 import { useOSStore } from '@/stores/useOSStore';
 import { useWindowStore } from '@/stores/useWindowStore';
+import { useMediaStore } from '@/stores/useMediaStore';
 import { getApp } from '@/apps/registry';
 import BootScreen from './components/BootScreen';
 import LockScreen from './components/LockScreen';
 import Desktop from './Desktop';
 import ShutdownScreen from './components/ShutdownScreen';
+
+/** 焦点在可编辑元素里时，不应触发全局快捷键 / 媒体键 */
+function isEditableTarget(t: EventTarget | null): boolean {
+  if (!(t instanceof HTMLElement)) return false;
+  const tag = t.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (t.isContentEditable) return true;
+  return false;
+}
 
 /** 全局快捷键，只在桌面运行时生效 */
 function useGlobalHotkeys(enabled: boolean) {
@@ -15,6 +25,7 @@ function useGlobalHotkeys(enabled: boolean) {
     const onKey = (e: KeyboardEvent) => {
       const os = useOSStore.getState();
       const win = useWindowStore.getState();
+      const media = useMediaStore.getState();
 
       // Ctrl+Alt+T 开终端
       if (e.ctrlKey && e.altKey && (e.key === 't' || e.key === 'T')) {
@@ -48,6 +59,29 @@ function useGlobalHotkeys(enabled: boolean) {
       // Esc 关闭启动器
       if (e.key === 'Escape' && os.launcherOpen) {
         os.toggleLauncher(false);
+        return;
+      }
+
+      /* ---------- 全局媒体键 ---------- */
+      if (isEditableTarget(e.target)) return;
+      if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+        // 空格 切换播放（任意窗口焦点）
+        if (e.code === 'Space') {
+          e.preventDefault();
+          if (media.bridge?.hasTrack()) media.togglePlay();
+          return;
+        }
+        // MediaNext / MediaPrev 物理媒体键
+        if (e.key === 'MediaTrackNext') {
+          e.preventDefault();
+          if (media.bridge?.hasTrack()) media.next();
+          return;
+        }
+        if (e.key === 'MediaTrackPrevious') {
+          e.preventDefault();
+          if (media.bridge?.hasTrack()) media.prev();
+          return;
+        }
       }
     };
 

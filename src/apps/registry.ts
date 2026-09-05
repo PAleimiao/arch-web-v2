@@ -1,9 +1,13 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import {
+  Bomb,
   Calculator,
   FileText,
   FolderTree,
+  Grid3x3,
   Globe,
+  Image as ImageIcon,
+  Music2,
   Settings,
   Terminal,
 } from 'lucide-react';
@@ -25,6 +29,10 @@ const ENTRY: Record<string, string> = {
   calculator: './Calculator/index.tsx',
   settings: './Settings/index.tsx',
   browser: './Browser/index.tsx',
+  music: './MusicPlayer/index.tsx',
+  gallery: './Gallery/index.tsx',
+  minesweeper: './Minesweeper/index.tsx',
+  game2048: './Game2048/index.tsx',
 };
 
 export const CATEGORIES = [
@@ -101,6 +109,52 @@ export const APPS: AppMeta[] = [
     defaultWidth: 960,
     defaultHeight: 640,
     accent: '#61afef',
+  },
+  {
+    id: 'music',
+    name: '音乐',
+    icon: Music2,
+    category: '影音',
+    description: '本地音频播放 · 队列 · 媒体键控制',
+    defaultWidth: 720,
+    defaultHeight: 520,
+    accent: '#e06c75',
+  },
+  {
+    id: 'gallery',
+    name: '画廊',
+    icon: ImageIcon,
+    category: '工具',
+    description: '浏览虚拟磁盘里保存的图片',
+    defaultWidth: 760,
+    defaultHeight: 540,
+    accent: '#56b6c2',
+  },
+  {
+    id: 'minesweeper',
+    name: '扫雷',
+    icon: Bomb,
+    category: '游戏',
+    description: '经典扫雷，支持三种难度',
+    defaultWidth: 380,
+    defaultHeight: 480,
+    minWidth: 340,
+    minHeight: 440,
+    accent: '#d19a66',
+    singleton: true,
+  },
+  {
+    id: 'game2048',
+    name: '2048',
+    icon: Grid3x3,
+    category: '游戏',
+    description: '合并数字，挑战 2048',
+    defaultWidth: 380,
+    defaultHeight: 540,
+    minWidth: 320,
+    minHeight: 460,
+    accent: '#c678dd',
+    singleton: true,
   },
 ];
 
