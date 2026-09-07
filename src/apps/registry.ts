@@ -1,5 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import {
+  Disc3,
+  Film,
   Bomb,
   Calculator,
   FileText,
