@@ -49,7 +49,7 @@ export default function ContextMenu() {
   const run = (key: string) => {
     if (key === 'terminal') {
       const app = getApp('terminal');
-      if (app) win.open({ appId: app.id, title: app.name });
+      if (app) win.open({ appId: app.id, title: app.name, singleton: app.singleton });
     } else if (key === 'refresh') {
       window.location.reload();
     } else if (key === 'lock') {

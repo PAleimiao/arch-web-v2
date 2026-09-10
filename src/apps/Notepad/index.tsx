@@ -16,9 +16,9 @@ export default function Notepad({ context }: AppProps) {
     let cancelled = false;
     (async () => {
       try {
-        const node = await vfs.read(path);
+        const text = await vfs.readFile(path);
         if (!cancelled) {
-          setContent(node?.content ?? '');
+          setContent(text ?? '');
           setDirty(false);
         }
       } catch {
@@ -42,7 +42,7 @@ export default function Notepad({ context }: AppProps) {
 
   const save = async () => {
     try {
-      await vfs.write(path, content);
+      await vfs.writeFile(path, content);
       setDirty(false);
       flash('已保存');
     } catch (err) {
@@ -55,8 +55,8 @@ export default function Notepad({ context }: AppProps) {
     if (!name) return;
     const abs = name.startsWith('/') ? name : `/home/arch/notes/${name}`;
     try {
-      await vfs.mkdir('/home/arch/notes');
-      await vfs.write(abs, '');
+      // VFS 是扁平键值存储，目录由路径推导，无需 mkdir
+      await vfs.writeFile(abs, '');
       setPath(abs);
       setContent('');
       setDirty(false);

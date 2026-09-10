@@ -1,6 +1,6 @@
 import { useWindowStore } from '@/stores/useWindowStore';
 import { useOSStore } from '@/stores/useOSStore';
-import { APPS, getApp } from '@/apps/registry';
+import { getApp } from '@/apps/registry';
 import { cn } from '@/lib/cn';
 
 const PINNED_IDS = ['terminal', 'files', 'browser', 'music', 'settings'] as const;
@@ -31,15 +31,16 @@ export default function Dock() {
       return acc;
     }, []);
 
-  const orderedItems: { appId: string; pinned: boolean }[] = [
-    ...PINNED_IDS.filter((id) => getApp(id)).map((id) => ({ appId: id, pinned: true })),
-    ...runningExtras.map((e) => ({ appId: e.id, pinned: false })),
+  // 常驻应用 + 额外运行中的应用；pinned 标记渲染时用不到，不留死字段
+  const orderedItems: string[] = [
+    ...PINNED_IDS.filter((id) => getApp(id)),
+    ...runningExtras.map((e) => e.id),
   ];
 
   const click = (appId: string, name: string) => {
     const all = windows.filter((w) => w.appId === appId);
     if (all.length === 0) {
-      open({ appId, title: name });
+      open({ appId, title: name, singleton: getApp(appId)?.singleton });
       return;
     }
     const visible = all.find((w) => !w.minimized);
@@ -67,7 +68,7 @@ export default function Dock() {
   return (
     <div className="pointer-events-none absolute bottom-2 left-1/2 z-[7000] -translate-x-1/2">
       <div className="pointer-events-auto flex items-end gap-1.5 rounded-2xl border border-white/10 bg-black/45 px-2 py-1.5 shadow-2xl backdrop-blur-md">
-        {orderedItems.map(({ appId, pinned }) => {
+        {orderedItems.map((appId) => {
           const app = getApp(appId);
           if (!app) return null;
           const Icon = app.icon;

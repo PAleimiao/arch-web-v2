@@ -13,7 +13,7 @@ export default function LockScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     unlock();
   };

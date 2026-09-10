@@ -31,7 +31,7 @@ function useGlobalHotkeys(enabled: boolean) {
       if (e.ctrlKey && e.altKey && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         const app = getApp('terminal');
-        if (app) win.open({ appId: app.id, title: app.name });
+        if (app) win.open({ appId: app.id, title: app.name, singleton: app.singleton });
         return;
       }
 
