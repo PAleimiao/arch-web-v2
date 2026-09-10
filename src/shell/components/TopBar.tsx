@@ -7,11 +7,12 @@ import {
   Power,
   RefreshCw,
   Lock,
-  Volume2,
   Wifi,
 } from 'lucide-react';
 import { useOSStore } from '@/stores/useOSStore';
 import { cn } from '@/lib/cn';
+import { NotifyBell } from './NotificationCenter';
+import QuickSettings from './QuickSettings';
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -130,6 +131,7 @@ export default function TopBar() {
   const lock = useOSStore((s) => s.lock);
   const shutdown = useOSStore((s) => s.shutdown);
   const restart = useOSStore((s) => s.restart);
+  const clockSeconds = useOSStore((s) => s.settings.clockSeconds);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
@@ -175,7 +177,15 @@ export default function TopBar() {
             calOpen ? 'bg-white/15' : 'hover:bg-white/10',
           )}
         >
-          <span>{now.toLocaleTimeString('zh-CN', { hour12: false })}</span>
+          <span>
+            {clockSeconds
+              ? now.toLocaleTimeString('zh-CN', { hour12: false })
+              : now.toLocaleTimeString('zh-CN', {
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+          </span>
           <span className="text-arch-muted">
             {now.toLocaleDateString('zh-CN', {
               month: '2-digit',
@@ -187,9 +197,10 @@ export default function TopBar() {
         {calOpen && <CalendarPopover now={now} onClose={() => setCalOpen(false)} />}
       </div>
 
-      <div className="relative flex items-center gap-3 pr-1" ref={menuRef}>
+      <div className="relative flex items-center gap-2 pr-1" ref={menuRef}>
         <Wifi size={12} className="text-arch-muted" />
-        <Volume2 size={12} className="text-arch-muted" />
+        <NotifyBell />
+        <QuickSettings />
         <button
           type="button"
           onClick={() => setMenuOpen((v) => !v)}

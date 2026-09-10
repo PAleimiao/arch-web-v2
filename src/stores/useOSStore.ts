@@ -9,6 +9,18 @@ export interface DesktopSettings {
   dockSize: number;
   /** 无操作自动锁屏的分钟数，0 表示不自动锁 */
   autoLockMinutes: number;
+  /** 主强调色，写进 --color-arch-accent */
+  accentColor: string;
+  /** 关闭后禁用窗口/应用入场动画 */
+  animations: boolean;
+  /** 顶栏时钟是否显示秒 */
+  clockSeconds: boolean;
+  /** 桌面是否平铺全部应用图标（关掉只显示前 6 个） */
+  desktopAllApps: boolean;
+  /** 桌面图标尺寸 */
+  desktopIconSize: number;
+  /** 窗口拖到屏幕边缘时自动贴边 / 最大化 */
+  edgeSnap: boolean;
 }
 
 interface OSState {
@@ -18,6 +30,8 @@ interface OSState {
   settings: DesktopSettings;
   /** 应用启动器是否展开 */
   launcherOpen: boolean;
+  /** 命令面板是否展开 */
+  paletteOpen: boolean;
 
   bootComplete: () => void;
   unlock: () => void;
@@ -25,6 +39,7 @@ interface OSState {
   shutdown: () => void;
   restart: () => void;
   toggleLauncher: (open?: boolean) => void;
+  togglePalette: (open?: boolean) => void;
   /** 关机/重启动画播完后调用 */
   powerOffComplete: () => void;
   restartComplete: () => void;
@@ -41,6 +56,12 @@ function loadSettings(): DesktopSettings {
     darkMode: true,
     dockSize: 56,
     autoLockMinutes: 5,
+    accentColor: '#1793d1',
+    animations: true,
+    clockSeconds: false,
+    desktopAllApps: false,
+    desktopIconSize: 44,
+    edgeSnap: true,
   };
   if (typeof localStorage === 'undefined') return fallback;
   try {
@@ -65,14 +86,18 @@ export const useOSStore = create<OSState>((set, get) => ({
   bootKey: 0,
   settings: loadSettings(),
   launcherOpen: false,
+  paletteOpen: false,
 
   bootComplete: () => set({ power: 'locked' }),
   unlock: () => set({ power: 'running' }),
-  lock: () => set({ power: 'locked', launcherOpen: false }),
-  shutdown: () => set({ power: 'shutting-down', launcherOpen: false }),
-  restart: () => set({ power: 'restarting', launcherOpen: false }),
+  lock: () => set({ power: 'locked', launcherOpen: false, paletteOpen: false }),
+  shutdown: () =>
+    set({ power: 'shutting-down', launcherOpen: false, paletteOpen: false }),
+  restart: () =>
+    set({ power: 'restarting', launcherOpen: false, paletteOpen: false }),
   toggleLauncher: (open) =>
     set((s) => ({ launcherOpen: open ?? !s.launcherOpen })),
+  togglePalette: (open) => set((s) => ({ paletteOpen: open ?? !s.paletteOpen })),
 
   powerOffComplete: () => set({ power: 'off' }),
   restartComplete: () =>

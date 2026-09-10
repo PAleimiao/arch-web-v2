@@ -2,18 +2,22 @@ import { useState } from 'react';
 import { CATEGORIES, APPS } from '@/apps/registry';
 import { useWindowStore } from '@/stores/useWindowStore';
 import { useOSStore } from '@/stores/useOSStore';
+import { usePackageStore } from '@/stores/usePackageStore';
 import { cn } from '@/lib/cn';
 
 export default function AppLauncher() {
   const launcherOpen = useOSStore((s) => s.launcherOpen);
   const toggleLauncher = useOSStore((s) => s.toggleLauncher);
   const open = useWindowStore((s) => s.open);
+  const disabled = usePackageStore((s) => s.disabled);
   const [category, setCategory] = useState<string>('全部');
   const [query, setQuery] = useState('');
 
   if (!launcherOpen) return null;
 
   const apps = APPS.filter((a) => {
+    // 被 pacman 卸载掉的应用不在启动器里出现
+    if (disabled.includes(a.id)) return false;
     const okCat = category === '全部' || a.category === category;
     const okQuery =
       !query ||
