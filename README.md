@@ -8,6 +8,22 @@
 
 ---
 
+## 关于 v2 的稳定性（重要）
+
+**v2 是整仓重写，不是 v1 的增量迭代** —— 相当于把地基换了一遍。
+
+所以：**缺陷密度大概率明显高于原版**。而且很多不是「漏写」，是重构过程中新长出来的交叉问题 —— 应用注册、状态管理、资源回收、异步竞态这一类。已知的那批在 `c501eed` 里修掉了，但没人走过的路径还很多。
+
+**发现异常请直接传上来，别攒着。** 不用写得工整，能复现就行：
+
+- **白屏 / 控制台报错** → 贴控制台报错原文
+- **图标裂图 / 资源 404** → 说清是本地还是线上（线上是子路径 `/arch-web-v2/`）
+- **某个应用行为不对** → 写清点的什么、期望什么、实际什么
+
+开 issue 或直接提 PR 都行。提 PR 前麻烦跑一遍 `npm run check && npm run build`。
+
+---
+
 ## 这是什么
 
 一个完全跑在浏览器里的桌面环境：开机动画 → 锁屏 → 桌面 → 应用 → 关机/重启。
@@ -27,9 +43,15 @@
 - **终端** — 模拟 Shell：`ls / cd / cat / echo / mkdir / rm / open / neofetch`
 - **文件管理器** — 浏览与编辑虚拟文件系统
 - **记事本** — 纯文本编辑，路径可改
-- **计算器** — 四则运算 + 括号 + 键盘支持
+- **计算器** — 四则运算 + 括号 + 键盘支持（自写解析器求值，不走 `eval` / `new Function`）
 - **设置** — 壁纸、窗口不透明度、自动锁屏
 - **浏览器** — 沙箱 iframe 内嵌浏览（受 `X-Frame-Options` 限制）
+- **画廊** — 浏览虚拟磁盘里的图片，支持批量导入
+- **音乐** — 本地音频播放，队列 / 循环模式
+- **视频** — 本地文件或在线 URL，m3u8 自动挂 hls.js
+- **在线音乐** — Meting API 搜索 / 播放
+- **扫雷** — 三种难度，首点安全
+- **2048**
 
 ## 快速开始
 
@@ -74,7 +96,7 @@ GitHub Pages 自动部署：触发 push 到 `main` → Astro build → 部署到
 ## 路线图
 
 - [x] 骨架（壳、状态机、窗口管理）
-- [x] 6 个核心应用
+- [x] 12 个应用（终端 / 文件 / 记事本 / 计算器 / 设置 / 浏览器 / 画廊 / 音乐 / 视频 / 在线音乐 / 扫雷 / 2048）
 - [x] 虚拟文件系统
 - [ ] 多窗口 / 拖入 Dock
 - [ ] 主题切换（亮色 / 暗色）
@@ -94,8 +116,10 @@ arch-web-v2/
 │   │   ├── window/          # WindowFrame + WindowManager + drag hook
 │   │   ├── App.tsx          # 根组件 + 全局快捷键
 │   │   └── Desktop.tsx      # 桌面容器
-│   ├── services/filesystem/ # OPFS / IndexedDB
-│   ├── stores/              # Zustand: useOSStore + useWindowStore
+│   ├── services/
+│   │   ├── filesystem/      # OPFS → IndexedDB 降级
+│   │   └── mediaStore.ts    # Blob 存储（画廊图片 / 音频）
+│   ├── stores/              # Zustand: useOSStore / useWindowStore / useMediaStore
 │   ├── styles/global.css    # Tailwind + 主题变量
 │   └── lib/cn.ts
 ├── public/wallpapers/       # 内置壁纸 SVG

@@ -1,0 +1,67 @@
+name: 缺陷反馈
+description: v2 处于重写阶段，缺陷密度高于原版，发现问题请直接传上来
+title: '[Bug] '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        v2 是整仓重写，很多问题是重构过程中新长出来的（应用注册、状态管理、资源回收、异步竞态）。
+
+        **不用写得工整，能复现就行。** 信息不全也没关系，先传上来比攒着强。
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 什么现象
+      description: 白屏 / 控制台报错 / 某个应用行为不对 / 资源 404
+      placeholder: 打开 XX 应用后点了 YY，出现 ZZ
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: 在哪复现的
+      options:
+        - 线上 GitHub Pages（PAleimiao.github.io/arch-web-v2/）
+        - 本地 npm run dev
+        - 本地 npm run preview
+        - 不确定
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: 控制台 / 终端报错
+      description: 有就原样贴，没有跳过
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: env
+    attributes:
+      label: 浏览器 / 系统
+      placeholder: Edge 140 / Windows 11
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: extra
+    attributes:
+      label: 补充
+      options:
+        - label: 我愿意顺手修（发 PR 前会跑一遍 npm run check && npm run build）
+          required: false
