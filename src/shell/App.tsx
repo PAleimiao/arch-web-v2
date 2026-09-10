@@ -3,6 +3,7 @@ import { useOSStore } from '@/stores/useOSStore';
 import { useWindowStore } from '@/stores/useWindowStore';
 import { useMediaStore } from '@/stores/useMediaStore';
 import { getApp } from '@/apps/registry';
+import { shade } from '@/lib/color';
 import BootScreen from './components/BootScreen';
 import LockScreen from './components/LockScreen';
 import Desktop from './Desktop';
@@ -35,10 +36,27 @@ function useGlobalHotkeys(enabled: boolean) {
         return;
       }
 
+      // Ctrl+Shift+P / Ctrl+K 呼出命令面板
+      if (
+        (e.ctrlKey && e.shiftKey && (e.key === 'p' || e.key === 'P')) ||
+        (e.ctrlKey && !e.shiftKey && (e.key === 'k' || e.key === 'K'))
+      ) {
+        e.preventDefault();
+        os.togglePalette();
+        return;
+      }
+
       // Ctrl+L 锁屏
       if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
         e.preventDefault();
         os.lock();
+        return;
+      }
+
+      // Ctrl+Shift+W 关闭全部窗口
+      if (e.ctrlKey && e.shiftKey && (e.key === 'w' || e.key === 'W')) {
+        e.preventDefault();
+        win.windows.forEach((w) => win.close(w.id));
         return;
       }
 
@@ -56,10 +74,16 @@ function useGlobalHotkeys(enabled: boolean) {
         return;
       }
 
-      // Esc 关闭启动器
-      if (e.key === 'Escape' && os.launcherOpen) {
-        os.toggleLauncher(false);
-        return;
+      // Esc 关闭启动器 / 命令面板
+      if (e.key === 'Escape') {
+        if (os.paletteOpen) {
+          os.togglePalette(false);
+          return;
+        }
+        if (os.launcherOpen) {
+          os.toggleLauncher(false);
+          return;
+        }
       }
 
       /* ---------- 全局媒体键 ---------- */
@@ -114,6 +138,21 @@ function useAutoLock(enabled: boolean) {
   }, [enabled, minutes]);
 }
 
+/** 把设置里的外观项写进 :root，供所有 CSS 变量消费 */
+function useApplyTheme() {
+  const accent = useOSStore((s) => s.settings.accentColor);
+  const animations = useOSStore((s) => s.settings.animations);
+  const dark = useOSStore((s) => s.settings.darkMode);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--color-arch-accent', accent);
+    root.style.setProperty('--color-arch-accent-dim', shade(accent, -0.3));
+    root.dataset.motion = animations ? 'on' : 'off';
+    root.dataset.theme = dark ? 'dark' : 'light';
+  }, [accent, animations, dark]);
+}
+
 export default function App() {
   const power = useOSStore((s) => s.power);
   const bootKey = useOSStore((s) => s.bootKey);
@@ -121,6 +160,7 @@ export default function App() {
 
   useGlobalHotkeys(running);
   useAutoLock(running);
+  useApplyTheme();
 
   if (power === 'booting') return <BootScreen key={bootKey} />;
   if (power === 'locked') return <LockScreen />;

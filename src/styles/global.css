@@ -132,3 +132,94 @@ body {
 .animate-spin-slow {
   animation: spin-slow 8s linear infinite;
 }
+
+/* ------------------------------ 亮色主题 ------------------------------ */
+/* 变量在 :root 上由 @theme 生成，这里只在切到亮色时覆盖 */
+[data-theme='light'] {
+  --color-arch-bg: #eef1f6;
+  --color-arch-panel: #ffffff;
+  --color-arch-border: #d3d9e4;
+  --color-arch-text: #1c212b;
+  --color-arch-muted: #667085;
+}
+
+[data-theme='light'] body {
+  background: var(--color-arch-bg);
+  color: var(--color-arch-text);
+}
+
+[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: #c2cad8;
+}
+[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background: #a9b4c6;
+}
+
+[data-theme='light'] .desktop-icon-label {
+  color: #10141c;
+  text-shadow: 0 1px 2px rgb(255 255 255 / 85%);
+}
+
+/* ---------------------------- 关闭动画模式 ---------------------------- */
+[data-motion='off'] *,
+[data-motion='off'] *::before,
+[data-motion='off'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* ------------------------------ 新组件动画 ------------------------------ */
+
+/* 通知滑入 */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+.animate-toast-in {
+  animation: toast-in 0.18s ease-out;
+}
+
+/* 命令面板 / 弹层淡入 */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-pop-in {
+  animation: pop-in 0.13s ease-out;
+}
+
+/* 未读小红点脉冲 */
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.25);
+  }
+}
+.animate-dot-pulse {
+  animation: dot-pulse 1.6s ease-in-out infinite;
+}
+
+/* 通用虚线拖拽提示 */
+.drop-outline {
+  outline: 2px dashed color-mix(in srgb, var(--color-arch-accent) 70%, transparent);
+  outline-offset: -4px;
+}
+

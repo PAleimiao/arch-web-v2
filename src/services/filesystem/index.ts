@@ -111,6 +111,37 @@ class VirtualFileSystem {
     return fs.read(normalize(path));
   }
 
+  /**
+   * 一次性列出全部文件（含内容与大小），供命令面板搜索、存储分析、导出备份使用。
+   * 数据量在浏览器场景里很小，直接全量读回来最省事。
+   */
+  async listAll(): Promise<FsNode[]> {
+    const fs = await this.init();
+    const keys = await fs.keys();
+    const out: FsNode[] = [];
+    for (const key of keys) {
+      const p = normalize(key);
+      const content = (await fs.read(p)) ?? '';
+      out.push({
+        path: p,
+        name: baseName(p),
+        type: 'file',
+        size: content.length,
+        updatedAt: Date.now(),
+      });
+    }
+    return out.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /** 统计总占用（字符数近似字节数）与文件数 */
+  async usage(): Promise<{ files: number; bytes: number }> {
+    const all = await this.listAll();
+    return {
+      files: all.length,
+      bytes: all.reduce((sum, n) => sum + n.size, 0),
+    };
+  }
+
   async writeFile(path: string, content: string): Promise<void> {
     const fs = await this.init();
     await fs.write(normalize(path), content);

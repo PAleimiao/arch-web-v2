@@ -39,8 +39,9 @@ export interface BlobRecord {
   addedAt?: number;
 }
 
-function tx(mode: IDBTransactionMode) {
-  return openDb().then((db) => db.transaction(STORE, mode).objectStore(STORE));
+async function tx(mode: IDBTransactionMode) {
+  const db = await openDb();
+  return db.transaction(STORE, mode).objectStore(STORE);
 }
 
 export async function putBlob(record: BlobRecord): Promise<void> {
