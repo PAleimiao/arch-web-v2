@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, RotateCcw, Trophy } from 'lucide-react';
-import type { AppComponentProps } from '../../shell/types';
+import type { AppProps } from '../../shell/types';
 
 type Board = (number | null)[][];
 
@@ -128,7 +128,7 @@ const fontFor = (v: number | null): string => {
   return 'text-xl';
 };
 
-export default function Game2048({ windowId }: AppComponentProps) {
+export default function Game2048({ context }: AppProps) {
   const [board, setBoard] = useState<Board>(() => {
     let b = emptyBoard();
     b = spawn(b);
@@ -229,7 +229,7 @@ export default function Game2048({ windowId }: AppComponentProps) {
   };
 
   return (
-    <div className="flex h-full select-none flex-col bg-zinc-950 p-4 text-zinc-200" data-window-id={windowId}>
+    <div className="flex h-full select-none flex-col bg-zinc-950 p-4 text-zinc-200" data-window-id={context.windowId}>
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500">
           <Trophy size={14} className="text-amber-400" />

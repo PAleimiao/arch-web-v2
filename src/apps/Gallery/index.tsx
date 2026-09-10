@@ -4,7 +4,6 @@ import type { AppProps } from '@/shell/types';
 import {
   countBlobs,
   deleteBlob,
-  getBlob,
   listBlobs,
   putBlobs,
   type BlobRecord,
@@ -142,6 +141,9 @@ export default function Gallery(_: AppProps) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  // 卸载清理要用「最新」的 photos，直接闭包捕获会拿到首帧的空数组
+  const photosRef = useRef<Photo[]>([]);
+  photosRef.current = photos;
 
   // 加载期：预置 + 列出 + 生成 ObjectURL
   useEffect(() => {
@@ -172,10 +174,8 @@ export default function Gallery(_: AppProps) {
   // 卸载：revoke 所有 URL
   useEffect(() => {
     return () => {
-      photos.forEach((p) => URL.revokeObjectURL(p.url));
+      photosRef.current.forEach((p) => URL.revokeObjectURL(p.url));
     };
-    // 仅卸载时清理
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const refresh = async () => {

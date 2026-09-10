@@ -8,6 +8,8 @@ import type { AppProps } from '@/shell/types';
  * - 显示当前表达式与最近一次结果
  * - 键盘：数字键、+ - * /、Enter、Backspace、Esc
  */
+const OPS = '+-*/';
+
 export default function Calculator(_: AppProps) {
   const [display, setDisplay] = useState('0');
   const [expr, setExpr] = useState('');
@@ -21,38 +23,54 @@ export default function Calculator(_: AppProps) {
       return;
     }
     if (key === '←') {
-      setDisplay((d) => (d.length > 1 ? d.slice(0, -1) : '0'));
+      // 刚算完就退格 = 放弃结果重新开始，否则 display / expr 同步回退
+      if (reset) {
+        setDisplay('0');
+        setExpr('');
+        setReset(false);
+        return;
+      }
+      const next = display.length > 1 ? display.slice(0, -1) : '';
+      setDisplay(next || '0');
+      setExpr(next);
       return;
     }
     if (key === '=') {
+      const src = reset ? display : expr || display;
       try {
-        // eslint-disable-next-line no-new-func
-        const safe = expr.replace(/[^0-9+\-*/(). ]/g, '');
-        // eslint-disable-next-line no-new-func
-        const v = Function(`"use strict"; return (${safe || display})`)();
-        const result = String(round(v));
-        setExpr(`${expr}=${result}`);
-        setDisplay(result);
-        setReset(true);
+        const v = round(evalExpr(src));
+        if (!Number.isFinite(v)) throw new Error('结果无效');
+        setExpr(`${src}=${String(v)}`);
+        setDisplay(String(v));
       } catch {
         setDisplay('Error');
-        setReset(true);
+        setExpr('');
       }
+      setReset(true);
       return;
     }
-    if (/[+\-*/]/.test(key)) {
-      setExpr((reset ? display : display) + key);
-      setDisplay((reset ? '0' : display) + key);
+    if (OPS.includes(key)) {
+      // 连续按运算符时替换掉末尾那个，避免拼出 2++3 这种畸形表达式
+      const base = reset
+        ? display
+        : /[+\-*/]$/.test(display)
+          ? display.slice(0, -1)
+          : display;
+      const next = base + key;
+      setExpr(next);
+      setDisplay(next);
       setReset(false);
       return;
     }
-    if (display === '0' || reset) {
+    // 数字 / 小数点 / 括号
+    if (reset || display === '0') {
       setDisplay(key);
+      setExpr(key);
       setReset(false);
-    } else {
-      setDisplay(display + key);
+      return;
     }
-    setExpr((e) => e + key);
+    setDisplay(display + key);
+    setExpr(expr + key);
   };
 
   const keys: Array<[string, string?]> = [
@@ -137,4 +155,99 @@ function round(n: number): number {
   // 保留 10 位小数后再去掉末尾零
   const v = Math.round(n * 1e10) / 1e10;
   return v;
+}
+
+/* ---------------------------------------------------------------------------
+ * 手写四则运算求值（递归下降）。
+ * 之前用 new Function 执行拼接出来的字符串，即便有正则过滤也是把用户输入
+ * 当代码跑；这里直接解析，彻底没有代码执行面。
+ * ------------------------------------------------------------------------- */
+
+type Tok = { t: 'num'; v: number } | { t: 'op'; v: string };
+
+function tokenize(src: string): Tok[] {
+  const out: Tok[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === ' ' || c === '\t') {
+      i++;
+      continue;
+    }
+    if ((c >= '0' && c <= '9') || c === '.') {
+      let j = i;
+      while (j < src.length && /[0-9.]/.test(src[j])) j++;
+      const n = Number(src.slice(i, j));
+      if (!Number.isFinite(n)) throw new Error(`非法数字 ${src.slice(i, j)}`);
+      out.push({ t: 'num', v: n });
+      i = j;
+      continue;
+    }
+    if ('+-*/()'.includes(c)) {
+      out.push({ t: 'op', v: c });
+      i++;
+      continue;
+    }
+    throw new Error(`非法字符 ${c}`);
+  }
+  return out;
+}
+
+function evalExpr(src: string): number {
+  const toks = tokenize(src);
+  let pos = 0;
+  const peek = (): Tok | undefined => toks[pos];
+
+  const parseExpr = (): number => {
+    let left = parseTerm();
+    for (;;) {
+      const tk = peek();
+      if (!tk || tk.t !== 'op' || (tk.v !== '+' && tk.v !== '-')) break;
+      pos++;
+      const right = parseTerm();
+      left = tk.v === '+' ? left + right : left - right;
+    }
+    return left;
+  };
+
+  const parseTerm = (): number => {
+    let left = parseFactor();
+    for (;;) {
+      const tk = peek();
+      if (!tk || tk.t !== 'op' || (tk.v !== '*' && tk.v !== '/')) break;
+      pos++;
+      const right = parseFactor();
+      if (tk.v === '/' && right === 0) throw new Error('除零');
+      left = tk.v === '*' ? left * right : left / right;
+    }
+    return left;
+  };
+
+  const parseFactor = (): number => {
+    const tk = peek();
+    if (!tk) throw new Error('表达式不完整');
+    if (tk.t === 'num') {
+      pos++;
+      return tk.v;
+    }
+    if (tk.v === '-' || tk.v === '+') {
+      pos++;
+      const v = parseFactor();
+      return tk.v === '-' ? -v : v;
+    }
+    if (tk.v === '(') {
+      pos++;
+      const v = parseExpr();
+      const close = peek();
+      if (!close || close.t !== 'op' || close.v !== ')') throw new Error('括号不匹配');
+      pos++;
+      return v;
+    }
+    throw new Error('语法错误');
+  };
+
+  if (toks.length === 0) throw new Error('空表达式');
+  const value = parseExpr();
+  if (pos < toks.length) throw new Error('表达式有多余内容');
+  return value;
 }

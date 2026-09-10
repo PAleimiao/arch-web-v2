@@ -37,6 +37,7 @@ export default function Desktop() {
                   title: app.name,
                   width: app.defaultWidth,
                   height: app.defaultHeight,
+                  singleton: app.singleton,
                 })
               }
               className="group flex flex-col items-center gap-1 rounded-lg p-2 transition hover:bg-white/10"

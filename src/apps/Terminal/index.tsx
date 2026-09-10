@@ -112,7 +112,14 @@ export default function Terminal({ context }: AppProps) {
           const gt = args.findIndex((a) => a.startsWith('>'));
           if (gt >= 0) {
             const text = args.slice(0, gt).join(' ');
-            const target = vfs.resolve(cwd, args[gt].slice(1));
+            // 兼容 `> file` 与 `>file` 两种写法；都没有就报错，
+            // 不要拿空串去 resolve（会写成一个以目录为 key 的隐形文件）
+            const fileName = args[gt].slice(1) || args[gt + 1] || '';
+            if (!fileName) {
+              print('echo: 缺少重定向目标文件', 'error');
+              break;
+            }
+            const target = vfs.resolve(cwd, fileName);
             await vfs.writeFile(target, text);
             print(`已写入 ${target}`);
           } else {
@@ -165,6 +172,7 @@ export default function Terminal({ context }: AppProps) {
             title: app.name,
             width: app.defaultWidth,
             height: app.defaultHeight,
+            singleton: app.singleton,
           });
           print(`正在打开 ${app.name}`);
           break;

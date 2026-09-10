@@ -22,25 +22,51 @@ import { cn } from '@/lib/cn';
 
 const HLS_CDN = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
 
+/**
+ * hls.js 走 CDN 动态注入，不在 npm 依赖里，这里声明最小可用形状：
+ * 只包含本项目实际调用到的成员，避免为一个类型去装整个包。
+ */
+interface HlsInstance {
+  loadSource(url: string): void;
+  attachMedia(video: HTMLVideoElement): void;
+  on(event: string, cb: (event: unknown, data: unknown) => void): void;
+  destroy(): void;
+}
+
+interface HlsConstructor {
+  isSupported(): boolean;
+  new (config?: Record<string, unknown>): HlsInstance;
+  Events: { ERROR: string };
+}
+
 declare global {
   interface Window {
-    Hls?: typeof import('hls.js').default;
+    Hls?: HlsConstructor;
   }
 }
+
+/** 同一个脚本只注入一次，并发调用复用同一个 Promise */
+let hlsPromise: Promise<boolean> | null = null;
 
 async function ensureHlsJs(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   if (window.Hls) return true;
   // 原生支持（HLS 直接给 video）
   if (videoCanPlay('application/vnd.apple.mpegurl')) return false;
-  return new Promise((resolve) => {
+  if (hlsPromise) return hlsPromise;
+  hlsPromise = new Promise((resolve) => {
     const s = document.createElement('script');
     s.src = HLS_CDN;
     s.async = true;
     s.onload = () => resolve(!!window.Hls);
-    s.onerror = () => resolve(false);
+    s.onerror = () => {
+      // 失败允许下次重试，否则会一直卡在 false
+      hlsPromise = null;
+      resolve(false);
+    };
     document.head.appendChild(s);
   });
+  return hlsPromise;
 }
 
 function videoCanPlay(mime: string): boolean {
@@ -71,6 +97,9 @@ export default function VideoPlayer(_: AppProps) {
   const seekBarRef = useRef<HTMLDivElement>(null);
 
   const [items, setItems] = useState<VideoItem[]>([]);
+  // 卸载时要 revoke 的是「最新」列表，闭包捕获会拿到首帧的空数组
+  const itemsRef = useRef<VideoItem[]>([]);
+  itemsRef.current = items;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -246,6 +275,15 @@ export default function VideoPlayer(_: AppProps) {
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
+  /* ------------------------- 卸载：回收 blob URL ------------------------- */
+  useEffect(() => {
+    return () => {
+      itemsRef.current.forEach((it) => {
+        if (it.url.startsWith('blob:')) URL.revokeObjectURL(it.url);
+      });
+    };
+  }, []);
+
   /* --------------------------- 键盘快捷键 --------------------------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -283,16 +321,18 @@ export default function VideoPlayer(_: AppProps) {
   };
 
   const removeItem = (id: string) => {
-    setItems((prev) => {
-      const target = prev.find((x) => x.id === id);
-      if (target && target.url.startsWith('blob:')) URL.revokeObjectURL(target.url);
-      const next = prev.filter((x) => x.id !== id);
-      if (activeId === id) {
-        setActiveId(next[0]?.id ?? null);
-        setPlaying(false);
-      }
-      return next;
-    });
+    // 副作用移出 setItems 更新器（StrictMode 下更新器会执行两次）
+    const target = items.find((x) => x.id === id);
+    if (!target) return;
+    if (target.url.startsWith('blob:')) URL.revokeObjectURL(target.url);
+    const next = items.filter((x) => x.id !== id);
+    setItems(next);
+    if (activeId === id) {
+      setActiveId(next[0]?.id ?? null);
+      setPlaying(false);
+      setPosition(0);
+      setDuration(0);
+    }
   };
 
   const clearAll = () => {
@@ -484,19 +524,17 @@ export default function VideoPlayer(_: AppProps) {
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
                 onEnded={() => {
-                  // 自动播下一个
-                  setItems((prev) => {
-                    const idx = prev.findIndex((x) => x.id === activeId);
-                    if (idx < 0) return prev;
-                    const next = prev[idx + 1];
-                    if (next) {
-                      setActiveId(next.id);
-                      setPlaying(true);
-                    } else {
-                      setPlaying(false);
-                    }
-                    return prev;
-                  });
+                  // 自动播下一个；列表末尾则停下来并把播放头归零
+                  const idx = items.findIndex((x) => x.id === activeId);
+                  const next = idx >= 0 ? items[idx + 1] : undefined;
+                  if (next) {
+                    setActiveId(next.id);
+                    setPlaying(true);
+                    return;
+                  }
+                  if (videoRef.current) videoRef.current.currentTime = 0;
+                  setPlaying(false);
+                  setPosition(0);
                 }}
                 onError={() =>
                   setError('视频加载失败。可能是不支持的格式、CORS / Referer 限制，或源已失效。')

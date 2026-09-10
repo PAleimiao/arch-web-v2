@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Ban,
   Music,
   Pause,
   Play,
@@ -45,7 +46,13 @@ type LoopMode = 'off' | 'all' | 'one';
 
 const META_PATH = '/home/arch/Music/playlist.json';
 const LOOP_NEXT: Record<LoopMode, LoopMode> = { off: 'all', all: 'one', one: 'off' };
-const LOOP_ICON: Record<LoopMode, typeof Repeat> = { off: Repeat, all: Repeat, one: Repeat1 };
+// off 用带斜线的 Ban 表示「不循环」，之前也画 Repeat 会让人以为循环开着
+const LOOP_ICON: Record<LoopMode, typeof Repeat> = { off: Ban, all: Repeat, one: Repeat1 };
+const LOOP_LABEL: Record<LoopMode, string> = {
+  off: '循环关闭',
+  all: '列表循环',
+  one: '单曲循环',
+};
 
 const fmtTime = (sec: number) => {
   if (!isFinite(sec) || sec < 0) return '0:00';
@@ -85,11 +92,12 @@ export default function MusicPlayer(_: AppProps) {
 
   /* --------------------------- 启动期：尝试恢复队列 --------------------------- */
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const { vfs } = await import('@/services/filesystem');
         const raw = await vfs.readFile(META_PATH);
-        if (raw) {
+        if (raw && !cancelled) {
           const meta = JSON.parse(raw) as PlaylistMeta;
           // 重建占位 tracks：URL 留空，等待用户重新加载同名文件
           setTracks(
@@ -106,9 +114,12 @@ export default function MusicPlayer(_: AppProps) {
       } catch {
         // 忽略：首次启动没保存过
       } finally {
-        setLoadingMeta(false);
+        if (!cancelled) setLoadingMeta(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /* ------------ 桥接：让全局（媒体键 / Dock mini）能调用本播放器 ------------ */
@@ -271,6 +282,9 @@ export default function MusicPlayer(_: AppProps) {
       if (loop === 'all') {
         playAt(0);
       } else {
+        // 必须把 audio 也归零，否则再点播放会从结尾续上、立刻又触发 ended
+        const a = audioRef.current;
+        if (a) a.currentTime = 0;
         setPlaying(false);
         setPosition(0);
       }
@@ -329,32 +343,38 @@ export default function MusicPlayer(_: AppProps) {
     }
     if (additions.length === 0) return;
     // 如果有"占位项"（URL 为空、文件名匹配）→ 替换它
-    setTracks((prev) => {
-      const merged = [...prev];
-      for (const a of additions) {
-        const matchIdx = merged.findIndex(
-          (t) => !t.url && t.fileName === a.fileName && t.size === a.size,
-        );
-        if (matchIdx >= 0) merged[matchIdx] = a;
-        else merged.push(a);
-      }
-      persistMeta(merged);
-      return merged;
-    });
+    const merged = [...tracks];
+    for (const a of additions) {
+      const matchIdx = merged.findIndex(
+        (t) => !t.url && t.fileName === a.fileName && t.size === a.size,
+      );
+      if (matchIdx >= 0) merged[matchIdx] = a;
+      else merged.push(a);
+    }
+    setTracks(merged);
+    persistMeta(merged);
   };
 
   const removeTrack = (id: string) => {
-    setTracks((prev) => {
-      const t = prev.find((x) => x.id === id);
-      if (t?.url) URL.revokeObjectURL(t.url);
-      const next = prev.filter((x) => x.id !== id);
-      persistMeta(next);
-      if (currentIdx >= next.length) {
-        setCurrentIdx(next.length - 1);
-        setPlaying(false);
-      }
-      return next;
-    });
+    // 副作用与 setTracks 更新器分开：更新器在 StrictMode 下会跑两次，
+    // 里面放 revokeObjectURL / persistMeta / setState 会重复执行
+    const removedIdx = tracks.findIndex((x) => x.id === id);
+    if (removedIdx < 0) return;
+    const victim = tracks[removedIdx];
+    if (victim.url) URL.revokeObjectURL(victim.url);
+
+    const next = tracks.filter((x) => x.id !== id);
+    setTracks(next);
+    persistMeta(next);
+
+    if (removedIdx < currentIdx) {
+      // 删的是当前曲目之前的项 → 指针前移一位，正在播的歌不变
+      setCurrentIdx(currentIdx - 1);
+    } else if (removedIdx === currentIdx) {
+      // 删的就是正在播的那首 → 停播，指针夹到合法范围
+      setPlaying(false);
+      setCurrentIdx(next.length === 0 ? -1 : Math.min(currentIdx, next.length - 1));
+    }
   };
 
   const clearAll = () => {
@@ -547,7 +567,7 @@ function NowPlaying(props: {
   onPlay: () => void;
   onNext: () => void;
   onPrev: () => void;
-  onSeekBarRef: React.RefObject<HTMLDivElement>;
+  onSeekBarRef: React.RefObject<HTMLDivElement | null>;
   onSeekPointerDown: (e: React.PointerEvent) => void;
   onVolumeChange: (v: number) => void;
   onToggleMute: () => void;
@@ -626,7 +646,7 @@ function NowPlaying(props: {
             'rounded p-2 hover:bg-zinc-800',
             loop !== 'off' && 'text-indigo-400',
           )}
-          title={`循环：${loop}`}
+          title={LOOP_LABEL[loop]}
         >
           <LoopIcon size={18} />
         </button>

@@ -27,6 +27,8 @@ interface WindowStore {
     title: string;
     width?: number;
     height?: number;
+    /** 单例应用：已打开就聚焦，不开第二个窗口 */
+    singleton?: boolean;
   }) => string;
   close: (id: string) => void;
   closeByApp: (appId: string) => void;
@@ -49,14 +51,16 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   activeId: null,
   nextZ: BASE_Z,
 
-  open: ({ appId, title, width = 760, height = 520 }) => {
+  open: ({ appId, title, width = 760, height = 520, singleton = false }) => {
     const state = get();
-    // 单例应用：已打开就直接聚焦并还原
-    const existing = state.windows.find((w) => w.appId === appId);
-    if (existing) {
-      get().restore(existing.id);
-      get().focus(existing.id);
-      return existing.id;
+    // 只有 singleton 应用才复用已有窗口，否则一律开新实例
+    if (singleton) {
+      const existing = state.windows.find((w) => w.appId === appId);
+      if (existing) {
+        get().restore(existing.id);
+        get().focus(existing.id);
+        return existing.id;
+      }
     }
 
     const vw = typeof window === 'undefined' ? 1440 : window.innerWidth;
@@ -104,8 +108,11 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }),
 
   closeByApp: (appId) => {
-    const target = get().windows.find((w) => w.appId === appId);
-    if (target) get().close(target.id);
+    // 非单例应用可能同时开多个窗口，必须全关，不能只关第一个
+    const ids = get()
+      .windows.filter((w) => w.appId === appId)
+      .map((w) => w.id);
+    for (const id of ids) get().close(id);
   },
 
   focus: (id) =>

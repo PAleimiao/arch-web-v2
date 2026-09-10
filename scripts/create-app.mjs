@@ -52,8 +52,9 @@ const entryRe = /(\{\s*terminal: '\.\/Terminal\/index\.tsx',[\s\S]*?)(\s*\};)/;
 if (entryRe.test(txt)) {
   txt = txt.replace(
     entryRe,
-    (m, head, tail) =>
-      `${head}  ${id}: './${toPascal(id)}/index.tsx',${tail}`,
+    (_m, head, tail) =>
+      // 目录名用的是原始 id（kebab-case），这里必须保持一致
+      `${head}\n  ${id}: './${id}/index.tsx',${tail}`,
   );
 } else {
   console.error('未在 ENTRY 表里找到插入点，请手动更新 registry.ts');
@@ -64,14 +65,13 @@ if (entryRe.test(txt)) {
 const metaBlock = `  {
     id: '${id}',
     name: '${toPascal(id)}',
-    icon: Terminal,
+    icon: Square,
     category: '系统',
     description: '在 src/apps/${id}/index.tsx 中实现',
     defaultWidth: 720,
     defaultHeight: 480,
     accent: '#1793d1',
   },`;
-const insertBefore = '];\n\nexport function loadApp';
 const re2 = /(export const APPS: AppMeta\[\] = \[\n)([\s\S]*?)(];\n)/;
 if (re2.test(txt)) {
   txt = txt.replace(re2, (m, head, body, tail) => {
@@ -79,7 +79,19 @@ if (re2.test(txt)) {
     return `${head}${body}\n${metaBlock}${tail}`;
   });
 } else {
-  console.error('未找到 APPS 数组插入点，请手动添加 ${id} 的元数据');
+  console.error(`未找到 APPS 数组插入点，请手动添加 ${id} 的元数据`);
+}
+
+// 3. 确保占位图标已从 lucide-react 导入，否则 registry 直接编译不过
+const PLACEHOLDER_ICON = 'Square';
+// [^;]*? 保证只吃同一条 import 语句，不会从 react 那行一路跨过来
+const lucideRe = /import \{([^;]*?)\} from 'lucide-react';/;
+const lucideMatch = txt.match(lucideRe);
+if (lucideMatch && !new RegExp(`\\b${PLACEHOLDER_ICON}\\b`).test(lucideMatch[1])) {
+  txt = txt.replace(
+    lucideRe,
+    `import {\n  ${PLACEHOLDER_ICON},${lucideMatch[1]}} from 'lucide-react';`,
+  );
 }
 
 writeFileSync(registry, txt);

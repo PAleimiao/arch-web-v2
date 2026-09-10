@@ -23,8 +23,8 @@ export default function AppLauncher() {
     return okCat && okQuery;
   });
 
-  const launch = (id: string, name: string) => {
-    open({ appId: id, title: name });
+  const launch = (id: string, name: string, singleton?: boolean) => {
+    open({ appId: id, title: name, singleton });
     toggleLauncher(false);
     setQuery('');
   };
@@ -73,7 +73,7 @@ export default function AppLauncher() {
               <button
                 key={app.id}
                 type="button"
-                onClick={() => launch(app.id, app.name)}
+                onClick={() => launch(app.id, app.name, app.singleton)}
                 className="group flex flex-col items-center gap-2 rounded-lg p-3 transition hover:bg-white/8"
               >
                 <div

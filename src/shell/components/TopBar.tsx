@@ -46,7 +46,8 @@ function CalendarPopover({ now, onClose }: { now: Date; onClose: () => void }) {
     return arr;
   }, [firstWeekday, daysInMonth]);
 
-  const todayStr = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  // getMonth() 是 0 基的，直接拼会少一个月
+  const todayStr = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
   const isToday = (d: number) =>
     d === now.getDate() && view.getFullYear() === now.getFullYear() && view.getMonth() === now.getMonth();
 

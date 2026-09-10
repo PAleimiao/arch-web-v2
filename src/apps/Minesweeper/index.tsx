@@ -73,7 +73,13 @@ export default function Minesweeper(_: AppProps) {
     setCursor([0, 0]);
   };
 
-  const spawnMines = (rows: number, cols: number, mines: number, safe: [number, number]) => {
+  const spawnMines = (
+    rows: number,
+    cols: number,
+    mines: number,
+    safe: [number, number],
+    carryFlags?: Cell[][],
+  ) => {
     const cells: Cell[][] = Array.from({ length: rows }, () =>
       Array.from({ length: cols }, () => emptyCell()),
     );
@@ -116,6 +122,14 @@ export default function Minesweeper(_: AppProps) {
         cells[r][c].around = n;
       }
     }
+    // 开局前插的旗要保留，否则第一次左键会把它抹掉
+    if (carryFlags) {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (carryFlags[r]?.[c]?.state === 'flagged') cells[r][c].state = 'flagged';
+        }
+      }
+    }
     return cells;
   };
 
@@ -149,22 +163,23 @@ export default function Minesweeper(_: AppProps) {
     if (status === 'won' || status === 'lost') return;
     const cfg = PRESETS[diff];
     let boardN = board;
-    if (status === 'idle') {
-      const fresh = spawnMines(cfg.rows, cfg.cols, cfg.mines, [r, c]);
-      boardN = fresh;
-      setStartTime(Date.now());
-      setStatus('playing');
-    }
-    const cell = boardN[r][c];
+    // 右键插旗：开局前也允许，但不算开局（不布雷、不计时）
     if (button === 'right') {
-      if (cell.state === 'revealed') return;
-      const flagged = cell.state === 'flagged';
-      boardN[r][c].state = flagged ? 'hidden' : 'flagged';
+      const target = boardN[r][c];
+      if (target.state === 'revealed') return;
+      const flagged = target.state === 'flagged';
+      boardN[r][c] = { ...target, state: flagged ? 'hidden' : 'flagged' };
       setBoard(boardN.map((row) => row.slice()));
       setFlags((f) => f + (flagged ? -1 : 1));
       return;
     }
-    // 左键
+    // 左键：第一次真正点开才布雷，保证首点安全
+    if (status === 'idle') {
+      boardN = spawnMines(cfg.rows, cfg.cols, cfg.mines, [r, c], board);
+      setStartTime(Date.now());
+      setStatus('playing');
+    }
+    const cell = boardN[r][c];
     if (cell.state === 'flagged') return;
     if (cell.isMine) {
       const revealed = boardN.map((row) =>

@@ -45,7 +45,6 @@ export function createOpfsAdapter(root: FileSystemDirectoryHandle): FsAdapter {
     name: 'opfs',
     async keys() {
       const out: string[] = [];
-      // @ts-expect-error values() 在部分浏览器的类型定义里缺失
       for await (const handle of root.values()) {
         if (handle.kind !== 'file') continue;
         const path = decodeName(handle.name);

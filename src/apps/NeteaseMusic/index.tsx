@@ -206,15 +206,6 @@ async function metingLoad(
   }));
 }
 
-async function metingSong(cfg: Config, id: string): Promise<Track | null> {
-  const arr = await metingLoad(cfg, 'song', id);
-  return arr[0] ?? null;
-}
-
-async function metingSearch(cfg: Config, kw: string): Promise<Track[]> {
-  return metingLoad(cfg, 'search', encodeURIComponent(kw));
-}
-
 /* ===== 协议 2: GD Studio ===== */
 
 async function gdSearch(cfg: Config, kw: string): Promise<Track[]> {
@@ -479,6 +470,17 @@ export default function NeteaseMusic(_: AppProps) {
     clientCfgRef.current = config;
   }, [config]);
 
+  // playAt 是异步取播放链接的：期间用户可能又点了别的歌。
+  // 用自增令牌把过期请求的结果丢掉，否则会播错歌 / 覆盖掉新列表的封面。
+  const playTokenRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const current = currentIdx >= 0 && currentIdx < tracks.length ? tracks[currentIdx] : null;
 
   /* ----------------------- 加载歌曲列表 ----------------------- */
@@ -528,6 +530,8 @@ export default function NeteaseMusic(_: AppProps) {
     async (idx: number) => {
       const track = tracks[idx];
       if (!track) return;
+      const token = ++playTokenRef.current;
+      const stale = () => token !== playTokenRef.current || !mountedRef.current;
       setError(null);
       setCurrentIdx(idx);
       setPlayUrl(null);
@@ -542,12 +546,14 @@ export default function NeteaseMusic(_: AppProps) {
           mc.getPic(track),
           mc.getLyric(track),
         ]);
+        if (stale()) return;
         if (url) {
           setPlayUrl(url);
           // 回填 pic / lyric
           if (pic && !track.pic) {
             setTracks((prev) => {
               const next = prev.slice();
+              if (next[idx]?.id !== track.id) return prev;
               next[idx] = { ...next[idx], pic };
               return next;
             });
@@ -557,9 +563,9 @@ export default function NeteaseMusic(_: AppProps) {
           setError('该歌曲没有可用播放链接（可能是 VIP 独占 / 版权下架 / API 网关未开放 URL 接口）。');
         }
       } catch (e: any) {
-        setError(String(e?.message ?? e));
+        if (!stale()) setError(String(e?.message ?? e));
       } finally {
-        setLoadingTrack(false);
+        if (!stale()) setLoadingTrack(false);
       }
     },
     [tracks],
@@ -670,7 +676,7 @@ export default function NeteaseMusic(_: AppProps) {
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     void doLoad(loadMode, target);
   };
