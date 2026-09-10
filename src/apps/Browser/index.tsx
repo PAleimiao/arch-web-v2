@@ -10,7 +10,7 @@ import type { AppProps } from '@/shell/types';
  */
 const HOME = 'https://duckduckgo.com';
 
-export default function Browser({ context }: AppProps) {
+export default function Browser(_: AppProps) {
   const [url, setUrl] = useState(HOME);
   const [current, setCurrent] = useState(HOME);
   const [history, setHistory] = useState<string[]>([HOME]);
@@ -44,8 +44,11 @@ export default function Browser({ context }: AppProps) {
   };
 
   const reload = () => {
-    // 通过给 src 加随机参数强制刷新
-    setCurrent((c) => c + (c.includes('?') ? '&' : '?') + `t=${Date.now()}`);
+    // 先剥掉上一轮的 t= 再追加，否则连点几次 URL 会堆一串时间戳
+    setCurrent((c) => {
+      const stripped = c.replace(/([?&])t=\d+&?/, '$1').replace(/[?&]$/, '');
+      return stripped + (stripped.includes('?') ? '&' : '?') + `t=${Date.now()}`;
+    });
   };
 
   return (
@@ -109,7 +112,10 @@ export default function Browser({ context }: AppProps) {
       <iframe
         key={current}
         src={current}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        // 不加 allow-same-origin：allow-scripts + allow-same-origin 同时给的话，
+        // 同源页面可以反过来操作父页面（突破沙箱）。代价是内嵌页拿不到自己的
+        // localStorage / cookie，部分站点会退化为不可用。
+        sandbox="allow-scripts allow-forms allow-popups"
         referrerPolicy="no-referrer"
         className="flex-1 border-0 bg-white"
         title="browser"

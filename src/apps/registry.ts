@@ -4,7 +4,9 @@ import {
   Film,
   Bomb,
   Calculator,
+  Disc3,
   FileText,
+  Film,
   FolderTree,
   Grid3x3,
   Globe,
@@ -35,6 +37,8 @@ const ENTRY: Record<string, string> = {
   gallery: './Gallery/index.tsx',
   minesweeper: './Minesweeper/index.tsx',
   game2048: './Game2048/index.tsx',
+  video: './VideoPlayer/index.tsx',
+  netease: './NeteaseMusic/index.tsx',
 };
 
 export const CATEGORIES = [
@@ -121,6 +125,8 @@ export const APPS: AppMeta[] = [
     defaultWidth: 720,
     defaultHeight: 520,
     accent: '#e06c75',
+    // 全局媒体桥 + 同一份 playlist.json，多开会互相打架
+    singleton: true,
   },
   {
     id: 'gallery',
