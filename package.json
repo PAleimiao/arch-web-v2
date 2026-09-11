@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:cf": "astro build --config astro.config.cf.mjs",
     "preview": "astro preview",
     "check": "astro check",
     "create-app": "node scripts/create-app.mjs"
@@ -27,6 +28,7 @@
     "@types/react-dom": "^19.2.2",
     "astro": "^5.15.0",
     "tailwindcss": "^4.1.16",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.131.0"
   }
 }
