@@ -14,10 +14,10 @@ import { useMediaStore } from '@/stores/useMediaStore';
 import { usePackageStore } from '@/stores/usePackageStore';
 
 const WALLPAPERS: Array<{ path: string; label: string }> = [
-  { path: '/wallpapers/grid.svg', label: '网格' },
-  { path: '/wallpapers/arch.svg', label: 'Arch' },
-  { path: '/wallpapers/aurora.svg', label: '极光' },
-  { path: '/wallpapers/dots.svg', label: '圆点' },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/grid.svg`, label: '网格' },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/arch.svg`, label: 'Arch' },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/aurora.svg`, label: '极光' },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/dots.svg`, label: '圆点' },
 ];
 
 const ACCENTS = ['#1793d1', '#4ec9b0', '#e06c75', '#c678dd', '#d19a66', '#61afef', '#e84393'];
