@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "arch-web-v2",
+  "compatibility_date": "2026-09-10",
+  // 纯静态部署：只传资产，不挂 worker 入口（main）。
+  // 产物来自 npm run build:cf（astro.config.cf.mjs → dist-cf/，base 为 '/'）。
+  // 注意：本站是纯静态站点，不需要 @astrojs/cloudflare adapter，
+  // 一旦装了 adapter 会在 dist 里生成 _worker.js，导致 wrangler 报
+  // "Uploading a Pages _worker.js directory as an asset" 并拒绝部署。
+  "assets": {
+    "directory": "dist-cf"
+  }
+}
