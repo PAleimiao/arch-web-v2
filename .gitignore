@@ -31,3 +31,7 @@ coverage/
 
 # 本地敏感信息
 .github_token
+
+# Wrangler 本地缓存
+.wrangler/
+dist-cf/
