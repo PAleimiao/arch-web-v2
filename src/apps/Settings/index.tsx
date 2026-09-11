@@ -27,10 +27,10 @@ import { vfs } from '@/services/filesystem';
 import type { AppProps } from '@/shell/types';
 
 const WALLPAPERS = [
-  { id: 'grid', label: '默认网格', url: '/wallpapers/grid.svg' },
-  { id: 'arch', label: 'Arch Blue', url: '/wallpapers/arch.svg' },
-  { id: 'dots', label: '暗夜点阵', url: '/wallpapers/dots.svg' },
-  { id: 'aurora', label: '极光', url: '/wallpapers/aurora.svg' },
+  { id: 'grid', label: '默认网格', url: `${import.meta.env.BASE_URL}/wallpapers/grid.svg` },
+  { id: 'arch', label: 'Arch Blue', url: `${import.meta.env.BASE_URL}/wallpapers/arch.svg` },
+  { id: 'dots', label: '暗夜点阵', url: `${import.meta.env.BASE_URL}/wallpapers/dots.svg` },
+  { id: 'aurora', label: '极光', url: `${import.meta.env.BASE_URL}/wallpapers/aurora.svg` },
 ];
 
 const ACCENTS = [
@@ -195,7 +195,7 @@ export default function Settings({ context }: AppProps) {
   }, [appQuery]);
 
   const DEFAULTS: DesktopSettings = {
-    wallpaper: '/wallpapers/grid.svg',
+    wallpaper: `${import.meta.env.BASE_URL}/wallpapers/grid.svg`,
     windowOpacity: 0.92,
     darkMode: true,
     dockSize: 56,

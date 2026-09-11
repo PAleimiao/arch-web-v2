@@ -22,10 +22,10 @@ interface MenuState {
 }
 
 const WALLPAPERS = [
-  '/wallpapers/grid.svg',
-  '/wallpapers/arch.svg',
-  '/wallpapers/aurora.svg',
-  '/wallpapers/dots.svg',
+  `${import.meta.env.BASE_URL}/wallpapers/grid.svg`,
+  `${import.meta.env.BASE_URL}/wallpapers/arch.svg`,
+  `${import.meta.env.BASE_URL}/wallpapers/aurora.svg`,
+  `${import.meta.env.BASE_URL}/wallpapers/dots.svg`,
 ];
 
 const ITEMS: Array<{ key: string; label: string; icon: typeof Lock; group?: number }> = [

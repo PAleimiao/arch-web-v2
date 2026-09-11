@@ -51,7 +51,7 @@ const SETTINGS_KEY = 'arch-web-os:settings';
 
 function loadSettings(): DesktopSettings {
   const fallback: DesktopSettings = {
-    wallpaper: '/wallpapers/grid.svg',
+    wallpaper: `${import.meta.env.BASE_URL}/wallpapers/grid.svg`,
     windowOpacity: 0.92,
     darkMode: true,
     dockSize: 56,

@@ -36,10 +36,10 @@ interface Item {
 }
 
 const WALLPAPERS = [
-  '/wallpapers/grid.svg',
-  '/wallpapers/arch.svg',
-  '/wallpapers/aurora.svg',
-  '/wallpapers/dots.svg',
+  `${import.meta.env.BASE_URL}/wallpapers/grid.svg`,
+  `${import.meta.env.BASE_URL}/wallpapers/arch.svg`,
+  `${import.meta.env.BASE_URL}/wallpapers/aurora.svg`,
+  `${import.meta.env.BASE_URL}/wallpapers/dots.svg`,
 ];
 
 /** 子序列匹配：query 的字符按顺序出现在 text 里即算命中，返回得分（越小越靠前） */
