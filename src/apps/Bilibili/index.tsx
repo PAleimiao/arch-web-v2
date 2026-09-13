@@ -13,10 +13,11 @@ import {
 } from 'lucide-react';
 import type { AppProps } from '@/shell/types';
 import { cn } from '@/lib/cn';
+import qrcode from 'qrcode-generator';
 
 interface LoginResult {
   url?: string;
-  oauthKey?: string;
+  qrcode_key?: string;
 }
 
 interface PageInfo {
@@ -199,7 +200,7 @@ export default function BilibiliApp(_: AppProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [qrUrl, setQrUrl] = useState<string>('');
-  const [oauthKey, setOauthKey] = useState<string>('');
+  const [qrcodeKey, setQrcodeKey] = useState<string>('');
   const [loginState, setLoginState] = useState<'idle' | 'waiting' | 'scanned' | 'confirmed' | 'error'>('idle');
   const [loginMessage, setLoginMessage] = useState('请使用二维码登录');
 
@@ -268,15 +269,18 @@ export default function BilibiliApp(_: AppProps) {
 
     try {
       const result = await fetchJson<{ code?: number; data?: LoginResult; message?: string }>(
-        '/api/bilibili/passport-login/web/qrcode/generate',
+        '/api/bilibili/passport/x/passport-login/web/qrcode/generate',
       );
 
-      if (result.code !== 0 || !result.data?.oauthKey || !result.data.url) {
+      if (result.code !== 0 || !result.data?.qrcode_key || !result.data.url) {
         throw new Error(result.message || '生成二维码失败');
       }
 
-      setQrUrl(result.data.url);
-      setOauthKey(result.data.oauthKey);
+      const qr = qrcode(0, 'M');
+      qr.addData(result.data.url);
+      qr.make();
+      setQrUrl(qr.createDataURL(8, 0));
+      setQrcodeKey(result.data.qrcode_key);
       setLoginMessage('请用手机扫码登录');
     } catch (e) {
       const message = e instanceof Error ? e.message : '生成二维码失败';
@@ -287,28 +291,29 @@ export default function BilibiliApp(_: AppProps) {
   };
 
   useEffect(() => {
-    if (!oauthKey || loginState === 'idle' || loginState === 'error') return;
+    if (!qrcodeKey || loginState === 'idle' || loginState === 'error' || loginState === 'confirmed') return;
 
     const poll = async () => {
       try {
-        const result = await fetchJson<{ code?: number; data?: { status?: number; url?: string; message?: string } }>(
-          `/api/bilibili/passport-login/web/qrcode/poll?oauthKey=${encodeURIComponent(oauthKey)}`,
+        // 新版扫码接口：data.code 86101=未扫码 86090=已扫码未确认 86038=已失效 0=成功
+        const result = await fetchJson<{ code?: number; data?: { code?: number; url?: string; message?: string } }>(
+          `/api/bilibili/passport/x/passport-login/web/qrcode/poll?qrcode_key=${encodeURIComponent(qrcodeKey)}`,
         );
 
-        const status = result.data?.status ?? 0;
+        const state = result.data?.code ?? -1;
 
-        if (status === 0) {
+        if (state === 86101) {
           setLoginMessage('等待扫码...');
           return;
         }
 
-        if (status === 1) {
+        if (state === 86090) {
           setLoginState('scanned');
           setLoginMessage('已扫码，等待确认');
           return;
         }
 
-        if (status === 2) {
+        if (state === 0) {
           setLoginState('confirmed');
           setLoginMessage('扫码确认成功，正在同步账号信息');
 
@@ -333,7 +338,7 @@ export default function BilibiliApp(_: AppProps) {
         }
 
         setLoginState('error');
-        setLoginMessage(result.data?.message || '登录失败');
+        setLoginMessage(state === 86038 ? '二维码已过期，请重新生成' : result.data?.message || '登录失败');
       } catch (e) {
         setLoginState('error');
         const message = e instanceof Error ? e.message : '二维码状态查询失败';
@@ -348,7 +353,7 @@ export default function BilibiliApp(_: AppProps) {
     void poll();
 
     return () => clearInterval(timer);
-  }, [loginState, oauthKey]);
+  }, [loginState, qrcodeKey]);
 
   useEffect(() => {
     if (!isLoggedIn) {
