@@ -1,7 +1,19 @@
-import type { APIRoute } from 'astro';
+// B 站 API 代理 Worker。
+// 站点是纯静态（astro build:cf → dist-cf/），Bilibili 应用需要的跨域代理
+// 无法用 Astro 的 src/pages/api 动态路由实现（静态构建会报
+// GetStaticPathsRequired），所以代理逻辑放在这里：
+// - /api/bilibili/*  → 本 Worker 处理（转发 api.bilibili.com / passport.bilibili.com）
+// - 其余路径         → 回退到静态资产（ASSETS binding）
+
+interface Env {
+  ASSETS: { fetch: (request: Request) => Promise<Response> };
+}
 
 const API_BASE = 'https://api.bilibili.com';
 const PASSPORT_BASE = 'https://passport.bilibili.com';
+const PROXY_PREFIX = '/api/bilibili';
+
+const JSON_HEADERS = { 'content-type': 'application/json;charset=utf-8' };
 
 function decodeHtml(text: string): string {
   return text
@@ -29,7 +41,7 @@ function buildDmPayload(xml: string) {
   });
 }
 
-async function proxyUpstream(targetUrl: URL, request: Request) {
+async function proxyUpstream(targetUrl: URL, request: Request): Promise<Response> {
   const headers = new Headers();
   const cookie = request.headers.get('cookie');
   const userAgent = request.headers.get('user-agent') ?? 'Mozilla/5.0';
@@ -65,17 +77,17 @@ async function proxyUpstream(targetUrl: URL, request: Request) {
   });
 }
 
-export const GET: APIRoute = async ({ params, request }) => {
-  const rawSlug = params.slug ?? [];
-  const slug = Array.isArray(rawSlug) ? rawSlug : [rawSlug];
+async function handleBilibili(request: Request): Promise<Response> {
   const url = new URL(request.url);
+  const rawSlug = url.pathname.slice(PROXY_PREFIX.length).replace(/^\/+/, '');
+  const slug = rawSlug ? rawSlug.split('/') : [];
 
   if (slug[0] === 'dm') {
     const cid = url.searchParams.get('cid');
     if (!cid) {
       return new Response(JSON.stringify({ error: '缺少 cid 参数' }), {
         status: 400,
-        headers: { 'content-type': 'application/json;charset=utf-8' },
+        headers: JSON_HEADERS,
       });
     }
 
@@ -89,13 +101,13 @@ export const GET: APIRoute = async ({ params, request }) => {
     if (!upstream.ok) {
       return new Response(JSON.stringify({ error: '弹幕接口请求失败' }), {
         status: upstream.status,
-        headers: { 'content-type': 'application/json;charset=utf-8' },
+        headers: JSON_HEADERS,
       });
     }
 
     const xml = await upstream.text();
     return new Response(JSON.stringify({ items: buildDmPayload(xml) }), {
-      headers: { 'content-type': 'application/json;charset=utf-8' },
+      headers: JSON_HEADERS,
     });
   }
 
@@ -107,7 +119,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (!safePath) {
     return new Response(JSON.stringify({ error: '空路径' }), {
       status: 400,
-      headers: { 'content-type': 'application/json;charset=utf-8' },
+      headers: JSON_HEADERS,
     });
   }
 
@@ -117,4 +129,23 @@ export const GET: APIRoute = async ({ params, request }) => {
   );
 
   return proxyUpstream(targetUrl, request);
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === PROXY_PREFIX || url.pathname.startsWith(`${PROXY_PREFIX}/`)) {
+      try {
+        return await handleBilibili(request);
+      } catch {
+        return new Response(JSON.stringify({ error: '代理请求失败' }), {
+          status: 502,
+          headers: JSON_HEADERS,
+        });
+      }
+    }
+
+    return env.ASSETS.fetch(request);
+  },
 };
