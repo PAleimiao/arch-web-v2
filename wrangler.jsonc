@@ -2,12 +2,13 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "arch-web-v2",
   "compatibility_date": "2026-09-10",
-  // 纯静态部署：只传资产，不挂 worker 入口（main）。
-  // 产物来自 npm run build:cf（astro.config.cf.mjs → dist-cf/，base 为 '/'）。
-  // 注意：本站是纯静态站点，不需要 @astrojs/cloudflare adapter，
-  // 一旦装了 adapter 会在 dist 里生成 _worker.js，导致 wrangler 报
-  // "Uploading a Pages _worker.js directory as an asset" 并拒绝部署。
+  // Astro 构建仍是纯静态（npm run build:cf → dist-cf/，base '/'），
+  // 不装 @astrojs/cloudflare adapter（会生成 _worker.js 导致资产冲突）。
+  // Bilibili 应用的 API 代理放在 worker/index.ts：静态资产命中自动直出，
+  // 未命中的 /api/bilibili/* 落到 Worker 处理，其余回退 ASSETS。
+  "main": "worker/index.ts",
   "assets": {
-    "directory": "dist-cf"
+    "directory": "dist-cf",
+    "binding": "ASSETS"
   }
 }
