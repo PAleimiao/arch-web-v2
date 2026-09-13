@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "arch-web-v2",
   "compatibility_date": "2026-09-10",
+  "compatibility_flags": ["nodejs_compat"],
   // Astro 构建仍是纯静态（npm run build:cf → dist-cf/，base '/'），
   // 不装 @astrojs/cloudflare adapter（会生成 _worker.js 导致资产冲突）。
   // Bilibili 应用的 API 代理放在 worker/index.ts：静态资产命中自动直出，
