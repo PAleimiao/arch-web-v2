@@ -177,6 +177,7 @@ export default function VideoPlayer(_: AppProps) {
       video.load();
 
       if (!active.isHls) {
+        video.crossOrigin = 'anonymous';
         video.src = active.url;
         video.load();
         return;
@@ -203,6 +204,7 @@ export default function VideoPlayer(_: AppProps) {
 
       if (videoCanPlay('application/vnd.apple.mpegurl')) {
         // Safari 原生
+        video.crossOrigin = 'anonymous';
         video.src = active.url;
         video.load();
         return;
@@ -519,6 +521,7 @@ export default function VideoPlayer(_: AppProps) {
                 ref={videoRef}
                 className="max-h-full max-w-full"
                 playsInline
+                crossOrigin="anonymous"
                 onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
                 onTimeUpdate={(e) => setPosition(e.currentTarget.currentTime)}
                 onPlay={() => setPlaying(true)}

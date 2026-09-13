@@ -58,8 +58,8 @@ interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  gateway: 'https://api.i-meto.com/meting/api',
-  kind: 'meting',
+  gateway: '',
+  kind: 'netease-api',
   source: 'netease',
 };
 
@@ -305,6 +305,96 @@ async function ncmGetLyric(cfg: Config, id: string): Promise<string> {
   }
 }
 
+/* ===== 协议 4: Bilibili 公共接口 ===== */
+
+interface RawBiliSearchItem {
+  bvid?: string;
+  video_id?: string;
+  aid?: number;
+  title?: string;
+  owner?: { name?: string };
+  pic?: string;
+  desc?: string;
+}
+
+interface RawBiliVideoInfo {
+  bvid?: string;
+  title?: string;
+  pic?: string;
+  owner?: { name?: string };
+  cid?: number;
+  pages?: Array<{ cid?: number; part?: string }>;
+}
+
+function collapseText(value?: string): string {
+  return (value ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function bilibiliSearch(_: Config, kw: string): Promise<Track[]> {
+  const u = `https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=${encodeURIComponent(kw)}&page=1&pagesize=20`;
+  const r = await fetchJson<{ code?: number; message?: string; data?: { result?: RawBiliSearchItem[] } }>(u);
+  if (r?.code !== 0) {
+    throw new Error(r?.message || 'Bilibili 搜索接口返回错误');
+  }
+
+  const items = r?.data?.result ?? [];
+  return items.map((item) => ({
+    id: String(item.bvid || item.video_id || item.aid || item.title || Date.now()),
+    name: collapseText(item.title) || 'B站视频',
+    artist: item.owner?.name || '未知UP主',
+    album: 'B站视频',
+    url: '',
+    pic: item.pic || '',
+    lyric: '',
+    source: 'bilibili' as Source,
+  }));
+}
+
+async function bilibiliGetVideoInfo(trackId: string): Promise<RawBiliVideoInfo | null> {
+  const u = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(trackId)}`;
+  const r = await fetchJson<{ code?: number; message?: string; data?: RawBiliVideoInfo }>(u);
+  if (r?.code !== 0) {
+    throw new Error(r?.message || 'Bilibili 视频信息接口返回错误');
+  }
+  return r?.data ?? null;
+}
+
+async function bilibiliGetUrl(_: Config, track: Track): Promise<string | null> {
+  const info = await bilibiliGetVideoInfo(track.id);
+  if (!info) return null;
+
+  const cid = info.cid ?? info.pages?.[0]?.cid;
+  if (!cid) return null;
+
+  const u = `https://api.bilibili.com/x/player/playurl?bvid=${encodeURIComponent(track.id)}&cid=${cid}&qn=80&fnval=4048&fourk=1`;
+  const r = await fetchJson<{
+    code?: number;
+    message?: string;
+    data?: {
+      durl?: Array<{ url?: string }>;
+      dash?: {
+        audio?: Array<{ base_url?: string }>;
+        video?: Array<{ base_url?: string }>;
+      };
+    };
+  }>(u);
+
+  if (r?.code !== 0) {
+    throw new Error(r?.message || 'Bilibili 播放地址接口返回错误');
+  }
+
+  return r?.data?.durl?.[0]?.url || r?.data?.dash?.audio?.[0]?.base_url || r?.data?.dash?.video?.[0]?.base_url || null;
+}
+
+async function bilibiliGetPic(_: Config, track: Track): Promise<string | null> {
+  if (track.pic) return track.pic;
+  const info = await bilibiliGetVideoInfo(track.id);
+  return info?.pic || null;
+}
+
 /* ===================== 多协议主客户端 ===================== */
 
 class MusicClient {
@@ -312,6 +402,10 @@ class MusicClient {
 
   /** 加载歌单 / 专辑 / 搜索结果 / 艺术家代表作 */
   async load(mode: LoadMode, target: string): Promise<Track[]> {
+    if (this.cfg.source === 'bilibili') {
+      return bilibiliSearch(this.cfg, target);
+    }
+
     if (this.cfg.kind === 'meting') {
       // Meting 的 playlist / album / artist / search 都用同一个端点
       return metingLoad(this.cfg, mode, target);
@@ -342,6 +436,7 @@ class MusicClient {
 
   /** 获取单首 mp3 URL */
   async getUrl(track: Track): Promise<string | null> {
+    if (this.cfg.source === 'bilibili') return bilibiliGetUrl(this.cfg, track);
     if (track.url && !track.url.includes('types=url')) return track.url;
     if (this.cfg.kind === 'meting') return track.url || null;
     if (this.cfg.kind === 'gdstudio') return gdGetUrl(this.cfg, track);
@@ -350,6 +445,7 @@ class MusicClient {
 
   /** 异步补封面 */
   async getPic(track: Track): Promise<string | null> {
+    if (this.cfg.source === 'bilibili') return bilibiliGetPic(this.cfg, track);
     if (track.pic && !track.pic.includes('types=pic')) return track.pic;
     if (this.cfg.kind === 'meting') return track.pic || null;
     if (this.cfg.kind === 'gdstudio') return gdGetPic(this.cfg, track);
@@ -358,6 +454,7 @@ class MusicClient {
 
   /** 异步拉歌词 */
   async getLyric(track: Track): Promise<string> {
+    if (this.cfg.source === 'bilibili') return '';
     if (track.lyric) return track.lyric;
     if (this.cfg.kind === 'meting') {
       // meting 的 lrc 字段已在初次加载中拿到
@@ -406,9 +503,20 @@ async function tryWithFallback<T>(
   cfg: Config,
   fn: (c: Config) => Promise<T>,
 ): Promise<{ value: T; cfg: Config }> {
+  if (cfg.source === 'bilibili') {
+    const value = await fn(cfg);
+    return { value, cfg };
+  }
+
+  const candidates = uniqueGateways(cfg).filter((g) => g.url.trim().length > 0);
+
+  if (candidates.length === 0) {
+    throw new Error('请先在“API 设置”里填写可用的 NeteaseCloudMusicApi / Meting 网关地址。当前内置公共聚合接口已失效。');
+  }
+
   let lastErr: unknown = null;
   // 当前 cfg 优先
-  for (const url of uniqueGateways(cfg)) {
+  for (const url of candidates) {
     const probe: Config = { ...cfg, gateway: url.url, kind: url.kind };
     try {
       const v = await fn(probe);
@@ -427,7 +535,9 @@ async function tryWithFallback<T>(
 function uniqueGateways(cfg: Config): { url: string; kind: GatewayKind }[] {
   const list: { url: string; kind: GatewayKind }[] = [];
   // 用户当前用的最优先
-  list.push({ url: cfg.gateway, kind: cfg.kind });
+  if (cfg.gateway.trim()) {
+    list.push({ url: cfg.gateway.trim(), kind: cfg.kind });
+  }
   for (const f of FALLBACK_GATEWAYS) {
     if (!f.url) continue; // 自建占位
     if (list.some((x) => x.url === f.url && x.kind === f.kind)) continue;
@@ -1134,7 +1244,7 @@ function EmptyState() {
         全部走 Meting API，浏览器直接播放 mp3，零后端依赖。
       </p>
       <p className="mt-2 text-[10px] text-zinc-700">
-        快捷键：← 上一首 · → 下一首 · 空格 播放/暂停
+        提示：内置公共聚合接口已失效，建议在设置里填入自己的自建 NCM API / Meting 网关。
       </p>
     </div>
   );
@@ -1208,16 +1318,23 @@ function ConfigPanel({
         }}
         placeholder={
           draftKind === 'meting'
-            ? 'https://api.i-meto.com/meting/api'
+            ? 'https://your-meting-api.example.com'
             : draftKind === 'gdstudio'
-              ? 'https://music-api.gdstudio.xyz/api.php'
-              : 'https://your-ncm-api.vercel.app'
+              ? 'https://your-gdstudio-api.example.com'
+              : 'https://your-ncm-api.example.com'
         }
         className="mb-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] outline-none focus:border-indigo-500"
       />
       <p className="mb-2 text-[10px] text-zinc-600">
-        应用启动时会自动用 tryWithFallback 探测主 + 备用网关，第一个成功的被记忆到 localStorage。
+        现在公共聚合网关很多已经失效，建议优先填自己的自建 NCM API / Meting 网关；成功后会记在 localStorage。
       </p>
+
+      <div className="mb-2 rounded border border-amber-700/40 bg-amber-900/20 p-2 text-[10px] leading-relaxed text-amber-100">
+        <div className="mb-1 font-medium text-amber-200">可用接口模板</div>
+        <div>• NCM API：https://your-ncm-api.example.com</div>
+        <div>• Meting：https://your-meting-api.example.com/meting/api</div>
+        <div>• 需支持：/search /song/url /lyric /playlist/detail</div>
+      </div>
 
       <label className="mb-1 block text-[11px] text-zinc-500">音乐源</label>
       <div className="mb-2 grid grid-cols-4 gap-1">
