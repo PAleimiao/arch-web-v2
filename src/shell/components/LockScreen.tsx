@@ -6,6 +6,7 @@ import { useOSStore } from '@/stores/useOSStore';
 export default function LockScreen() {
   const unlock = useOSStore((s) => s.unlock);
   const wallpaper = useOSStore((s) => s.settings.wallpaper);
+  const hour12 = useOSStore((s) => s.settings.hour12);
   const [time, setTime] = useState(() => new Date());
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function LockScreen() {
       <div className="relative flex h-full flex-col items-center justify-center gap-6">
         <div className="text-center">
           <p className="text-6xl font-light tracking-tight text-white">
-            {time.toLocaleTimeString('zh-CN', { hour12: false })}
+            {time.toLocaleTimeString('zh-CN', { hour12 })}
           </p>
           <p className="mt-2 text-sm text-white/60">
             {time.toLocaleDateString('zh-CN', {

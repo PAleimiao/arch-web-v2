@@ -10,6 +10,13 @@
   --color-arch-accent-dim: #0f6a99;
   --color-arch-green: #4ec9b0;
   --color-arch-red: #e06c75;
+
+  --font-sans:
+    'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans CJK SC', system-ui, sans-serif;
+  --font-mono:
+    'Cascadia Code', 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC',
+    'Microsoft YaHei', ui-monospace, monospace;
 }
 
 * {
@@ -24,8 +31,8 @@ body {
   overflow: hidden;
   background: var(--color-arch-bg);
   color: var(--color-arch-text);
-  font-family:
-    'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', ui-monospace, monospace;
+  /* 全局用无衬线 + 完整中文回退；终端感场景单独挂 font-mono */
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 

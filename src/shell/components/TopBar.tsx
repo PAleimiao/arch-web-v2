@@ -132,6 +132,7 @@ export default function TopBar() {
   const shutdown = useOSStore((s) => s.shutdown);
   const restart = useOSStore((s) => s.restart);
   const clockSeconds = useOSStore((s) => s.settings.clockSeconds);
+  const hour12 = useOSStore((s) => s.settings.hour12);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
@@ -179,9 +180,9 @@ export default function TopBar() {
         >
           <span>
             {clockSeconds
-              ? now.toLocaleTimeString('zh-CN', { hour12: false })
+              ? now.toLocaleTimeString('zh-CN', { hour12 })
               : now.toLocaleTimeString('zh-CN', {
-                  hour12: false,
+                  hour12,
                   hour: '2-digit',
                   minute: '2-digit',
                 })}

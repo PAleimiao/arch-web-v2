@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useOSStore } from '@/stores/useOSStore';
 
 const LINES: Array<[string, string]> = [
-  ['  OK  ', 'Loaded Arch Web OS v2.0 (browser)'],
-  ['  OK  ', 'Mounted virtual filesystem'],
-  ['  OK  ', 'Started Window Manager'],
-  ['  OK  ', 'Started Application Registry — 6 apps'],
-  ['  OK  ', 'Started Dock & Top Bar'],
-  ['  OK  ', 'Reached target Graphical Interface'],
+  ['  OK  ', '已加载 Arch Web OS v2.0（浏览器环境）'],
+  ['  OK  ', '已挂载虚拟文件系统'],
+  ['  OK  ', '窗口管理器已启动'],
+  ['  OK  ', '应用注册表已启动'],
+  ['  OK  ', 'Dock 与顶栏已启动'],
+  ['  OK  ', '已到达目标：图形界面'],
 ];
 
 const LOGO = `    _             _      __        __   ____   _____
@@ -37,7 +37,7 @@ export default function BootScreen() {
   }, [shown, bootComplete]);
 
   return (
-    <div className="flex h-full w-full flex-col justify-end bg-black px-10 py-12 text-[13px] leading-6 text-arch-text">
+    <div className="flex h-full w-full flex-col justify-end bg-black px-10 py-12 font-mono text-[13px] leading-6 text-arch-text">
       <pre className="mb-8 text-[9px] leading-[1.2] text-arch-accent">
         {LOGO}
       </pre>

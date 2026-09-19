@@ -21,6 +21,14 @@ export interface DesktopSettings {
   desktopIconSize: number;
   /** 窗口拖到屏幕边缘时自动贴边 / 最大化 */
   edgeSnap: boolean;
+  /** 免打扰：通知只进通知中心，不弹右上角 toast */
+  doNotDisturb: boolean;
+  /** 关掉后开机直接进锁屏，不播开机动画 */
+  bootAnimation: boolean;
+  /** 顶栏 / 锁屏时钟用 12 小时制 */
+  hour12: boolean;
+  /** Dock 平时藏到屏幕外，鼠标移到底部边缘才出现 */
+  dockAutoHide: boolean;
 }
 
 interface OSState {
@@ -62,6 +70,10 @@ function loadSettings(): DesktopSettings {
     desktopAllApps: false,
     desktopIconSize: 44,
     edgeSnap: true,
+    doNotDisturb: false,
+    bootAnimation: true,
+    hour12: false,
+    dockAutoHide: false,
   };
   if (typeof localStorage === 'undefined') return fallback;
   try {
