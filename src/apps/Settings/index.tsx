@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AppWindow,
   Bell,
+  BellOff,
   CheckCircle2,
   Cpu,
+  ExternalLink,
   HardDrive,
   ImageUp,
+  Info,
   LayoutGrid,
   Monitor,
   Moon,
@@ -43,7 +46,7 @@ const ACCENTS = [
   { name: '桃红', value: '#e84393' },
 ];
 
-type Tab = 'desktop' | 'appearance' | 'window' | 'system' | 'apps';
+type Tab = 'desktop' | 'appearance' | 'window' | 'system' | 'apps' | 'about';
 
 const TABS: Array<{ id: Tab; label: string; Icon: typeof Monitor }> = [
   { id: 'desktop', label: '桌面', Icon: Monitor },
@@ -51,6 +54,7 @@ const TABS: Array<{ id: Tab; label: string; Icon: typeof Monitor }> = [
   { id: 'window', label: '窗口', Icon: AppWindow },
   { id: 'system', label: '系统', Icon: Shield },
   { id: 'apps', label: '应用', Icon: Package },
+  { id: 'about', label: '关于', Icon: Info },
 ];
 
 function Row({
@@ -95,6 +99,99 @@ function Switch({
         className="mt-0.5 accent-[var(--color-arch-accent)]"
       />
     </label>
+  );
+}
+
+function AboutPanel() {
+  const [uptime, setUptime] = useState(0);
+  const [memory, setMemory] = useState<string>('—');
+
+  const bootedAt = useMemo(() => Date.now(), []);
+
+  useEffect(() => {
+    const tick = () => {
+      const sec = Math.floor((Date.now() - bootedAt) / 1000);
+      setUptime(sec);
+      const perf = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+      if (perf?.usedJSHeapSize) {
+        setMemory(`${(perf.usedJSHeapSize / 1024 / 1024).toFixed(1)} MB`);
+      }
+    };
+    tick();
+    const t = window.setInterval(tick, 1000);
+    return () => window.clearInterval(t);
+  }, [bootedAt]);
+
+  const uptimeText =
+    uptime < 60
+      ? `${uptime} 秒`
+      : uptime < 3600
+        ? `${Math.floor(uptime / 60)} 分 ${uptime % 60} 秒`
+        : `${Math.floor(uptime / 3600)} 时 ${Math.floor((uptime % 3600) / 60)} 分`;
+
+  return (
+    <>
+      <section className="mb-6">
+        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">系统信息</h3>
+        <dl className="space-y-1 text-[11px]">
+          <div className="flex justify-between border-b border-arch-border/50 pb-1">
+            <dt className="text-arch-muted">版本</dt>
+            <dd>Arch Web OS v2 · 0.1.0</dd>
+          </div>
+          <div className="flex justify-between border-b border-arch-border/50 pb-1">
+            <dt className="text-arch-muted">本次运行时长</dt>
+            <dd className="tabular-nums">{uptimeText}</dd>
+          </div>
+          <div className="flex justify-between border-b border-arch-border/50 pb-1">
+            <dt className="text-arch-muted">JS 堆内存</dt>
+            <dd className="tabular-nums">{memory}</dd>
+          </div>
+          <div className="flex justify-between border-b border-arch-border/50 pb-1">
+            <dt className="text-arch-muted">已安装应用</dt>
+            <dd className="tabular-nums">{APPS.length}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-arch-muted">User Agent</dt>
+            <dd className="max-w-[60%] truncate" title={navigator.userAgent}>
+              {navigator.userAgent}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="mb-6">
+        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">技术栈</h3>
+        <div className="flex flex-wrap gap-1.5">
+          {['Astro 5', 'React 19', 'Zustand', 'Tailwind CSS 4', 'TypeScript', 'Cloudflare Workers'].map(
+            (item) => (
+              <span
+                key={item}
+                className="rounded-full border border-arch-border px-2 py-0.5 text-[10.5px] text-arch-muted"
+              >
+                {item}
+              </span>
+            ),
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">链接</h3>
+        <div className="flex flex-col gap-1.5 text-[11px]">
+          <a
+            href="https://github.com/PAleimiao/arch-web-v2"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-arch-accent hover:underline"
+          >
+            <ExternalLink size={11} /> GitHub 仓库
+          </a>
+          <span className="text-arch-muted">
+            发现问题可以直接提 issue，附上复现步骤和控制台报错。
+          </span>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -206,6 +303,10 @@ export default function Settings({ context }: AppProps) {
     desktopAllApps: false,
     desktopIconSize: 44,
     edgeSnap: true,
+    doNotDisturb: false,
+    bootAnimation: true,
+    hour12: false,
+    dockAutoHide: false,
   };
 
   return (
@@ -425,6 +526,12 @@ export default function Settings({ context }: AppProps) {
                 checked={settings.clockSeconds}
                 onChange={(v) => update({ clockSeconds: v })}
               />
+              <Switch
+                label="时钟使用 12 小时制"
+                checked={settings.hour12}
+                onChange={(v) => update({ hour12: v })}
+                hint="影响顶栏和锁屏时钟，关掉为 24 小时制"
+              />
             </section>
           </>
         )}
@@ -468,6 +575,12 @@ export default function Settings({ context }: AppProps) {
                 checked={settings.edgeSnap}
                 onChange={(v) => update({ edgeSnap: v })}
                 hint="把窗口拖到屏幕左/右边缘贴成半屏，拖到顶部最大化"
+              />
+              <Switch
+                label="Dock 自动隐藏"
+                checked={settings.dockAutoHide}
+                onChange={(v) => update({ dockAutoHide: v })}
+                hint="Dock 平时收到屏幕外，鼠标移到底部边缘时滑出"
               />
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -522,6 +635,14 @@ export default function Settings({ context }: AppProps) {
                   </button>
                 </div>
               </Row>
+              <div className="mt-3">
+                <Switch
+                  label="播放开机动画"
+                  checked={settings.bootAnimation}
+                  onChange={(v) => update({ bootAnimation: v })}
+                  hint="关掉后开机直接进锁屏"
+                />
+              </div>
             </section>
 
             <section className="mb-6">
@@ -567,7 +688,13 @@ export default function Settings({ context }: AppProps) {
 
             <section className="mb-6">
               <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">通知</h3>
-              <div className="flex gap-2">
+              <Switch
+                label="免打扰"
+                checked={settings.doNotDisturb}
+                onChange={(v) => update({ doNotDisturb: v })}
+                hint="开启后新通知不再弹右上角提示，只进通知中心"
+              />
+              <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -586,6 +713,11 @@ export default function Settings({ context }: AppProps) {
                 >
                   清空（{notifyCount}）
                 </button>
+                {settings.doNotDisturb && (
+                  <span className="flex items-center gap-1 text-[11px] text-arch-muted">
+                    <BellOff size={11} /> 免打扰开启中
+                  </span>
+                )}
               </div>
             </section>
 
@@ -634,6 +766,9 @@ export default function Settings({ context }: AppProps) {
             </section>
           </>
         )}
+
+        {/* ------------------------------ 关于 ------------------------------ */}
+        {tab === 'about' && <AboutPanel />}
 
         {/* ------------------------------ 应用 ------------------------------ */}
         {tab === 'apps' && (

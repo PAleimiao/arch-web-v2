@@ -58,7 +58,8 @@ function buildDmPayload(xml: string) {
 // Cookie jar（Cache API 按 bili_sid 分桶）
 // ---------------------------------------------------------------------------
 
-const jarCache = caches.default;
+// Cache API 的 default 分桶是 Workers 运行时专属，DOM 类型里没有
+const jarCache = (caches as unknown as { default: Cache }).default;
 
 function jarKey(sid: string): URL {
   return new URL(`https://jar.internal/bili/${encodeURIComponent(sid)}`);
@@ -266,6 +267,86 @@ async function fetchAndTrack(
 }
 
 // ---------------------------------------------------------------------------
+// 视频流代理（/api/bilibili/stream?url=...）
+// B 站 CDN（bilivideo / akamaized / mcdn 等）强制校验 Referer，
+// 浏览器直接挂 <video src> 会 403，必须在 Worker 侧带 Referer 转发。
+// 支持 Range（音视频 seek 必需），响应体不缓冲直接透传。
+// ---------------------------------------------------------------------------
+
+function isBilibiliMediaHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return (
+    h.includes('bilivideo') ||
+    h.includes('akamaized.net') ||
+    h.includes('hdslb.com') ||
+    h.includes('bilibili.com') ||
+    h.includes('mcbbs.net')
+  );
+}
+
+async function handleStream(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const target = url.searchParams.get('url');
+  if (!target) {
+    return new Response(JSON.stringify({ error: '缺少 url 参数' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(target);
+  } catch {
+    return new Response(JSON.stringify({ error: 'url 参数不合法' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  if (targetUrl.protocol !== 'https:' || !isBilibiliMediaHost(targetUrl.host)) {
+    return new Response(JSON.stringify({ error: '目标域名不在白名单' }), {
+      status: 403,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const headers = new Headers();
+  headers.set(
+    'user-agent',
+    request.headers.get('user-agent') ??
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  );
+  headers.set('referer', SITE_REFERER);
+  const range = request.headers.get('range');
+  if (range) headers.set('range', range);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(targetUrl, { headers, redirect: 'follow' });
+  } catch {
+    return new Response(JSON.stringify({ error: '上游请求失败' }), {
+      status: 502,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const responseHeaders = new Headers();
+  for (const key of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+    const value = upstream.headers.get(key);
+    if (value) responseHeaders.set(key, value);
+  }
+  // 允许浏览器侧 <video> 跨域消费
+  responseHeaders.set('access-control-allow-origin', '*');
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: responseHeaders,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // /api/bilibili/* 处理
 // ---------------------------------------------------------------------------
 
@@ -285,6 +366,10 @@ async function handleBilibili(request: Request, sid: string): Promise<Response> 
     }
   }
 
+  if (slug[0] === 'stream') {
+    return handleStream(request);
+  }
+
   if (slug[0] === 'dm') {
     const cid = url.searchParams.get('cid');
     if (!cid) {
@@ -294,8 +379,19 @@ async function handleBilibili(request: Request, sid: string): Promise<Response> 
       });
     }
 
+    // 弹幕源是 XML，解析成 JSON 再下发，前端直接消费
     const dmUrl = new URL(`https://comment.bilibili.com/${encodeURIComponent(cid)}.xml`);
-    return fetchAndTrack(dmUrl, request, sid, jar);
+    const upstream = await fetch(dmUrl, {
+      headers: buildUpstreamHeaders(request, jar),
+      redirect: 'follow',
+    });
+    if (!upstream.ok) {
+      return new Response(JSON.stringify({ items: [] }), { headers: JSON_HEADERS });
+    }
+    const xml = await upstream.text();
+    return new Response(JSON.stringify({ items: buildDmPayload(xml) }), {
+      headers: JSON_HEADERS,
+    });
   }
 
   const isPassport = slug[0] === 'passport';

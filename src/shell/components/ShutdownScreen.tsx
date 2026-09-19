@@ -2,10 +2,10 @@ import { useEffect } from 'react';
 import { useOSStore } from '@/stores/useOSStore';
 
 const LINES = [
-  'Stopping Window Manager...',
-  'Unmounting virtual filesystem...',
-  'Saving session state...',
-  'Reached target Shutdown',
+  '正在停止窗口管理器…',
+  '正在卸载虚拟文件系统…',
+  '正在保存会话状态…',
+  '已到达目标：关机',
 ];
 
 /** 关机/重启过渡动画 */
@@ -26,9 +26,9 @@ export default function ShutdownScreen({
   }, [mode, powerOffComplete, restartComplete]);
 
   return (
-    <div className="flex h-full w-full flex-col justify-center gap-1 bg-black px-10 text-[13px] text-arch-muted">
+    <div className="flex h-full w-full flex-col justify-center gap-1 bg-black px-10 font-mono text-[13px] text-arch-muted">
       <p className="mb-4 text-arch-accent">
-        {mode === 'restarting' ? 'Rebooting...' : 'Shutting down...'}
+        {mode === 'restarting' ? '正在重启…' : '正在关机…'}
       </p>
       {LINES.map((line, i) => (
         <div

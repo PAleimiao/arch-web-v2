@@ -1,41 +1,41 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CheckCircle2,
   Film,
   MessageSquareText,
-  Play,
-  QrCode,
+  RefreshCw,
   Search,
-  Sparkles,
-  Video,
-  Volume2,
   X,
 } from 'lucide-react';
 import type { AppProps } from '@/shell/types';
 import { cn } from '@/lib/cn';
 import qrcode from 'qrcode-generator';
 
+/* ----------------------------- 类型 ----------------------------- */
+
 interface LoginResult {
   url?: string;
   qrcode_key?: string;
 }
 
-interface PageInfo {
-  title?: string;
-  pic?: string;
-  owner?: { name?: string; face?: string };
-  desc?: string;
-  bvid?: string;
-  cid?: number;
-  pages?: Array<{ cid?: number; part?: string }>;
+interface VideoCard {
+  bvid: string;
+  title: string;
+  pic: string;
+  owner?: { name?: string };
+  /** 热门接口返回秒数，搜索接口返回 "mm:ss" */
+  duration?: number | string;
+  play?: number;
 }
 
-interface SearchItem {
+interface PageInfo {
+  aid?: number;
   bvid?: string;
   title?: string;
   pic?: string;
-  owner?: { name?: string };
-  duration?: string;
+  desc?: string;
+  cid?: number;
+  owner?: { name?: string; face?: string };
+  pages?: Array<{ cid?: number; part?: string }>;
 }
 
 interface ReplyItem {
@@ -45,10 +45,16 @@ interface ReplyItem {
   like?: number;
 }
 
-interface DanmakuItem {
+interface DanmakuSource {
   text: string;
   time: number;
   color?: number;
+  type?: number;
+}
+
+interface DanmakuSpawn extends DanmakuSource {
+  key: number;
+  lane: number;
 }
 
 interface UserProfile {
@@ -58,900 +64,633 @@ interface UserProfile {
 
 const STORAGE_KEY = 'arch-web-bilibili-user';
 
-const FALLBACK_SEARCH = 'BV1xx411c7mD';
-
-const HOME_TABS = ['推荐', '番剧', '直播', '游戏', '影视'] as const;
-type HomeTab = (typeof HOME_TABS)[number];
-
-const FEATURED_ITEMS: Array<SearchItem & { description: string; tag: string }> = [
-  {
-    bvid: 'BV1xx411c7mD',
-    title: '入站必刷：这才是你真正需要的 B 站首页玩法',
-    pic: 'https://picsum.photos/seed/bili-feature-1/320/180',
-    owner: { name: 'Bilibili 热门推荐' },
-    duration: '08:24',
-    description: '适合第一次打开应用时快速上手的精选视频内容。',
-    tag: '推荐',
-  },
-  {
-    bvid: 'BV1Yt411D7A3',
-    title: '高质量动画与番剧：适合放松的精选合集',
-    pic: 'https://picsum.photos/seed/bili-feature-2/320/180',
-    owner: { name: 'UP 主精选' },
-    duration: '26:15',
-    description: '轻松、短平快的内容，适合在休息时刷一刷。',
-    tag: '番剧',
-  },
-  {
-    bvid: 'BV1GJ411x7hS',
-    title: '实用技巧与高效工具：提升日常效率',
-    pic: 'https://picsum.photos/seed/bili-feature-3/320/180',
-    owner: { name: '效率课堂' },
-    duration: '16:08',
-    description: '实用内容集合，适合想快速获得帮助的场景。',
-    tag: '实用',
-  },
-  {
-    bvid: 'BV1fA411D7La',
-    title: '音乐与生活：轻松节奏的精选内容',
-    pic: 'https://picsum.photos/seed/bili-feature-4/320/180',
-    owner: { name: '生活精选' },
-    duration: '11:42',
-    description: '来自生活与音乐方向的轻松内容，入口很适合刷一刷。',
-    tag: '生活',
-  },
-];
-
-const HOME_FEED: Record<HomeTab, Array<SearchItem & { description: string; tag: string }>> = {
-  推荐: FEATURED_ITEMS,
-  番剧: [
-    { bvid: 'BV1Qx411c7mQ', title: '新番速看：轻松上线的治愈系推荐', pic: 'https://picsum.photos/seed/bili-anime-1/320/180', owner: { name: '追番日记' }, duration: '24:11', description: '适合在闲暇时放松的番剧精选内容。', tag: '追番' },
-    { bvid: 'BV1pK411n7hN', title: '热血开局：充满张力的年度作品盘点', pic: 'https://picsum.photos/seed/bili-anime-2/320/180', owner: { name: '番剧馆' }, duration: '18:03', description: '适合想快速选一部新番的你。', tag: '新番' },
-    { bvid: 'BV1bJ411V7mF', title: '日常治愈与温柔系番剧混剪', pic: 'https://picsum.photos/seed/bili-anime-3/320/180', owner: { name: '温柔精选' }, duration: '09:40', description: '没事刷一刷，心情会舒服很多。', tag: '治愈' },
-    { bvid: 'BV1iW411M7hE', title: '视觉与故事并重的高质量动画推荐', pic: 'https://picsum.photos/seed/bili-anime-4/320/180', owner: { name: '动画精选' }, duration: '14:26', description: '适合追番时看一眼，挑选方向会更明确。', tag: '精选' },
-  ],
-  直播: [
-    { bvid: 'BV1rA411K7v8', title: '直播间热聊：今天最值得关注的精彩内容', pic: 'https://picsum.photos/seed/bili-live-1/320/180', owner: { name: '直播精选' }, duration: '42:18', description: '高能氛围和持续更新的内容入口。', tag: '直播' },
-    { bvid: 'BV1v64y1F7Z6', title: '游戏直播：适合打发时间的高能现场', pic: 'https://picsum.photos/seed/bili-live-2/320/180', owner: { name: '电竞直播' }, duration: '31:04', description: '看一眼很容易就停不下来的组播感。', tag: '电竞' },
-    { bvid: 'BV13g411Y7M4', title: '音乐现场：多人在线的轻松氛围直播', pic: 'https://picsum.photos/seed/bili-live-3/320/180', owner: { name: '音乐直播' }, duration: '28:52', description: '适合边做事边开着听的内容。', tag: '音乐' },
-    { bvid: 'BV1Rr4y1W7b5', title: '聊天与吐槽：轻松休闲的弹幕互动内容', pic: 'https://picsum.photos/seed/bili-live-4/320/180', owner: { name: '日常直播' }, duration: '23:46', description: '氛围感很强，适合刷一下放松。', tag: '聊天' },
-  ],
-  游戏: [
-    { bvid: 'BV1Mm4y1d7vN', title: '高质量游戏开箱：推荐给喜欢尝鲜的人', pic: 'https://picsum.photos/seed/bili-game-1/320/180', owner: { name: '游戏精选' }, duration: '12:40', description: '适合想找新游戏的你快速筛选。', tag: '开箱' },
-    { bvid: 'BV1Tg411Y7Lr', title: '游戏速通：高效率的挑战与收获', pic: 'https://picsum.photos/seed/bili-game-2/320/180', owner: { name: '敢玩游戏' }, duration: '15:32', description: '看一眼就能发现自己喜欢的玩法。', tag: '速通' },
-    { bvid: 'BV1oM4y1d7Db', title: '单机与联机：适合多人一起玩的内容', pic: 'https://picsum.photos/seed/bili-game-3/320/180', owner: { name: '游戏生活' }, duration: '17:08', description: '适合想有点节奏地刷内容时打开。', tag: '联机' },
-    { bvid: 'BV1XT4y1r7m7', title: '游戏剧情解析：让你更容易选对作品', pic: 'https://picsum.photos/seed/bili-game-4/320/180', owner: { name: '剧情站' }, duration: '10:22', description: '如果你想看点更有层次的内容，这里很适合。', tag: '解析' },
-  ],
-  影视: [
-    { bvid: 'BV1kV4y1x7AH', title: '电影精选：适合一口气刷一批的电影区', pic: 'https://picsum.photos/seed/bili-film-1/320/180', owner: { name: '影视精选' }, duration: '19:44', description: '配合晚上刷片的节奏非常顺手。', tag: '电影' },
-    { bvid: 'BV1vE411d7zY', title: '经典影视盘点：值得回味的作品推荐', pic: 'https://picsum.photos/seed/bili-film-2/320/180', owner: { name: '影评站' }, duration: '13:56', description: '你可以从这里快速找到自己想看的风格。', tag: '盘点' },
-    { bvid: 'BV1zM4y1m7ry', title: '综艺与小片：轻松、有趣的日常内容', pic: 'https://picsum.photos/seed/bili-film-3/320/180', owner: { name: '综艺精选' }, duration: '21:11', description: '适合在休息时切换到放松模式。', tag: '综艺' },
-    { bvid: 'BV1Sv4y1V7UQ', title: '收藏级、高品质影视短评', pic: 'https://picsum.photos/seed/bili-film-4/320/180', owner: { name: '片单精选' }, duration: '07:58', description: '速览式内容，尤其适合第一次入站。', tag: '短评' },
-  ],
-};
-
-const HERO_ITEMS = [
-  {
-    title: '入站必刷',
-    subtitle: '精选内容 · 轻松上手 · 一口气刷到爽',
-    pic: 'https://picsum.photos/seed/bili-hero-1/900/360',
-    color: 'from-pink-500 via-fuchsia-500 to-rose-500',
-  },
-  {
-    title: '番剧推荐',
-    subtitle: '质量优先 · 治愈系 · 每天都有新内容',
-    pic: 'https://picsum.photos/seed/bili-hero-2/900/360',
-    color: 'from-violet-500 via-purple-500 to-pink-500',
-  },
-  {
-    title: '直播热聊',
-    subtitle: '打开就能看 · 气氛感与弹幕互动更强',
-    pic: 'https://picsum.photos/seed/bili-hero-3/900/360',
-    color: 'from-cyan-500 via-sky-500 to-indigo-500',
-  },
-];
-
-const QUICK_CHANNELS = [
-  { name: '动态', icon: '◆' },
-  { name: '热门', icon: '★' },
-  { name: '番剧', icon: '▣' },
-  { name: '游戏', icon: '◈' },
-  { name: '音乐', icon: '♫' },
-  { name: '影视', icon: '◍' },
-  { name: '知识', icon: '✦' },
-  { name: '生活', icon: '☼' },
-];
-
-const QUICK_ACTIONS = [
-  { label: '我的收藏', value: '12', hint: '已保存视频' },
-  { label: '历史记录', value: '27', hint: '最近播放' },
-  { label: '追番进度', value: '4', hint: '待更新' },
-  { label: '下载管理', value: '6', hint: '离线内容' },
-];
-
-const HOT_TOPICS = [
-  { title: '入站必刷', count: '2.1万' },
-  { title: '番剧新作', count: '1.3万' },
-  { title: '直播热聊', count: '8.7千' },
-  { title: '游戏速通', count: '9.4千' },
-];
+/* ----------------------------- 工具 ----------------------------- */
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    credentials: 'include',
-    ...init,
-  });
-
+  const response = await fetch(path, { credentials: 'include', ...init });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `HTTP ${response.status}`);
+    let message = text || `HTTP ${response.status}`;
+    try {
+      message = (JSON.parse(text) as { error?: string }).error ?? message;
+    } catch {
+      /* 保留原文 */
+    }
+    throw new Error(message);
   }
-
   return (await response.json()) as T;
 }
 
-function normalizeMessage(text?: string): string {
-  return (text ?? '').replace(/\s+/g, ' ').trim();
+function collapseText(text?: string): string {
+  return (text ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-export default function BilibiliApp(_: AppProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+function formatDuration(d?: number | string): string {
+  if (typeof d === 'string') return d || '--:--';
+  if (!d || d <= 0) return '--:--';
+  const m = Math.floor(d / 60);
+  const s = Math.floor(d % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+function formatCount(n?: number): string {
+  if (!n) return '0';
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+  return String(n);
+}
+
+function danmakuColor(color?: number): string {
+  if (!color) return '#ffffff';
+  return `#${color.toString(16).padStart(6, '0')}`;
+}
+
+/* ----------------------------- 主组件 ----------------------------- */
+
+const DANMAKU_LANES = 6;
+const DANMAKU_LIFETIME_MS = 6000;
+
+export default function BilibiliApp(_: AppProps) {
+  /* 登录 */
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [qrUrl, setQrUrl] = useState<string>('');
-  const [qrcodeKey, setQrcodeKey] = useState<string>('');
+  const [qrUrl, setQrUrl] = useState('');
+  const [qrcodeKey, setQrcodeKey] = useState('');
   const [loginState, setLoginState] = useState<'idle' | 'waiting' | 'scanned' | 'confirmed' | 'error'>('idle');
   const [loginMessage, setLoginMessage] = useState('请使用二维码登录');
 
-  const [keyword, setKeyword] = useState(FALLBACK_SEARCH);
-  const [activeTab, setActiveTab] = useState<HomeTab>('推荐');
-  const [heroIndex, setHeroIndex] = useState(0);
-  const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
-  const [selectedBvid, setSelectedBvid] = useState<string>('');
+  /* 内容 */
+  const [keyword, setKeyword] = useState('');
+  const [listTitle, setListTitle] = useState('热门');
+  const [cards, setCards] = useState<VideoCard[]>([]);
+  const [listPage, setListPage] = useState(1);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+
+  const [selectedBvid, setSelectedBvid] = useState('');
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string>('');
+  const [videoUrl, setVideoUrl] = useState('');
   const [replies, setReplies] = useState<ReplyItem[]>([]);
-  const [danmaku, setDanmaku] = useState<DanmakuItem[]>([]);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+
+  /* 弹幕 */
+  const [danmakuSource, setDanmakuSource] = useState<DanmakuSource[]>([]);
   const [showDanmaku, setShowDanmaku] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [spawns, setSpawns] = useState<DanmakuSpawn[]>([]);
+  const lastTimeRef = useRef(0);
+  const spawnSeqRef = useRef(0);
+  const laneCursorRef = useRef(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const visibleDanmaku = useMemo(() => {
-    if (!showDanmaku || danmaku.length === 0) return [];
-    return danmaku
-      .filter((item) => item.time >= currentTime - 0.5 && item.time <= currentTime + 4.5)
-      .slice(0, 18);
-  }, [currentTime, danmaku, showDanmaku]);
+  const isLoggedIn = Boolean(user?.uname);
 
-  const activeFeed = useMemo(() => HOME_FEED[activeTab], [activeTab]);
+  /* ----------------------- 登录：二维码 ----------------------- */
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % HERO_ITEMS.length);
-    }, 4500);
-
-    return () => window.clearInterval(timer);
+  const loadUserInfo = useCallback(async () => {
+    const nav = await fetchJson<{ code?: number; data?: UserProfile }>(
+      '/api/bilibili/x/web-interface/nav',
+    );
+    if (nav.code === 0 && nav.data?.uname) return nav.data as UserProfile;
+    return null;
   }, []);
 
-  useEffect(() => {
-    const cached = localStorage.getItem(STORAGE_KEY);
-    if (!cached) return;
-
-    try {
-      const parsed = JSON.parse(cached) as UserProfile;
-      if (parsed.uname) {
-        setUser(parsed);
-        setIsLoggedIn(true);
-      }
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, []);
-
-  const saveUser = (nextUser: UserProfile | null) => {
-    setUser(nextUser);
-    setIsLoggedIn(Boolean(nextUser?.uname));
-
-    if (!nextUser) {
-      localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
+  const saveUser = (next: UserProfile | null) => {
+    setUser(next);
+    if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    else localStorage.removeItem(STORAGE_KEY);
   };
 
-  const generateQr = async () => {
-    setError(null);
+  const generateQr = useCallback(async () => {
     setLoginState('waiting');
-    setLoginMessage('正在生成二维码...');
-
+    setLoginMessage('正在生成二维码');
     try {
       const result = await fetchJson<{ code?: number; data?: LoginResult; message?: string }>(
         '/api/bilibili/passport/x/passport-login/web/qrcode/generate',
       );
-
-      if (result.code !== 0 || !result.data?.qrcode_key || !result.data.url) {
+      if (result.code !== 0 || !result.data?.url || !result.data?.qrcode_key) {
         throw new Error(result.message || '生成二维码失败');
       }
-
       const qr = qrcode(0, 'M');
       qr.addData(result.data.url);
       qr.make();
       setQrUrl(qr.createDataURL(8, 0));
       setQrcodeKey(result.data.qrcode_key);
-      setLoginMessage('请用手机扫码登录');
+      setLoginMessage('用手机 B 站客户端扫码');
     } catch (e) {
-      const message = e instanceof Error ? e.message : '生成二维码失败';
       setLoginState('error');
-      setLoginMessage(message);
-      setError(message);
+      setLoginMessage(e instanceof Error ? e.message : '生成二维码失败');
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (!qrcodeKey || loginState === 'idle' || loginState === 'error' || loginState === 'confirmed') return;
+    if (!isLoggedIn) void generateQr();
+  }, [isLoggedIn, generateQr]);
 
+  /* 轮询扫码状态：86101 未扫 86090 已扫待确认 0 成功 86038 过期 */
+  useEffect(() => {
+    if (!qrcodeKey || loginState === 'confirmed' || loginState === 'error') return;
+
+    let alive = true;
     const poll = async () => {
       try {
-        // 新版扫码接口：data.code 86101=未扫码 86090=已扫码未确认 86038=已失效 0=成功
-        const result = await fetchJson<{ code?: number; data?: { code?: number; url?: string; message?: string } }>(
+        const result = await fetchJson<{ data?: { code?: number; message?: string } }>(
           `/api/bilibili/passport/x/passport-login/web/qrcode/poll?qrcode_key=${encodeURIComponent(qrcodeKey)}`,
         );
-
+        if (!alive) return;
         const state = result.data?.code ?? -1;
 
-        if (state === 86101) {
-          setLoginMessage('等待扫码...');
-          return;
-        }
-
+        if (state === 86101) return;
         if (state === 86090) {
           setLoginState('scanned');
           setLoginMessage('已扫码，等待确认');
           return;
         }
-
         if (state === 0) {
           setLoginState('confirmed');
-          setLoginMessage('扫码确认成功，正在同步账号信息');
-
+          setLoginMessage('登录成功');
           try {
-            const nav = await fetchJson<{ data?: UserProfile }>(
-              '/api/bilibili/x/web-interface/nav',
-            );
-
-            const nextUser = {
-              uname: nav.data?.uname || '已登录用户',
-              face: nav.data?.face || '',
-            };
-
-            saveUser(nextUser);
-            setLoginState('confirmed');
-            setLoginMessage('登录成功');
+            const profile = await loadUserInfo();
+            if (profile) saveUser(profile);
           } catch {
-            setLoginMessage('已确认登录，但获取用户信息失败');
+            /* cookie 已在 Worker jar 里，拿不到资料也视为登录 */
           }
-
           return;
         }
-
-        setLoginState('error');
-        setLoginMessage(state === 86038 ? '二维码已过期，请重新生成' : result.data?.message || '登录失败');
-      } catch (e) {
-        setLoginState('error');
-        const message = e instanceof Error ? e.message : '二维码状态查询失败';
-        setLoginMessage(message);
+        if (state === 86038) {
+          setLoginState('error');
+          setLoginMessage('二维码已过期，请刷新');
+        }
+      } catch {
+        /* 网络抖动：下一轮继续 */
       }
     };
 
-    const timer = setInterval(() => {
-      void poll();
-    }, 2000);
-
+    const timer = window.setInterval(() => void poll(), 2000);
     void poll();
-
-    return () => clearInterval(timer);
-  }, [loginState, qrcodeKey]);
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      void generateQr();
-    }
-  }, [isLoggedIn]);
-
-  const searchVideo = async () => {
-    const trimmed = keyword.trim();
-    if (!trimmed) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await fetchJson<{
-        code?: number;
-        data?: { result?: SearchItem[] };
-        message?: string;
-      }>(`/api/bilibili/x/web-interface/search/type?search_type=video&keyword=${encodeURIComponent(trimmed)}&page=1&pagesize=10`);
-
-      if (result.code !== 0) {
-        throw new Error(result.message || '搜索失败');
-      }
-
-      const items = result.data?.result ?? [];
-      setSearchResults(items);
-      if (items[0]?.bvid) {
-        setSelectedBvid(items[0].bvid);
-        void loadVideo(items[0].bvid);
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : '搜索失败';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadVideo = async (bvid: string) => {
-    setSelectedBvid(bvid);
-    setError(null);
-    setLoading(true);
-
-    try {
-      const viewResult = await fetchJson<{
-        code?: number;
-        data?: PageInfo;
-        message?: string;
-      }>(`/api/bilibili/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`);
-
-      if (viewResult.code !== 0 || !viewResult.data) {
-        throw new Error(viewResult.message || '获取视频信息失败');
-      }
-
-      const info = viewResult.data;
-      const cid = info.cid ?? info.pages?.[0]?.cid ?? 0;
-
-      const playUrlResult = await fetchJson<{
-        code?: number;
-        data?: {
-          durl?: Array<{ url?: string }>;
-          dash?: {
-            video?: Array<{ base_url?: string }>;
-            audio?: Array<{ base_url?: string }>;
-          };
-        };
-        message?: string;
-      }>(`/api/bilibili/x/player/playurl?bvid=${encodeURIComponent(bvid)}&cid=${cid}&qn=80&fnval=4048&fourk=1`);
-
-      if (playUrlResult.code !== 0) {
-        throw new Error(playUrlResult.message || '获取播放地址失败');
-      }
-
-      const url =
-        playUrlResult.data?.durl?.[0]?.url ||
-        playUrlResult.data?.dash?.video?.[0]?.base_url ||
-        playUrlResult.data?.dash?.audio?.[0]?.base_url ||
-        '';
-
-      if (!url) {
-        throw new Error('接口返回了空播放地址');
-      }
-
-      setPageInfo(info);
-      setVideoUrl(url);
-
-      const commentsResult = await fetchJson<{
-        code?: number;
-        data?: { replies?: ReplyItem[] };
-        message?: string;
-      }>(`/api/bilibili/x/v2/reply?type=1&oid=${cid}&pn=1&sort=0`);
-
-      if (commentsResult.code === 0) {
-        setReplies(commentsResult.data?.replies ?? []);
-      }
-
-      const dmResult = await fetchJson<{ items?: DanmakuItem[] }>(`/api/bilibili/dm?cid=${cid}`);
-      setDanmaku(dmResult.items ?? []);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : '加载视频失败';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [qrcodeKey, loginState, loadUserInfo]);
 
   const logout = () => {
     saveUser(null);
     setQrUrl('');
-    setOauthKey('');
+    setQrcodeKey('');
     setLoginState('idle');
     setLoginMessage('请使用二维码登录');
-    setSearchResults([]);
-    setSelectedBvid('');
+  };
+
+  /* ----------------------- 内容：热门 / 搜索 ----------------------- */
+
+  const loadPopular = useCallback(async (page: number, replace: boolean) => {
+    setListLoading(true);
+    setListError(null);
+    try {
+      const result = await fetchJson<{ code?: number; data?: { list?: VideoCard[] }; message?: string }>(
+        `/api/bilibili/x/web-interface/popular?ps=20&pn=${page}`,
+      );
+      if (result.code !== 0) throw new Error(result.message || '热门列表获取失败');
+      const list = (result.data?.list ?? []).filter((v) => v.bvid);
+      setCards((prev) => (replace ? list : [...prev, ...list]));
+      setListPage(page);
+      setHasMore(list.length >= 20);
+      if (replace) setListTitle('热门');
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : '加载失败');
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
+
+  const search = useCallback(async () => {
+    const kw = keyword.trim();
+    if (!kw) return;
+    setListLoading(true);
+    setListError(null);
+    try {
+      const result = await fetchJson<{ code?: number; data?: { result?: VideoCard[] }; message?: string }>(
+        `/api/bilibili/x/web-interface/search/type?search_type=video&keyword=${encodeURIComponent(kw)}&page=1&pagesize=20`,
+      );
+      if (result.code !== 0) throw new Error(result.message || '搜索失败');
+      const list = (result.data?.result ?? []).filter((v) => v.bvid);
+      setCards(list);
+      setListPage(1);
+      setHasMore(false);
+      setListTitle(`搜索：${kw}`);
+      if (list.length === 0) setListError('没有匹配的视频');
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : '搜索失败');
+    } finally {
+      setListLoading(false);
+    }
+  }, [keyword]);
+
+  /* 启动：先查登录态，再拉热门 */
+  useEffect(() => {
+    void (async () => {
+      try {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached) as UserProfile;
+          if (parsed.uname) {
+            setUser(parsed);
+            return;
+          }
+        }
+        const profile = await loadUserInfo();
+        if (profile) saveUser(profile);
+      } catch {
+        /* 未登录状态，走二维码 */
+      }
+    })();
+  }, [loadUserInfo]);
+
+  useEffect(() => {
+    if (isLoggedIn) void loadPopular(1, true);
+  }, [isLoggedIn, loadPopular]);
+
+  /* ----------------------- 播放 ----------------------- */
+
+  const loadVideo = useCallback(async (bvid: string) => {
+    if (!bvid) return;
+    setSelectedBvid(bvid);
+    setVideoError(null);
+    setVideoLoading(true);
     setPageInfo(null);
     setVideoUrl('');
     setReplies([]);
-    setDanmaku([]);
-    setCurrentTime(0);
-    setError(null);
-  };
+    setDanmakuSource([]);
+    setSpawns([]);
+    lastTimeRef.current = 0;
 
-  const handleVideoLoaded = () => {
-    if (videoRef.current) {
-      videoRef.current.volume = 0.9;
-      void videoRef.current.play().catch(() => {
-        // ignore autoplay restrictions in this demo build
-      });
+    try {
+      const view = await fetchJson<{ code?: number; data?: PageInfo; message?: string }>(
+        `/api/bilibili/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
+      );
+      if (view.code !== 0 || !view.data) throw new Error(view.message || '获取视频信息失败');
+      const info = view.data;
+      const cid = info.cid ?? info.pages?.[0]?.cid ?? 0;
+      if (!cid) throw new Error('视频缺少 cid');
+
+      // platform=html5 拿单文件 mp4（durl），浏览器 <video> 可直接播；
+      // DASH（fnval=4048）是分离的音视频流，裸 <video> 播不了
+      const play = await fetchJson<{
+        code?: number;
+        data?: { durl?: Array<{ url?: string; size?: number }> };
+        message?: string;
+      }>(
+        `/api/bilibili/x/player/playurl?bvid=${encodeURIComponent(bvid)}&cid=${cid}&qn=80&platform=html5&high_quality=1`,
+      );
+      if (play.code !== 0) throw new Error(play.message || '获取播放地址失败');
+      const raw = play.data?.durl?.[0]?.url;
+      if (!raw) throw new Error('接口未返回播放地址');
+
+      setPageInfo(info);
+      setVideoUrl(`/api/bilibili/stream?url=${encodeURIComponent(raw)}`);
+
+      // 评论：oid 是 aid 不是 cid
+      if (info.aid) {
+        try {
+          const reply = await fetchJson<{ code?: number; data?: { replies?: ReplyItem[] } }>(
+            `/api/bilibili/x/v2/reply?type=1&oid=${info.aid}&pn=1&ps=20&sort=1`,
+          );
+          if (reply.code === 0) setReplies(reply.data?.replies ?? []);
+        } catch {
+          /* 评论失败不阻塞播放 */
+        }
+      }
+
+      // 弹幕
+      try {
+        const dm = await fetchJson<{ items?: DanmakuSource[] }>(`/api/bilibili/dm?cid=${cid}`);
+        setDanmakuSource((dm.items ?? []).filter((d) => (d.type ?? 0) <= 3));
+      } catch {
+        /* 弹幕失败不阻塞播放 */
+      }
+    } catch (e) {
+      setVideoError(e instanceof Error ? e.message : '加载视频失败');
+    } finally {
+      setVideoLoading(false);
+    }
+  }, []);
+
+  /* ----------------------- 弹幕渲染 ----------------------- */
+
+  const onTimeUpdate = (t: number) => {
+    const prev = lastTimeRef.current;
+    lastTimeRef.current = t;
+    if (!showDanmaku || t <= prev || t - prev > 1) return;
+
+    const incoming = danmakuSource.filter((d) => d.time > prev && d.time <= t);
+    if (incoming.length === 0) return;
+
+    const batch = incoming.slice(-12).map((d) => ({
+      ...d,
+      key: ++spawnSeqRef.current,
+      lane: laneCursorRef.current++ % DANMAKU_LANES,
+    }));
+
+    setSpawns((s) => [...s.slice(-30), ...batch]);
+    for (const item of batch) {
+      window.setTimeout(() => {
+        setSpawns((s) => s.filter((x) => x.key !== item.key));
+      }, DANMAKU_LIFETIME_MS);
     }
   };
 
+  const info = useMemo(() => {
+    if (!pageInfo) return null;
+    return {
+      up: pageInfo.owner?.name ?? '',
+      title: pageInfo.title ?? '',
+      desc: collapseText(pageInfo.desc),
+    };
+  }, [pageInfo]);
+
+  /* ----------------------- 未登录：扫码 ----------------------- */
+
   if (!isLoggedIn) {
     return (
-      <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#eef2f7_45%,#e5e7eb)] p-6 text-slate-800">
-        <div className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pink-100 text-pink-600">
-              <Film size={22} />
+      <div className="flex h-full items-center justify-center bg-arch-bg p-6 text-arch-text">
+        <div className="w-full max-w-sm rounded-xl border border-arch-border bg-arch-panel/60 p-5">
+          <div className="mb-4 flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-arch-accent/15 text-arch-accent">
+              <Film size={18} />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Bilibili</div>
-              <h1 className="text-xl font-semibold">哔哩哔哩</h1>
+              <h1 className="text-sm font-medium">哔哩哔哩</h1>
+              <div className="text-[11px] text-arch-muted">扫码后使用搜索与播放</div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="rounded-lg border border-arch-border bg-black/30 p-4">
             {qrUrl ? (
               <div className="flex flex-col items-center gap-3">
-                <img src={qrUrl} alt="二维码登录" className="h-52 w-52 rounded-xl border border-slate-200 bg-white p-2" />
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <QrCode size={16} className="text-pink-500" />
-                  <span>{loginMessage}</span>
-                </div>
+                <img src={qrUrl} alt="登录二维码" className="h-44 w-44 rounded bg-white p-2" />
+                <div className="text-[11px] text-arch-muted">{loginMessage}</div>
               </div>
             ) : (
-              <div className="flex h-52 items-center justify-center text-sm text-slate-500">
-                正在生成二维码...
+              <div className="flex h-44 items-center justify-center text-[11px] text-arch-muted">
+                {loginState === 'error' ? loginMessage : '正在生成二维码'}
               </div>
             )}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="mt-4 flex gap-2">
             <button
               type="button"
               onClick={() => void generateQr()}
-              className="flex-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-arch-border px-3 py-2 text-xs hover:bg-white/5"
             >
-              刷新二维码
+              <RefreshCw size={12} /> 刷新二维码
             </button>
             <button
               type="button"
-              onClick={() => setLoginState('idle')}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              onClick={() => {
+                setLoginState('idle');
+                setLoginMessage('请使用二维码登录');
+              }}
+              className="rounded-lg border border-arch-border px-3 py-2 text-xs text-arch-muted hover:bg-white/5"
             >
-              重新开始
+              重置
             </button>
           </div>
-
-          {error ? (
-            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">
-              {error}
-            </div>
-          ) : null}
         </div>
       </div>
     );
   }
 
+  /* ----------------------- 已登录：主界面 ----------------------- */
+
   return (
-    <div className="flex h-full flex-col bg-slate-100 text-slate-800">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-100 text-pink-600">
-            <Film size={20} />
-          </div>
-          <div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">Bilibili</div>
-            <h1 className="text-base font-semibold">哔哩哔哩</h1>
-          </div>
+    <div className="flex h-full flex-col bg-arch-bg text-arch-text">
+      {/* 顶栏：搜索 + 用户 */}
+      <div className="flex items-center gap-3 border-b border-arch-border px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Film size={16} className="text-arch-accent" />
+          <span className="text-sm font-medium">哔哩哔哩</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
-            <Sparkles size={14} className="text-pink-500" />
-            {loginMessage}
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1.5">
-            <div className="h-7 w-7 overflow-hidden rounded-full bg-slate-200">
-              {user?.face ? (
-                <img src={user.face} alt={user.uname || '用户'} className="h-full w-full object-cover" />
-              ) : null}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void search();
+          }}
+          className="flex flex-1 items-center gap-2"
+        >
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索视频（关键词或 BV 号）"
+            className="w-full max-w-md rounded-lg border border-arch-border bg-black/30 px-3 py-1.5 text-xs outline-none focus:border-arch-accent"
+          />
+          <button
+            type="submit"
+            disabled={listLoading}
+            className="flex items-center gap-1 rounded-lg border border-arch-border px-2.5 py-1.5 text-xs hover:bg-white/5 disabled:opacity-50"
+          >
+            <Search size={12} /> 搜索
+          </button>
+          {listTitle !== '热门' && (
+            <button
+              type="button"
+              onClick={() => {
+                setKeyword('');
+                void loadPopular(1, true);
+              }}
+              className="rounded-lg border border-arch-border px-2.5 py-1.5 text-xs text-arch-muted hover:bg-white/5"
+            >
+              返回热门
+            </button>
+          )}
+        </form>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-lg border border-arch-border px-2 py-1">
+            <div className="h-5 w-5 overflow-hidden rounded-full bg-white/10">
+              {user?.face ? <img src={user.face} alt="" className="h-full w-full object-cover" /> : null}
             </div>
-            <div className="text-left">
-              <div className="text-[10px] text-slate-400">已登录</div>
-              <div className="text-xs font-medium text-slate-700">{user?.uname || '用户'}</div>
-            </div>
+            <span className="max-w-24 truncate text-[11px]">{user?.uname}</span>
           </div>
           <button
             type="button"
             onClick={logout}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+            className="rounded-lg border border-arch-border px-2 py-1 text-[11px] text-arch-muted hover:bg-white/5"
           >
             切换账号
           </button>
         </div>
       </div>
 
-      <div className="grid flex-1 grid-cols-[280px_minmax(0,1fr)] overflow-hidden">
-        <aside className="border-r border-slate-200 bg-slate-50/90 p-3">
-          {user ? (
-            <div className="mb-3 rounded-[22px] bg-gradient-to-r from-pink-500 to-fuchsia-500 p-[1px] shadow-sm">
-              <div className="rounded-[21px] bg-white/95 p-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
-                    {user.face ? (
-                      <img src={user.face} alt={user.uname || '用户'} className="h-full w-full object-cover" />
-                    ) : null}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-700">{user.uname || '用户'}</div>
-                    <div className="text-[11px] text-slate-500">已登录 · 个人中心</div>
+      <div className="grid flex-1 grid-cols-[300px_minmax(0,1fr)] overflow-hidden">
+        {/* 左：视频列表 */}
+        <aside className="flex min-h-0 flex-col border-r border-arch-border">
+          <div className="flex items-center justify-between border-b border-arch-border px-3 py-2 text-[11px] text-arch-muted">
+            <span className="truncate">{listTitle} · {cards.length}</span>
+            {listLoading && <span>加载中…</span>}
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {cards.map((item) => (
+              <button
+                type="button"
+                key={item.bvid}
+                onClick={() => void loadVideo(item.bvid)}
+                className={cn(
+                  'flex w-full gap-2.5 border-b border-arch-border/40 p-2.5 text-left transition hover:bg-white/5',
+                  selectedBvid === item.bvid && 'bg-arch-accent/10',
+                )}
+              >
+                <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded bg-black/40">
+                  {item.pic ? (
+                    <img src={item.pic} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : null}
+                  <span className="absolute bottom-0.5 right-0.5 rounded bg-black/70 px-1 text-[9px] tabular-nums text-white">
+                    {formatDuration(item.duration)}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="line-clamp-2 text-[12px] leading-snug">{collapseText(item.title)}</div>
+                  <div className="mt-1 flex items-center gap-2 text-[10px] text-arch-muted">
+                    <span className="truncate">{item.owner?.name}</span>
+                    {item.play != null && <span>{formatCount(item.play)} 播放</span>}
                   </div>
                 </div>
-              </div>
-            </div>
-          ) : null}
+              </button>
+            ))}
 
-          <div className="mb-3 rounded-[22px] border border-pink-100 bg-gradient-to-br from-pink-50 to-white p-3 shadow-sm">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-700">入站必刷</div>
-              <div className="rounded-full bg-pink-100 px-2 py-0.5 text-[10px] font-medium text-pink-600">今日推荐</div>
-            </div>
-            <div className="space-y-2">
-              {FEATURED_ITEMS.map((item) => (
-                <button
-                  key={item.bvid}
-                  type="button"
-                  onClick={() => void loadVideo(item.bvid || '')}
-                  className="flex w-full items-center gap-2 rounded-2xl border border-white bg-white/80 p-2 text-left shadow-sm transition hover:border-pink-200 hover:bg-pink-50"
-                >
-                  <div className="relative h-14 w-20 overflow-hidden rounded-xl bg-slate-200">
-                    <img src={item.pic} alt={item.title} className="h-full w-full object-cover" />
-                    <div className="absolute bottom-1 right-1 rounded bg-slate-900/70 px-1 py-0.5 text-[9px] text-white">
-                      {item.duration}
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="line-clamp-2 text-[12px] font-medium text-slate-700">{item.title}</div>
-                    <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-slate-500">
-                      <span>{item.owner?.name}</span>
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-600">{item.tag}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+            {listError && (
+              <div className="p-3 text-[11px] leading-relaxed text-arch-red">{listError}</div>
+            )}
 
-          <div className="mb-3 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-            <input
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="输入 BV 号或关键词"
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
-            />
-            <button
-              type="button"
-              onClick={() => void searchVideo()}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white transition hover:bg-slate-700"
-            >
-              <Search size={15} />
-            </button>
-          </div>
-
-          <div className="space-y-2 overflow-y-auto pb-3">
-            {searchResults.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-4 text-sm text-slate-500">
-                先搜索视频，再点开播放
-              </div>
-            ) : (
-              searchResults.map((item) => (
-                <button
-                  type="button"
-                  key={item.bvid}
-                  onClick={() => void loadVideo(item.bvid || '')}
-                  className={cn(
-                    'flex w-full items-start gap-3 rounded-2xl border bg-white p-2 text-left shadow-sm transition',
-                    selectedBvid === item.bvid
-                      ? 'border-pink-200 bg-pink-50'
-                      : 'border-slate-200 hover:border-slate-300',
-                  )}
-                >
-                  <div className="relative h-20 w-28 overflow-hidden rounded-xl bg-slate-200">
-                    {item.pic ? (
-                      <img src={item.pic} alt={item.title} className="h-full w-full object-cover" />
-                    ) : null}
-                    <div className="absolute bottom-1 right-1 rounded bg-slate-900/75 px-1.5 py-0.5 text-[10px] text-white">
-                      {item.duration || '视频'}
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="line-clamp-2 text-sm font-medium text-slate-700">{item.title || '未知标题'}</div>
-                    <div className="mt-1 text-[11px] text-slate-500">{item.owner?.name || '未知UP主'}</div>
-                    <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
-                      <Play size={11} />
-                      {item.bvid}
-                    </div>
-                  </div>
-                </button>
-              ))
+            {cards.length > 0 && hasMore && listTitle === '热门' && (
+              <button
+                type="button"
+                onClick={() => void loadPopular(listPage + 1, false)}
+                disabled={listLoading}
+                className="w-full py-2.5 text-[11px] text-arch-muted hover:bg-white/5 disabled:opacity-50"
+              >
+                加载更多
+              </button>
             )}
           </div>
         </aside>
 
-        <main className="flex min-h-0 flex-col gap-4 overflow-hidden p-4">
-          <div className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="mb-3 overflow-hidden rounded-[20px] bg-slate-100">
-              <div
-                className={cn(
-                  'relative h-36 w-full overflow-hidden rounded-[20px] bg-gradient-to-r',
-                  HERO_ITEMS[heroIndex].color,
-                )}
-              >
-                <img
-                  src={HERO_ITEMS[heroIndex].pic}
-                  alt={HERO_ITEMS[heroIndex].title}
-                  className="absolute inset-0 h-full w-full object-cover opacity-60"
+        {/* 右：播放器 + 信息 + 评论 */}
+        <main className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-3">
+            {/* 播放器 */}
+            <div className="relative overflow-hidden rounded-lg border border-arch-border bg-black">
+              {videoUrl ? (
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  controls
+                  playsInline
+                  className="aspect-video w-full bg-black"
+                  onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
+                  onError={() => setVideoError('视频流加载失败，可能已被下架或稍后重试')}
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-slate-900/70 via-slate-900/35 to-transparent" />
-                <div className="relative flex h-full items-end p-4">
-                  <div>
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.22em] text-pink-100">首页推荐</div>
-                    <div className="text-xl font-semibold text-white">{HERO_ITEMS[heroIndex].title}</div>
-                    <div className="mt-1 text-xs text-slate-200">{HERO_ITEMS[heroIndex].subtitle}</div>
-                  </div>
+              ) : (
+                <div className="flex aspect-video items-center justify-center text-xs text-arch-muted">
+                  {videoLoading ? '加载中…' : videoError ?? '从左侧选择视频'}
                 </div>
-                <div className="absolute bottom-3 right-3 flex gap-1.5">
-                  {HERO_ITEMS.map((item, index) => (
-                    <button
-                      key={item.title}
-                      type="button"
-                      onClick={() => setHeroIndex(index)}
-                      className={cn(
-                        'h-2 w-6 rounded-full transition',
-                        heroIndex === index ? 'bg-white' : 'bg-white/40',
-                      )}
-                    />
+              )}
+
+              {/* 弹幕层 */}
+              {showDanmaku && videoUrl && (
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  {spawns.map((d) => (
+                    <span
+                      key={d.key}
+                      className="absolute whitespace-nowrap text-[12px] font-medium"
+                      style={{
+                        top: `${(d.lane * 14 + 4)}%`,
+                        left: '100%',
+                        animation: `bili-dm ${DANMAKU_LIFETIME_MS / 1000}s linear forwards`,
+                        color: danmakuColor(d.color),
+                        textShadow: '0 0 3px rgba(0,0,0,0.8)',
+                      }}
+                    >
+                      {d.text}
+                    </span>
                   ))}
                 </div>
-              </div>
-            </div>
+              )}
 
-            <div className="mb-4 grid grid-cols-4 gap-2">
-              {QUICK_CHANNELS.map((channel) => (
-                <button
-                  key={channel.name}
-                  type="button"
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-2 py-3 text-center text-[11px] font-medium text-slate-600 transition hover:border-pink-200 hover:bg-pink-50 hover:text-pink-600"
-                >
-                  <div className="mb-1 text-base">{channel.icon}</div>
-                  {channel.name}
-                </button>
-              ))}
-            </div>
-
-            <div className="mb-4 grid grid-cols-4 gap-3">
-              {QUICK_ACTIONS.map((action) => (
-                <div
-                  key={action.label}
-                  className="rounded-[20px] border border-slate-200 bg-slate-50 p-3"
-                >
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{action.label}</div>
-                  <div className="mt-2 text-xl font-semibold text-slate-700">{action.value}</div>
-                  <div className="mt-1 text-[10px] text-slate-500">{action.hint}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              {HOME_TABS.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-xs font-medium transition',
-                    activeTab === tab
-                      ? 'bg-pink-500 text-white shadow-sm'
-                      : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100',
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            <div className="mb-4 grid grid-cols-2 gap-3">
-              {HOT_TOPICS.map((topic) => (
-                <div
-                  key={topic.title}
-                  className="rounded-[20px] border border-slate-200 bg-slate-50 p-3"
-                >
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">热门话题</div>
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-slate-700">#{topic.title}</span>
-                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] text-slate-600">{topic.count}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {activeFeed.map((item) => (
-                <button
-                  key={`${activeTab}-${item.bvid}`}
-                  type="button"
-                  onClick={() => void loadVideo(item.bvid || '')}
-                  className="overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 text-left transition hover:border-pink-200 hover:bg-pink-50"
-                >
-                  <div className="relative h-28 w-full overflow-hidden bg-slate-200">
-                    <img src={item.pic} alt={item.title} className="h-full w-full object-cover" />
-                    <div className="absolute bottom-2 right-2 rounded bg-slate-900/75 px-1.5 py-0.5 text-[10px] text-white">
-                      {item.duration}
-                    </div>
-                  </div>
-                  <div className="p-3">
-                    <div className="line-clamp-2 text-sm font-medium text-slate-700">{item.title}</div>
-                    <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
-                      <span>{item.owner?.name}</span>
-                      <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-slate-600">{item.tag}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Video size={16} className="text-pink-500" />
-                <span>{pageInfo?.title || '暂无视频'}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDanmaku((prev) => !prev)}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-xs font-medium transition',
-                  showDanmaku
-                    ? 'bg-pink-500 text-white'
-                    : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100',
-                )}
-              >
-                {showDanmaku ? '关闭弹幕' : '打开弹幕'}
-              </button>
-            </div>
-
-            <div className="relative overflow-hidden rounded-[20px] border border-slate-200 bg-black shadow-inner">
-              {videoUrl ? (
-                <>
-                  <video
-                    ref={videoRef}
-                    src={videoUrl}
-                    controls
-                    crossOrigin="anonymous"
-                    className="aspect-video h-full w-full bg-black"
-                    onLoadedData={handleVideoLoaded}
-                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                    onError={() => setError('当前视频流无法播放，请尝试切换其他视频或稍后再试')}
-                  />
-
-                  {showDanmaku ? (
-                    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                      {visibleDanmaku.map((item, index) => (
-                        <span
-                          key={`${item.time}-${index}`}
-                          className="absolute whitespace-nowrap text-[11px] font-medium text-white drop-shadow-[0_0_4px_rgba(15,23,42,0.8)]"
-                          style={{
-                            top: `${(index * 16) % 72 + 10}%`,
-                            left: '100%',
-                            animation: 'bili-dm 5s linear forwards',
-                            color: item.color ? `#${item.color.toString(16).padStart(6, '0')}` : '#ffffff',
-                          }}
-                        >
-                          {item.text}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <div className="flex aspect-video items-center justify-center bg-slate-900 text-sm text-slate-300">
-                  {loading ? '加载中...' : '还没有视频源'}
+              {videoError && videoUrl && (
+                <div className="absolute inset-x-3 top-3 flex items-center gap-2 rounded border border-arch-red/50 bg-black/85 p-2 text-[11px] text-arch-red">
+                  <X size={12} className="shrink-0" />
+                  <span className="flex-1">{videoError}</span>
                 </div>
               )}
             </div>
 
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <CheckCircle2 size={15} className="text-emerald-500" />
-                <span>{pageInfo?.owner?.name || '未加载视频'}</span>
+            {/* 标题栏 */}
+            <div className="mt-2.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">{info?.title || '未选择视频'}</div>
+                <div className="mt-0.5 text-[11px] text-arch-muted">
+                  {info?.up ? `UP 主：${info.up}` : ''}
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <Volume2 size={15} />
-                <span>默认音量 0.9</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid flex-1 grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)] gap-4 overflow-hidden">
-            <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                <MessageSquareText size={16} className="text-pink-500" />
-                评论区
-              </div>
-
-              <div className="space-y-3 overflow-y-auto pr-1">
-                {replies.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                    视频加载后会显示评论列表
-                  </div>
-                ) : (
-                  replies.map((reply) => (
-                    <div key={reply.rpid} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 overflow-hidden rounded-full bg-slate-200">
-                            {reply.member?.avatar ? (
-                              <img src={reply.member.avatar} alt={reply.member?.uname || '用户'} className="h-full w-full object-cover" />
-                            ) : null}
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-slate-700">{reply.member?.uname || '用户'}</div>
-                            <div className="text-[10px] text-slate-400">点赞 {reply.like || 0}</div>
-                          </div>
-                        </div>
-                        <span className="text-[10px] uppercase text-slate-400">reply</span>
-                      </div>
-                      <div className="text-sm leading-6 text-slate-600">
-                        {normalizeMessage(reply.content?.message) || '评论已加载'}
-                      </div>
-                    </div>
-                  ))
+              <button
+                type="button"
+                onClick={() => setShowDanmaku((v) => !v)}
+                className={cn(
+                  'shrink-0 rounded-lg border px-2.5 py-1 text-[11px] transition',
+                  showDanmaku
+                    ? 'border-arch-accent bg-arch-accent/15 text-arch-accent'
+                    : 'border-arch-border text-arch-muted hover:bg-white/5',
                 )}
-              </div>
+              >
+                弹幕{showDanmaku ? '开' : '关'}
+              </button>
             </div>
 
-            <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                <X size={16} className="text-pink-500" />
-                视频信息
+            {info?.desc && (
+              <p className="mt-2 line-clamp-3 text-[11px] leading-relaxed text-arch-muted">{info.desc}</p>
+            )}
+
+            {/* 评论 */}
+            <div className="mt-4">
+              <div className="mb-2 flex items-center gap-1.5 text-xs">
+                <MessageSquareText size={13} className="text-arch-muted" />
+                评论 {replies.length > 0 && `· ${replies.length}`}
               </div>
-
-              <div className="space-y-3 text-sm text-slate-600">
-                {pageInfo?.pic ? (
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                    <img src={pageInfo.pic} alt={pageInfo.title || '视频封面'} className="h-32 w-full object-cover" />
-                  </div>
-                ) : null}
-
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="mb-1 text-[10px] uppercase tracking-[0.16em] text-slate-400">标题</div>
-                  <div className="font-medium text-slate-700">{pageInfo?.title || '尚未选择视频'}</div>
+              {replies.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-arch-border p-4 text-center text-[11px] text-arch-muted">
+                  {pageInfo ? '暂无评论' : '选择视频后显示评论'}
                 </div>
-
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="mb-1 text-[10px] uppercase tracking-[0.16em] text-slate-400">UP 主</div>
-                  <div className="font-medium text-slate-700">{pageInfo?.owner?.name || '暂无'}</div>
+              ) : (
+                <div className="space-y-2">
+                  {replies.map((r) => (
+                    <div key={r.rpid} className="rounded-lg border border-arch-border/60 p-2.5">
+                      <div className="mb-1 flex items-center gap-2">
+                        <div className="h-5 w-5 overflow-hidden rounded-full bg-white/10">
+                          {r.member?.avatar ? (
+                            <img src={r.member.avatar} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          ) : null}
+                        </div>
+                        <span className="text-[11px] font-medium">{r.member?.uname || '用户'}</span>
+                        {r.like ? <span className="text-[10px] text-arch-muted">{r.like} 赞</span> : null}
+                      </div>
+                      <p className="text-[12px] leading-relaxed text-arch-muted">
+                        {collapseText(r.content?.message)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="mb-1 text-[10px] uppercase tracking-[0.16em] text-slate-400">简介</div>
-                  <div className="leading-6 text-slate-600">
-                    {pageInfo?.desc ? normalizeMessage(pageInfo.desc) : '视频简介将在播放后显示。'}
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </main>
@@ -959,9 +698,9 @@ export default function BilibiliApp(_: AppProps) {
 
       <style>{`
         @keyframes bili-dm {
-          0% { transform: translateX(0); opacity: 0; }
-          8% { opacity: 1; }
-          100% { transform: translateX(-140vw); opacity: 0; }
+          0% { transform: translateX(0); opacity: 0.9; }
+          95% { opacity: 0.9; }
+          100% { transform: translateX(calc(-100% - 100vw / 2)); opacity: 0; }
         }
       `}</style>
     </div>

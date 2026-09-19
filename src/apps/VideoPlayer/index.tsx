@@ -136,11 +136,11 @@ export default function VideoPlayer(_: AppProps) {
       });
     }
     if (additions.length === 0) return;
-    setItems((prev) => {
-      const next = [...prev, ...additions];
-      if (!activeId) setActiveId(additions[0].id);
-      return next;
-    });
+    // 先算好新列表和默认选中项，再一次性 setState：
+    // 更新器必须是纯函数，StrictMode 下会跑两次，副作用放里面会出诡异状态
+    const next = [...items, ...additions];
+    setItems(next);
+    if (!activeId) setActiveId(additions[0].id);
     setError(null);
   };
 
@@ -148,16 +148,12 @@ export default function VideoPlayer(_: AppProps) {
   const submitUrl = () => {
     const raw = urlDraft.trim();
     if (!raw) return;
-    // 自动加 https://
     const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
     const isHls = /\.m3u8(\?|$|#)/i.test(url);
     const name = url.split('/').pop()?.split('?')[0] ?? '在线视频';
     const id = crypto.randomUUID();
-    setItems((prev) => {
-      const next = [...prev, { id, name, url, isHls, origin: url }];
-      setActiveId(id);
-      return next;
-    });
+    setItems([...items, { id, name, url, isHls, origin: url }]);
+    setActiveId(id);
     setUrlDraft('');
     setShowUrlInput(false);
     setError(null);
@@ -177,7 +173,8 @@ export default function VideoPlayer(_: AppProps) {
       video.load();
 
       if (!active.isHls) {
-        video.crossOrigin = 'anonymous';
+        // 不设 crossOrigin：在线 mp4 源大多不发 CORS 头，
+        // 带上 anonymous 反而会直接拒绝加载；<video> 播放本身不需要跨域许可
         video.src = active.url;
         video.load();
         return;
@@ -204,7 +201,6 @@ export default function VideoPlayer(_: AppProps) {
 
       if (videoCanPlay('application/vnd.apple.mpegurl')) {
         // Safari 原生
-        video.crossOrigin = 'anonymous';
         video.src = active.url;
         video.load();
         return;
@@ -245,8 +241,15 @@ export default function VideoPlayer(_: AppProps) {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (playing) v.play().catch(() => setPlaying(false));
-    else v.pause();
+    if (playing) {
+      v.play().catch((err: unknown) => {
+        // 切源时旧的 load() 会中断 play()，属正常时序，不该把按钮按回暂停态
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setPlaying(false);
+      });
+    } else {
+      v.pause();
+    }
   }, [playing, active?.id]);
 
   useEffect(() => {
@@ -521,8 +524,11 @@ export default function VideoPlayer(_: AppProps) {
                 ref={videoRef}
                 className="max-h-full max-w-full"
                 playsInline
-                crossOrigin="anonymous"
-                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                preload="metadata"
+                onLoadedMetadata={(e) => {
+                  const d = e.currentTarget.duration;
+                  setDuration(isFinite(d) ? d : 0);
+                }}
                 onTimeUpdate={(e) => setPosition(e.currentTarget.currentTime)}
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
@@ -588,16 +594,11 @@ export default function VideoPlayer(_: AppProps) {
               <div className="mt-2 flex flex-wrap items-center gap-2 text-zinc-300">
                 <button
                   onClick={() => {
-                    setItems((prev) => {
-                      const idx = prev.findIndex((x) => x.id === activeId);
-                      if (idx <= 0) {
-                        setActiveId(prev[prev.length - 1]?.id ?? null);
-                      } else {
-                        setActiveId(prev[idx - 1].id);
-                      }
-                      setPlaying(true);
-                      return prev;
-                    });
+                    const idx = items.findIndex((x) => x.id === activeId);
+                    const target = idx <= 0 ? items[items.length - 1] : items[idx - 1];
+                    if (!target) return;
+                    setActiveId(target.id);
+                    setPlaying(true);
                   }}
                   className="rounded p-1.5 hover:bg-zinc-800"
                   title="上一段"
@@ -618,18 +619,12 @@ export default function VideoPlayer(_: AppProps) {
                 </button>
                 <button
                   onClick={() => {
-                    setItems((prev) => {
-                      const idx = prev.findIndex((x) => x.id === activeId);
-                      if (idx < 0) {
-                        setActiveId(prev[0]?.id ?? null);
-                      } else if (idx >= prev.length - 1) {
-                        setActiveId(prev[0]?.id ?? null);
-                      } else {
-                        setActiveId(prev[idx + 1].id);
-                      }
-                      setPlaying(true);
-                      return prev;
-                    });
+                    const idx = items.findIndex((x) => x.id === activeId);
+                    const target =
+                      idx < 0 || idx >= items.length - 1 ? items[0] : items[idx + 1];
+                    if (!target) return;
+                    setActiveId(target.id);
+                    setPlaying(true);
                   }}
                   className="rounded p-1.5 hover:bg-zinc-800"
                   title="下一段"

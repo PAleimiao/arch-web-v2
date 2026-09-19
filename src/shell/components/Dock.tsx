@@ -26,10 +26,12 @@ export default function Dock() {
   const toggleLauncher = useOSStore((s) => s.toggleLauncher);
   const launcherOpen = useOSStore((s) => s.launcherOpen);
   const dockSize = useOSStore((s) => s.settings.dockSize);
+  const dockAutoHide = useOSStore((s) => s.settings.dockAutoHide);
   const disabled = usePackageStore((s) => s.disabled);
   const removePkg = usePackageStore((s) => s.remove);
 
   const [menu, setMenu] = useState<DockMenu | null>(null);
+  const [peeked, setPeeked] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -94,10 +96,20 @@ export default function Dock() {
   const itemSize = Math.max(36, Math.min(80, dockSize));
 
   return (
-    <div className="pointer-events-none absolute bottom-2 left-1/2 z-[7000] -translate-x-1/2">
+    <div
+      onMouseEnter={() => setPeeked(true)}
+      onMouseLeave={() => setPeeked(false)}
+      className={cn(
+        'pointer-events-none absolute left-1/2 z-[7000] -translate-x-1/2',
+        dockAutoHide ? 'bottom-0 pb-2' : 'bottom-2',
+      )}
+    >
       <div
         ref={wrapRef}
-        className="pointer-events-auto relative flex items-end gap-1.5 rounded-2xl border border-white/10 bg-black/45 px-2 py-1.5 shadow-2xl backdrop-blur-md"
+        className={cn(
+          'pointer-events-auto relative flex items-end gap-1.5 rounded-2xl border border-white/10 bg-black/45 px-2 py-1.5 shadow-2xl backdrop-blur-md transition-transform duration-200',
+          dockAutoHide && !peeked && !menu && 'translate-y-[140%]',
+        )}
       >
         {menu && menuApp && (
           <div

@@ -156,14 +156,22 @@ function useApplyTheme() {
 export default function App() {
   const power = useOSStore((s) => s.power);
   const bootKey = useOSStore((s) => s.bootKey);
+  const bootAnimation = useOSStore((s) => s.settings.bootAnimation);
   const running = power === 'running';
 
   useGlobalHotkeys(running);
   useAutoLock(running);
   useApplyTheme();
 
-  if (power === 'booting') return <BootScreen key={bootKey} />;
-  if (power === 'locked') return <LockScreen />;
+  // 跳过开机动画：booting 状态直接落到锁屏
+  useEffect(() => {
+    if (power === 'booting' && !bootAnimation) {
+      useOSStore.getState().bootComplete();
+    }
+  }, [power, bootAnimation]);
+
+  if (power === 'booting' && bootAnimation) return <BootScreen key={bootKey} />;
+  if (power === 'booting' || power === 'locked') return <LockScreen />;
   if (power === 'off') return <PowerOffScreen />;
   if (power === 'shutting-down' || power === 'restarting') {
     return <ShutdownScreen mode={power} />;

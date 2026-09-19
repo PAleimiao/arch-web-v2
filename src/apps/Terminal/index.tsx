@@ -1006,7 +1006,7 @@ export default function Terminal({ context }: AppProps) {
 
   return (
     <div
-      className="flex h-full flex-col bg-[#0b0e14]/85 p-2 text-[12px] leading-5 text-arch-text"
+      className="flex h-full flex-col bg-[#0b0e14]/85 p-2 font-mono text-[12px] leading-5 text-arch-text"
       onClick={() => inputRef.current?.focus()}
     >
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">

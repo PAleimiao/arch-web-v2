@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useNotifyStore, type NotifyLevel } from '@/stores/useNotifyStore';
+import { useOSStore } from '@/stores/useOSStore';
 
 const LEVEL_STYLE: Record<
   NotifyLevel,
@@ -138,6 +139,7 @@ export function NotifyBell() {
 /** 右上角浮出的短期提示，几秒后自己消失（仍留在通知中心里） */
 export function NotificationToasts() {
   const items = useNotifyStore((s) => s.items);
+  const doNotDisturb = useOSStore((s) => s.settings.doNotDisturb);
   const [toastIds, setToastIds] = useState<string[]>([]);
   const seenRef = useRef<Set<string> | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -152,6 +154,9 @@ export function NotificationToasts() {
     const fresh = items.filter((n) => !seen.has(n.id));
     if (fresh.length === 0) return;
     fresh.forEach((n) => seen.add(n.id));
+
+    // 免打扰：只记已读，不弹浮层
+    if (doNotDisturb) return;
 
     setToastIds((prev) => [
       ...fresh.map((n) => n.id),
@@ -169,7 +174,7 @@ export function NotificationToasts() {
       timersRef.current.forEach(clearTimeout);
       timersRef.current = [];
     };
-  }, [items]);
+  }, [items, doNotDisturb]);
 
   const toasts = toastIds
     .map((id) => items.find((n) => n.id === id))
