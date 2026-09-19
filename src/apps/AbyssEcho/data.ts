@@ -147,7 +147,7 @@ export function questTitle(q: QuestState): string {
 const VILLAGE: string[] = [
   'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
   'T......................................T',
-  'T..hhhhh....hhhhh.......hhhhh..........T',
+  'T..RRRRR....RRRRR.......RRRRR..........T',
   'T..hhDhh....hhDhh.......hhDhh..........T',
   'T..hhhhh....hhhhh.......hhhhh..........T',
   'T...........~~~~.......................T',
@@ -156,7 +156,7 @@ const VILLAGE: string[] = [
   'T.....,......###............#..........T',
   'T.....,,,,,,, ,,,,,,,,,,,,,,#..........T',
   'T........,...sssssssss......#..........T',
-  'T..hhhhh.,...sssssssss......,..........T',
+  'T..RRRRR.,...sssssssss......,..........T',
   'T..hDhhh.,...sssssssss......,,,,,,,,,,,P',
   'T..hhhhh.,...sss..ssss.................T',
   'T........,...sssssssss....T.T.T........T',
@@ -340,7 +340,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
 };
 
 /* 修正 forest 右侧出口：钥匙逻辑在引擎里判断，portal 需要唯一 */
-export const SOLID = new Set(['#', 'T', 'h', 'w', 'x', 'r']);
+export const SOLID = new Set(['#', 'T', 'h', 'R', 'w', 'x', 'r']);
 
 export function tileAt(zone: ZoneDef, tx: number, ty: number): string {
   if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return '#';

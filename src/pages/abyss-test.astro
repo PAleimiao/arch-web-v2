@@ -15,10 +15,10 @@
     <canvas id="c" width="800" height="500"></canvas>
     <script>
       import { AbyssGame } from '../apps/AbyssEcho/game';
-      const canvas = document.getElementById('c');
+      const canvas = document.getElementById('c') as HTMLCanvasElement;
       const game = new AbyssGame(canvas);
       game.start();
-      (window).__game = game;
+      (window as unknown as Record<string, unknown>).__game = game;
       window.addEventListener('error', (e) => {
         const el = document.createElement('pre');
         el.id = 'page-err';
