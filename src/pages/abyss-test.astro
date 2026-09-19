@@ -1,0 +1,30 @@
+---
+// 游戏引擎独立冒烟页（不带桌面壳）：/abyss-test
+---
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>abyss-test</title>
+    <style>
+      body { margin: 0; background: #000; display: flex; align-items: center; justify-content: center; height: 100vh; }
+      canvas { image-rendering: pixelated; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" width="800" height="500"></canvas>
+    <script>
+      import { AbyssGame } from '../apps/AbyssEcho/game';
+      const canvas = document.getElementById('c');
+      const game = new AbyssGame(canvas);
+      game.start();
+      (window).__game = game;
+      window.addEventListener('error', (e) => {
+        const el = document.createElement('pre');
+        el.id = 'page-err';
+        el.textContent = 'ERR: ' + e.message;
+        document.body.appendChild(el);
+      });
+    </script>
+  </body>
+</html>

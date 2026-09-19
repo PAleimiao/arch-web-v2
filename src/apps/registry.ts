@@ -34,6 +34,7 @@ import {
   Settings,
   Sparkles,
   StickyNote,
+  Swords,
   Terminal,
 } from 'lucide-react';
 import type { AppMeta, AppProps } from '@/shell/types';
@@ -94,6 +95,7 @@ const ENTRY: Record<string, string> = {
   snake: './Snake/index.tsx',
   tetris: './Tetris/index.tsx',
   gomoku: './Gomoku/index.tsx',
+  'abyss-echo': './AbyssEcho/index.tsx',
 };
 
 export const CATEGORIES = [
@@ -546,6 +548,19 @@ export const APPS: AppMeta[] = [
     minWidth: 540,
     minHeight: 600,
     accent: '#d19a66',
+    singleton: true,
+  },
+  {
+    id: 'abyss-echo',
+    name: '深渊回响',
+    icon: Swords,
+    category: '游戏',
+    description: '像素动作 RPG：四张大地图、任务链、装备商店与深渊领主 Boss 战',
+    defaultWidth: 880,
+    defaultHeight: 600,
+    minWidth: 640,
+    minHeight: 440,
+    accent: '#e06c75',
     singleton: true,
   },
 ];

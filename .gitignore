@@ -35,3 +35,7 @@ coverage/
 # Wrangler 本地缓存
 .wrangler/
 dist-cf/
+
+# 本地测试产物
+.smoke/
+.preview/
