@@ -1,14 +1,14 @@
-import TopBar from './components/TopBar';
-import Dock from './components/Dock';
-import AppLauncher from './components/AppLauncher';
-import ContextMenu from './components/ContextMenu';
-import CommandPalette from './components/CommandPalette';
-import { NotificationToasts } from './components/NotificationCenter';
-import WindowManager from './window/WindowManager';
-import { useOSStore } from '@/stores/useOSStore';
-import { useWindowStore } from '@/stores/useWindowStore';
-import { usePackageStore } from '@/stores/usePackageStore';
-import { APPS } from '@/apps/registry';
+import TopBar from "./components/TopBar";
+import Dock from "./components/Dock";
+import AppLauncher from "./components/AppLauncher";
+import ContextMenu from "./components/ContextMenu";
+import CommandPalette from "./components/CommandPalette";
+import { NotificationToasts } from "./components/NotificationCenter";
+import WindowManager from "./window/WindowManager";
+import { useOSStore } from "@/stores/useOSStore";
+import { useWindowStore } from "@/stores/useWindowStore";
+import { usePackageStore } from "@/stores/usePackageStore";
+import { APPS } from "@/apps/registry";
 
 /** 桌面只放「应用」类里比较像桌面快捷方式的那些，其余走启动器 */
 const DESKTOP_FALLBACK_LIMIT = 6;
@@ -22,7 +22,9 @@ export default function Desktop() {
   const disabled = usePackageStore((s) => s.disabled);
 
   const installed = APPS.filter((a) => !disabled.includes(a.id));
-  const desktopApps = allApps ? installed : installed.slice(0, DESKTOP_FALLBACK_LIMIT);
+  const desktopApps = allApps
+    ? installed
+    : installed.slice(0, DESKTOP_FALLBACK_LIMIT);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-arch-bg">
@@ -31,12 +33,12 @@ export default function Desktop() {
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${wallpaper})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/40" />
+      <div className="absolute inset-0 bg-linear-to-b from-black/25 via-transparent to-black/40" />
 
       <TopBar />
 
       {/* 桌面图标：多了就滚动，别溢出屏幕 */}
-      <div className="absolute bottom-24 left-3 top-10 w-[104px] overflow-y-auto overflow-x-hidden pr-1">
+      <div className="absolute bottom-24 left-3 top-10 w-26 overflow-y-auto overflow-x-hidden pr-1">
         <div className="grid gap-3">
           {desktopApps.map((app) => {
             const Icon = app.icon;
@@ -60,12 +62,12 @@ export default function Desktop() {
                   style={{
                     width: iconSize,
                     height: iconSize,
-                    background: `${app.accent ?? '#1793d1'}33`,
+                    background: `${app.accent ?? "#1793d1"}33`,
                   }}
                 >
                   <Icon
                     size={Math.round(iconSize * 0.5)}
-                    style={{ color: app.accent ?? '#1793d1' }}
+                    style={{ color: app.accent ?? "#1793d1" }}
                   />
                 </div>
                 <span className="desktop-icon-label w-full truncate text-center text-[11px] text-white/90">

@@ -1,13 +1,13 @@
-import { create } from 'zustand';
-import type { WindowState } from '@/shell/types';
+import { create } from "zustand";
+import type { WindowState } from "@/shell/types";
 
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 220;
 const BASE_Z = 100;
 
 function clampWindow(w: WindowState): WindowState {
-  const maxW = typeof window === 'undefined' ? 1440 : window.innerWidth;
-  const maxH = typeof window === 'undefined' ? 900 : window.innerHeight;
+  const maxW = typeof window === "undefined" ? 1440 : window.innerWidth;
+  const maxH = typeof window === "undefined" ? 900 : window.innerHeight;
   return {
     ...w,
     width: Math.min(Math.max(w.width, MIN_WIDTH), maxW - 16),
@@ -38,7 +38,7 @@ interface WindowStore {
   restore: (id: string) => void;
   setGeometry: (
     id: string,
-    geo: Partial<Pick<WindowState, 'x' | 'y' | 'width' | 'height'>>,
+    geo: Partial<Pick<WindowState, "x" | "y" | "width" | "height">>,
   ) => void;
   setTitle: (id: string, title: string) => void;
   isOpen: (appId: string) => boolean;
@@ -63,8 +63,8 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
       }
     }
 
-    const vw = typeof window === 'undefined' ? 1440 : window.innerWidth;
-    const vh = typeof window === 'undefined' ? 900 : window.innerHeight;
+    const vw = typeof window === "undefined" ? 1440 : window.innerWidth;
+    const vh = typeof window === "undefined" ? 900 : window.innerHeight;
     const w = Math.min(width, vw - 40);
     const h = Math.min(height, vh - 100);
     // 逐级错位，避免新窗口完全盖住旧的
@@ -147,8 +147,8 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
         if (w.maximized && w.restore) {
           return { ...w, ...w.restore, maximized: false, restore: null };
         }
-        const vw = typeof window === 'undefined' ? 1440 : window.innerWidth;
-        const vh = typeof window === 'undefined' ? 900 : window.innerHeight;
+        const vw = typeof window === "undefined" ? 1440 : window.innerWidth;
+        const vh = typeof window === "undefined" ? 900 : window.innerHeight;
         return {
           ...w,
           restore: { x: w.x, y: w.y, width: w.width, height: w.height },

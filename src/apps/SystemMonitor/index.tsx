@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Activity,
   ArrowDown,
@@ -9,11 +16,11 @@ import {
   HardDrive,
   MemoryStick,
   ShieldCheck,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
-import { useWindowStore } from '@/stores/useWindowStore';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
+import { useWindowStore } from "@/stores/useWindowStore";
 
 interface PerfMemory {
   usedJSHeapSize: number;
@@ -38,14 +45,14 @@ function pushSample(buf: number[], v: number) {
   if (buf.length > MAX_POINTS) buf.shift();
 }
 
-function trend(buf: number[]): 'up' | 'down' | 'flat' {
+function trend(buf: number[]): "up" | "down" | "flat" {
   const n = buf.length;
-  if (n < 2) return 'flat';
+  if (n < 2) return "flat";
   const a = buf[n - 2]!;
   const b = buf[n - 1]!;
-  if (b > a) return 'up';
-  if (b < a) return 'down';
-  return 'flat';
+  if (b > a) return "up";
+  if (b < a) return "down";
+  return "flat";
 }
 
 function fmtBytes(n: number): string {
@@ -82,7 +89,7 @@ export default function SystemMonitor(_: AppProps) {
       .deviceMemory;
     return {
       cores: navigator.hardwareConcurrency ?? 0,
-      memory: devMemory ? `${devMemory} GB` : '未知',
+      memory: devMemory ? `${devMemory} GB` : "未知",
       ua: navigator.userAgent,
     };
   }, []);
@@ -99,13 +106,13 @@ export default function SystemMonitor(_: AppProps) {
     canvas.height = Math.floor(h * dpr);
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
     // 背景网格
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
       const y = (h / 4) * i;
@@ -120,9 +127,21 @@ export default function SystemMonitor(_: AppProps) {
       color: string;
       max: number;
     }> = [
-      { buf: fpsBuf.current, color: '#56b6c2', max: Math.max(60, ...fpsBuf.current) },
-      { buf: memBuf.current, color: '#e06c75', max: Math.max(1, ...memBuf.current) },
-      { buf: lagBuf.current, color: '#e5c07b', max: Math.max(50, ...lagBuf.current) },
+      {
+        buf: fpsBuf.current,
+        color: "#56b6c2",
+        max: Math.max(60, ...fpsBuf.current),
+      },
+      {
+        buf: memBuf.current,
+        color: "#e06c75",
+        max: Math.max(1, ...memBuf.current),
+      },
+      {
+        buf: lagBuf.current,
+        color: "#e5c07b",
+        max: Math.max(50, ...lagBuf.current),
+      },
     ];
 
     for (const s of series) {
@@ -212,19 +231,19 @@ export default function SystemMonitor(_: AppProps) {
   const requestPersist = async () => {
     const ns = navigator.storage;
     if (!ns) {
-      notify('不支持', '当前浏览器没有提供 StorageManager', 'error');
+      notify("不支持", "当前浏览器没有提供 StorageManager", "error");
       return;
     }
     try {
       const ok = await ns.persist();
       setPersisted(ok);
       notify(
-        ok ? '已申请持久化' : '申请被拒',
-        ok ? '浏览器将优先保留本地存储' : '浏览器拒绝了持久化请求',
-        ok ? 'success' : 'warn',
+        ok ? "已申请持久化" : "申请被拒",
+        ok ? "浏览器将优先保留本地存储" : "浏览器拒绝了持久化请求",
+        ok ? "success" : "warn",
       );
     } catch (e) {
-      notify('申请失败', String(e), 'error');
+      notify("申请失败", String(e), "error");
     }
   };
 
@@ -245,7 +264,7 @@ export default function SystemMonitor(_: AppProps) {
         />
         <BigNum
           icon={<MemoryStick size={16} />}
-          label={hasRealHeap ? '内存占用' : '内存(估算)'}
+          label={hasRealHeap ? "内存占用" : "内存(估算)"}
           value={fmtBytes(snap.mem)}
           tone="red"
           dir={memT}
@@ -263,20 +282,36 @@ export default function SystemMonitor(_: AppProps) {
       <div className="border-b border-arch-border p-2">
         <div className="mb-1 flex items-center gap-3 text-arch-muted">
           <Legend color="#56b6c2" text="FPS" />
-          <Legend color="#e06c75" text={hasRealHeap ? '内存' : '内存(估算)'} />
+          <Legend color="#e06c75" text={hasRealHeap ? "内存" : "内存(估算)"} />
           <Legend color="#e5c07b" text="延迟" />
           <span className="ml-auto">最近 {MAX_POINTS} 秒</span>
         </div>
-        <div ref={wrapRef} className="h-40 w-full rounded border border-arch-border bg-black/30">
+        <div
+          ref={wrapRef}
+          className="h-40 w-full rounded border border-arch-border bg-black/30"
+        >
           <canvas ref={canvasRef} className="block" />
         </div>
       </div>
 
       {/* 设备信息 */}
       <div className="grid grid-cols-2 gap-2 border-b border-arch-border p-2 sm:grid-cols-3">
-        <InfoRow icon={<Cpu size={13} />} label="逻辑核心" value={deviceInfo.cores ? `${deviceInfo.cores}` : '未知'} />
-        <InfoRow icon={<MemoryStick size={13} />} label="设备内存" value={deviceInfo.memory} />
-        <InfoRow icon={<HardDrive size={13} />} label="用户代理" value={deviceInfo.ua} wrap />
+        <InfoRow
+          icon={<Cpu size={13} />}
+          label="逻辑核心"
+          value={deviceInfo.cores ? `${deviceInfo.cores}` : "未知"}
+        />
+        <InfoRow
+          icon={<MemoryStick size={13} />}
+          label="设备内存"
+          value={deviceInfo.memory}
+        />
+        <InfoRow
+          icon={<HardDrive size={13} />}
+          label="用户代理"
+          value={deviceInfo.ua}
+          wrap
+        />
       </div>
 
       {/* 存储配额与持久化 */}
@@ -288,7 +323,7 @@ export default function SystemMonitor(_: AppProps) {
         <span className="font-mono">
           {quota
             ? `${fmtBytes(quota.usage)} / ${fmtBytes(quota.quota)}`
-            : '读取中…'}
+            : "读取中…"}
         </span>
         <div className="ml-auto flex items-center gap-3">
           <span className="flex items-center gap-1 text-arch-muted">
@@ -297,13 +332,13 @@ export default function SystemMonitor(_: AppProps) {
             <span
               className={cn(
                 persisted === null
-                  ? 'text-arch-muted'
+                  ? "text-arch-muted"
                   : persisted
-                    ? 'text-arch-green'
-                    : 'text-arch-red',
+                    ? "text-arch-green"
+                    : "text-arch-red",
               )}
             >
-              {persisted === null ? '未知' : persisted ? '已开启' : '未开启'}
+              {persisted === null ? "未知" : persisted ? "已开启" : "未开启"}
             </span>
           </span>
           <button
@@ -335,25 +370,25 @@ function BigNum({
   icon: ReactNode;
   label: string;
   value: string;
-  tone: 'cyan' | 'red' | 'yellow';
-  dir: 'up' | 'down' | 'flat';
+  tone: "cyan" | "red" | "yellow";
+  dir: "up" | "down" | "flat";
 }) {
   const color =
-    tone === 'cyan'
-      ? 'text-[#56b6c2]'
-      : tone === 'red'
-        ? 'text-[#e06c75]'
-        : 'text-[#e5c07b]';
+    tone === "cyan"
+      ? "text-[#56b6c2]"
+      : tone === "red"
+        ? "text-[#e06c75]"
+        : "text-[#e5c07b]";
   return (
     <div className="flex items-center gap-2 bg-arch-bg px-3 py-3">
       <span className={color}>{icon}</span>
       <div className="leading-tight">
         <div className="flex items-center gap-1 text-arch-muted">
           {label}
-          {dir === 'up' && <ArrowUp size={11} className="text-arch-green" />}
-          {dir === 'down' && <ArrowDown size={11} className="text-arch-red" />}
+          {dir === "up" && <ArrowUp size={11} className="text-arch-green" />}
+          {dir === "down" && <ArrowDown size={11} className="text-arch-red" />}
         </div>
-        <div className={cn('font-mono text-2xl', color)}>{value}</div>
+        <div className={cn("font-mono text-2xl", color)}>{value}</div>
       </div>
     </div>
   );
@@ -388,7 +423,7 @@ function InfoRow({
         {icon}
         {label}
       </div>
-      <div className={cn('font-mono', wrap && 'break-all text-[11px]')}>
+      <div className={cn("font-mono", wrap && "break-all text-[11px]")}>
         {value}
       </div>
     </div>

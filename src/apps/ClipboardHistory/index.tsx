@@ -1,15 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Clipboard,
-  Copy,
-  Pin,
-  Search,
-  Trash2,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
-import { useClipboardStore } from '@/stores/useClipboardStore';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Clipboard, Copy, Pin, Search, Trash2 } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
+import { useClipboardStore } from "@/stores/useClipboardStore";
 
 function ago(ts: number): string {
   const d = Date.now() - ts;
@@ -27,7 +21,7 @@ export default function ClipboardHistory(_: AppProps) {
   const clearAll = useClipboardStore((s) => s.clear);
   const setWatching = useClipboardStore((s) => s.setWatching);
 
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const watchTimer = useRef<number | null>(null);
 
   const sorted = useMemo(() => {
@@ -49,18 +43,18 @@ export default function ClipboardHistory(_: AppProps) {
   const copyBack = async (text: string) => {
     try {
       const clip = navigator.clipboard;
-      if (!clip || !clip.writeText) throw new Error('当前环境不支持写入剪贴板');
+      if (!clip || !clip.writeText) throw new Error("当前环境不支持写入剪贴板");
       await clip.writeText(text);
-      notify('已复制', '已写回剪贴板', 'success');
+      notify("已复制", "已写回剪贴板", "success");
     } catch (e) {
-      notify('复制失败', `无法写入剪贴板：${String(e)}`, 'error');
+      notify("复制失败", `无法写入剪贴板：${String(e)}`, "error");
     }
   };
 
   const toggleWatch = () => {
     if (watching) {
       setWatching(false);
-      notify('已关闭监听', '停止轮询系统剪贴板', 'info');
+      notify("已关闭监听", "停止轮询系统剪贴板", "info");
     } else {
       setWatching(true);
     }
@@ -68,11 +62,9 @@ export default function ClipboardHistory(_: AppProps) {
 
   const doClear = () => {
     if (sorted.length === 0) return;
-    if (
-      window.confirm('确定清空全部剪贴板历史吗？此操作不可撤销。')
-    ) {
+    if (window.confirm("确定清空全部剪贴板历史吗？此操作不可撤销。")) {
       clearAll();
-      notify('已清空', '剪贴板历史已清空', 'info');
+      notify("已清空", "剪贴板历史已清空", "info");
     }
   };
 
@@ -88,7 +80,7 @@ export default function ClipboardHistory(_: AppProps) {
       if (document.hidden) return;
       try {
         const clip = navigator.clipboard;
-        if (!clip || !clip.readText) throw new Error('无读取权限');
+        if (!clip || !clip.readText) throw new Error("无读取权限");
         const text = await clip.readText();
         if (text && text.length >= 2) {
           useClipboardStore.getState().add(text);
@@ -96,9 +88,9 @@ export default function ClipboardHistory(_: AppProps) {
       } catch (e) {
         setWatching(false);
         notify(
-          '剪贴板监听已关闭',
+          "剪贴板监听已关闭",
           `读取剪贴板失败（多为权限被拒）：${String(e)}`,
-          'warn',
+          "warn",
         );
       }
     };
@@ -119,14 +111,14 @@ export default function ClipboardHistory(_: AppProps) {
           type="button"
           onClick={toggleWatch}
           className={cn(
-            'flex items-center gap-1 rounded border px-2 py-1',
+            "flex items-center gap-1 rounded border px-2 py-1",
             watching
-              ? 'border-arch-green text-arch-green'
-              : 'border-arch-border text-arch-muted hover:bg-arch-panel',
+              ? "border-arch-green text-arch-green"
+              : "border-arch-border text-arch-muted hover:bg-arch-panel",
           )}
         >
           <Clipboard size={12} />
-          {watching ? '监听中' : '监听系统剪贴板'}
+          {watching ? "监听中" : "监听系统剪贴板"}
         </button>
         <span className="font-mono text-arch-muted">
           共 {items.length} 条 · {totalChars} 字符
@@ -161,8 +153,8 @@ export default function ClipboardHistory(_: AppProps) {
             <div
               key={it.id}
               className={cn(
-                'border-b border-arch-border/60 px-3 py-2',
-                it.pinned && 'bg-arch-accent/10',
+                "border-b border-arch-border/60 px-3 py-2",
+                it.pinned && "bg-arch-accent/10",
               )}
             >
               <div className="mb-1 flex items-center gap-2 text-arch-muted">
@@ -175,7 +167,7 @@ export default function ClipboardHistory(_: AppProps) {
                 <span className="font-mono">{it.text.length} 字符</span>
                 <span className="ml-auto">{ago(it.at)}</span>
               </div>
-              <div className="mb-2 whitespace-pre-wrap break-words rounded bg-black/30 p-2 font-mono">
+              <div className="mb-2 whitespace-pre-wrap wrap-break-word rounded bg-black/30 p-2 font-mono">
                 {it.text}
               </div>
               <div className="flex justify-end gap-2">
@@ -190,17 +182,17 @@ export default function ClipboardHistory(_: AppProps) {
                 </button>
                 <button
                   type="button"
-                  title={it.pinned ? '取消置顶' : '置顶'}
+                  title={it.pinned ? "取消置顶" : "置顶"}
                   onClick={() => togglePin(it.id)}
                   className={cn(
-                    'flex items-center gap-1 rounded border px-2 py-0.5 hover:bg-arch-panel',
+                    "flex items-center gap-1 rounded border px-2 py-0.5 hover:bg-arch-panel",
                     it.pinned
-                      ? 'border-arch-accent text-arch-accent'
-                      : 'border-arch-border text-arch-muted',
+                      ? "border-arch-accent text-arch-accent"
+                      : "border-arch-border text-arch-muted",
                   )}
                 >
                   <Pin size={12} />
-                  {it.pinned ? '取消置顶' : '置顶'}
+                  {it.pinned ? "取消置顶" : "置顶"}
                 </button>
                 <button
                   type="button"

@@ -1,6 +1,6 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
-export type NotifyLevel = 'info' | 'success' | 'warn' | 'error';
+export type NotifyLevel = "info" | "success" | "warn" | "error";
 
 export interface Notification {
   id: string;
@@ -37,7 +37,7 @@ export const useNotifyStore = create<NotifyState>((set) => ({
   items: [],
   panelOpen: false,
 
-  push: ({ title, body, level = 'info', appName }) => {
+  push: ({ title, body, level = "info", appName }) => {
     const id = `n-${Date.now().toString(36)}-${++seq}`;
     const item: Notification = {
       id,
@@ -73,7 +73,7 @@ export const useNotifyStore = create<NotifyState>((set) => ({
 export function notify(
   title: string,
   body?: string,
-  level: NotifyLevel = 'info',
+  level: NotifyLevel = "info",
 ): void {
   useNotifyStore.getState().push({ title, body, level });
 }

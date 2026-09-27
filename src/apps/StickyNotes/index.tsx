@@ -1,15 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Copy,
-  Plus,
-  Search,
-  StickyNote,
-  Trash2,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { vfs } from '@/services/filesystem';
-import { notify } from '@/stores/useNotifyStore';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Plus, Search, StickyNote, Trash2 } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { vfs } from "@/services/filesystem";
+import { notify } from "@/stores/useNotifyStore";
 
 interface Note {
   id: string;
@@ -21,23 +15,23 @@ interface Note {
   updatedAt: number;
 }
 
-const PATH = '/home/arch/notes/stickies.json';
+const PATH = "/home/arch/notes/stickies.json";
 const COLORS = [
-  '#fde68a',
-  '#bbf7d0',
-  '#bfdbfe',
-  '#fbcfe8',
-  '#fed7aa',
-  '#e9d5ff',
+  "#fde68a",
+  "#bbf7d0",
+  "#bfdbfe",
+  "#fbcfe8",
+  "#fed7aa",
+  "#e9d5ff",
 ];
 
 function defaultWelcome(): Note {
   const now = Date.now();
   return {
     id: `note-${now.toString(36)}`,
-    title: '欢迎',
-    body: '这是一张便签。\n左侧列表管理便签，右侧编辑。内容会自动保存到虚拟磁盘。',
-    color: COLORS[0] ?? '#fde68a',
+    title: "欢迎",
+    body: "这是一张便签。\n左侧列表管理便签，右侧编辑。内容会自动保存到虚拟磁盘。",
+    color: COLORS[0] ?? "#fde68a",
     pinned: false,
     createdAt: now,
     updatedAt: now,
@@ -46,14 +40,14 @@ function defaultWelcome(): Note {
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
-  const p = (n: number) => String(n).padStart(2, '0');
+  const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export default function StickyNotes(_: AppProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   const notesRef = useRef<Note[]>([]);
@@ -64,7 +58,7 @@ export default function StickyNotes(_: AppProps) {
     try {
       void vfs.writeFile(PATH, JSON.stringify(notesRef.current));
     } catch (e) {
-      notify('保存失败', String(e), 'error');
+      notify("保存失败", String(e), "error");
     }
   }, []);
 
@@ -91,7 +85,7 @@ export default function StickyNotes(_: AppProps) {
           if (alive) setNotes(Array.isArray(parsed) ? parsed : []);
         }
       } catch (e) {
-        notify('便签加载失败', String(e), 'error');
+        notify("便签加载失败", String(e), "error");
         if (alive) setNotes([]);
       } finally {
         if (alive) setLoaded(true);
@@ -117,7 +111,9 @@ export default function StickyNotes(_: AppProps) {
 
   const updateNote = (id: string, patch: Partial<Note>) => {
     setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)),
+      prev.map((n) =>
+        n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n,
+      ),
     );
     scheduleSave();
   };
@@ -126,9 +122,9 @@ export default function StickyNotes(_: AppProps) {
     const now = Date.now();
     const n: Note = {
       id: `note-${now.toString(36)}`,
-      title: '新便签',
-      body: '',
-      color: COLORS[0] ?? '#fde68a',
+      title: "新便签",
+      body: "",
+      color: COLORS[0] ?? "#fde68a",
       pinned: false,
       createdAt: now,
       updatedAt: now,
@@ -166,12 +162,12 @@ export default function StickyNotes(_: AppProps) {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
-        notify('已复制', '便签正文已复制到剪贴板', 'success');
+        notify("已复制", "便签正文已复制到剪贴板", "success");
         return;
       }
-      throw new Error('无 clipboard API');
+      throw new Error("无 clipboard API");
     } catch (e) {
-      notify('复制失败', String(e), 'error');
+      notify("复制失败", String(e), "error");
     }
   };
 
@@ -227,7 +223,9 @@ export default function StickyNotes(_: AppProps) {
               <div className="p-3 text-arch-muted">加载中…</div>
             ) : list.length === 0 ? (
               <div className="p-3 text-center text-arch-muted">
-                {notes.length === 0 ? '还没有便签，点“新建”创建' : '没有匹配的便签'}
+                {notes.length === 0
+                  ? "还没有便签，点“新建”创建"
+                  : "没有匹配的便签"}
               </div>
             ) : (
               list.map((n) => (
@@ -236,8 +234,8 @@ export default function StickyNotes(_: AppProps) {
                   type="button"
                   onClick={() => setSelectedId(n.id)}
                   className={cn(
-                    'flex w-full flex-col gap-0.5 border-b border-arch-border/60 px-2 py-1 text-left hover:bg-arch-panel',
-                    selectedId === n.id && 'bg-arch-accent/10',
+                    "flex w-full flex-col gap-0.5 border-b border-arch-border/60 px-2 py-1 text-left hover:bg-arch-panel",
+                    selectedId === n.id && "bg-arch-accent/10",
                   )}
                 >
                   <span className="flex items-center gap-1 truncate">
@@ -245,13 +243,15 @@ export default function StickyNotes(_: AppProps) {
                       className="inline-block h-2 w-2 shrink-0 rounded-full"
                       style={{ background: n.color }}
                     />
-                    <span className="truncate">{n.title || '（无标题）'}</span>
+                    <span className="truncate">{n.title || "（无标题）"}</span>
                     {n.pinned && (
-                      <span className="ml-auto shrink-0 text-arch-accent">置顶</span>
+                      <span className="ml-auto shrink-0 text-arch-accent">
+                        置顶
+                      </span>
                     )}
                   </span>
                   <span className="truncate text-arch-muted">
-                    {n.body.replace(/\n/g, ' ').slice(0, 24) || '（空）'}
+                    {n.body.replace(/\n/g, " ").slice(0, 24) || "（空）"}
                   </span>
                 </button>
               ))
@@ -270,7 +270,9 @@ export default function StickyNotes(_: AppProps) {
               <div className="flex items-center gap-2 border-b border-arch-border px-2 py-1">
                 <input
                   value={selected.title}
-                  onChange={(e) => updateNote(selected.id, { title: e.target.value })}
+                  onChange={(e) =>
+                    updateNote(selected.id, { title: e.target.value })
+                  }
                   placeholder="标题"
                   className="flex-1 bg-transparent font-mono outline-none placeholder:text-arch-muted"
                 />
@@ -309,10 +311,10 @@ export default function StickyNotes(_: AppProps) {
                     title={c}
                     onClick={() => updateNote(selected.id, { color: c })}
                     className={cn(
-                      'h-4 w-4 rounded-full border',
+                      "h-4 w-4 rounded-full border",
                       selected.color === c
-                        ? 'border-arch-text'
-                        : 'border-arch-border',
+                        ? "border-arch-text"
+                        : "border-arch-border",
                     )}
                     style={{ background: c }}
                   />
@@ -323,19 +325,21 @@ export default function StickyNotes(_: AppProps) {
                     updateNote(selected.id, { pinned: !selected.pinned })
                   }
                   className={cn(
-                    'ml-auto rounded border px-2 py-0.5 hover:bg-arch-panel',
+                    "ml-auto rounded border px-2 py-0.5 hover:bg-arch-panel",
                     selected.pinned
-                      ? 'border-arch-accent text-arch-accent'
-                      : 'border-arch-border text-arch-muted',
+                      ? "border-arch-accent text-arch-accent"
+                      : "border-arch-border text-arch-muted",
                   )}
                 >
-                  {selected.pinned ? '已置顶' : '置顶'}
+                  {selected.pinned ? "已置顶" : "置顶"}
                 </button>
               </div>
 
               <textarea
                 value={selected.body}
-                onChange={(e) => updateNote(selected.id, { body: e.target.value })}
+                onChange={(e) =>
+                  updateNote(selected.id, { body: e.target.value })
+                }
                 placeholder="写点什么…"
                 className="min-h-0 flex-1 resize-none bg-transparent p-2 font-mono leading-relaxed outline-none"
               />
@@ -343,7 +347,7 @@ export default function StickyNotes(_: AppProps) {
               <div className="flex items-center justify-between border-t border-arch-border px-2 py-1 text-arch-muted">
                 <span>{selected.body.length} 字</span>
                 <span>
-                  创建 {fmtTime(selected.createdAt)} · 修改{' '}
+                  创建 {fmtTime(selected.createdAt)} · 修改{" "}
                   {fmtTime(selected.updatedAt)}
                 </span>
               </div>

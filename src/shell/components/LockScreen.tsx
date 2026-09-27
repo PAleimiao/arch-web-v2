@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Lock, ArrowRight } from 'lucide-react';
-import { useOSStore } from '@/stores/useOSStore';
+import { useEffect, useState } from "react";
+import { Lock, ArrowRight } from "lucide-react";
+import { useOSStore } from "@/stores/useOSStore";
 
 /** 锁屏：任意输入密码都能解锁（当前没有账号系统，纯本地环境） */
 export default function LockScreen() {
@@ -30,14 +30,14 @@ export default function LockScreen() {
       <div className="relative flex h-full flex-col items-center justify-center gap-6">
         <div className="text-center">
           <p className="text-6xl font-light tracking-tight text-white">
-            {time.toLocaleTimeString('zh-CN', { hour12 })}
+            {time.toLocaleTimeString("zh-CN", { hour12 })}
           </p>
           <p className="mt-2 text-sm text-white/60">
-            {time.toLocaleDateString('zh-CN', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              weekday: 'long',
+            {time.toLocaleDateString("zh-CN", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              weekday: "long",
             })}
           </p>
         </div>

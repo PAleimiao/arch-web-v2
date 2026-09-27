@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   Command,
@@ -10,11 +10,11 @@ import {
   RotateCcw,
   StickyNote,
   TerminalSquare,
-} from 'lucide-react';
-import { useOSStore } from '@/stores/useOSStore';
-import { useWindowStore } from '@/stores/useWindowStore';
-import { notify } from '@/stores/useNotifyStore';
-import { getApp } from '@/apps/registry';
+} from "lucide-react";
+import { useOSStore } from "@/stores/useOSStore";
+import { useWindowStore } from "@/stores/useWindowStore";
+import { notify } from "@/stores/useNotifyStore";
+import { getApp } from "@/apps/registry";
 
 interface MenuState {
   x: number;
@@ -28,16 +28,21 @@ const WALLPAPERS = [
   `${import.meta.env.BASE_URL}/wallpapers/dots.svg`,
 ];
 
-const ITEMS: Array<{ key: string; label: string; icon: typeof Lock; group?: number }> = [
-  { key: 'terminal', label: '打开终端', icon: TerminalSquare },
-  { key: 'palette', label: '命令面板', icon: Command },
-  { key: 'newnote', label: '新建便签', icon: StickyNote },
-  { key: 'wallpaper', label: '换一张壁纸', icon: Image, group: 1 },
-  { key: 'packages', label: '软件包管理', icon: Package },
-  { key: 'help', label: '帮助手册', icon: BookOpen },
-  { key: 'refresh', label: '刷新桌面', icon: RefreshCw, group: 1 },
-  { key: 'lock', label: '锁定屏幕', icon: Lock },
-  { key: 'poweroff', label: '关机', icon: Power, group: 1 },
+const ITEMS: Array<{
+  key: string;
+  label: string;
+  icon: typeof Lock;
+  group?: number;
+}> = [
+  { key: "terminal", label: "打开终端", icon: TerminalSquare },
+  { key: "palette", label: "命令面板", icon: Command },
+  { key: "newnote", label: "新建便签", icon: StickyNote },
+  { key: "wallpaper", label: "换一张壁纸", icon: Image, group: 1 },
+  { key: "packages", label: "软件包管理", icon: Package },
+  { key: "help", label: "帮助手册", icon: BookOpen },
+  { key: "refresh", label: "刷新桌面", icon: RefreshCw, group: 1 },
+  { key: "lock", label: "锁定屏幕", icon: Lock },
+  { key: "poweroff", label: "关机", icon: Power, group: 1 },
 ];
 
 export default function ContextMenu() {
@@ -47,7 +52,10 @@ export default function ContextMenu() {
     const onCtx = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       // 窗口内与输入框里的右键交给应用自己处理
-      if (target.closest('[data-window]') || target.closest('input, textarea')) {
+      if (
+        target.closest("[data-window]") ||
+        target.closest("input, textarea")
+      ) {
         return;
       }
       e.preventDefault();
@@ -55,13 +63,13 @@ export default function ContextMenu() {
     };
     const close = () => setMenu(null);
 
-    window.addEventListener('contextmenu', onCtx);
-    window.addEventListener('mousedown', close);
-    window.addEventListener('blur', close);
+    window.addEventListener("contextmenu", onCtx);
+    window.addEventListener("mousedown", close);
+    window.addEventListener("blur", close);
     return () => {
-      window.removeEventListener('contextmenu', onCtx);
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('blur', close);
+      window.removeEventListener("contextmenu", onCtx);
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("blur", close);
     };
   }, []);
 
@@ -73,7 +81,7 @@ export default function ContextMenu() {
   const launch = (appId: string, titleOverride?: string) => {
     const app = getApp(appId);
     if (!app) {
-      notify('打不开', `没有找到应用 ${appId}`, 'warn');
+      notify("打不开", `没有找到应用 ${appId}`, "warn");
       return;
     }
     win.open({
@@ -87,34 +95,36 @@ export default function ContextMenu() {
 
   const run = (key: string) => {
     switch (key) {
-      case 'terminal':
-        launch('terminal');
+      case "terminal":
+        launch("terminal");
         break;
-      case 'palette':
+      case "palette":
         os.togglePalette(true);
         break;
-      case 'newnote':
-        launch('sticky-notes');
+      case "newnote":
+        launch("sticky-notes");
         break;
-      case 'wallpaper': {
+      case "wallpaper": {
         const i = WALLPAPERS.indexOf(os.settings.wallpaper);
-        os.updateSettings({ wallpaper: WALLPAPERS[(i + 1) % WALLPAPERS.length] });
-        notify('已更换壁纸', undefined, 'success');
+        os.updateSettings({
+          wallpaper: WALLPAPERS[(i + 1) % WALLPAPERS.length],
+        });
+        notify("已更换壁纸", undefined, "success");
         break;
       }
-      case 'packages':
-        launch('settings');
+      case "packages":
+        launch("settings");
         break;
-      case 'help':
-        launch('help');
+      case "help":
+        launch("help");
         break;
-      case 'refresh':
+      case "refresh":
         window.location.reload();
         break;
-      case 'lock':
+      case "lock":
         os.lock();
         break;
-      case 'poweroff':
+      case "poweroff":
         os.shutdown();
         break;
       default:
@@ -129,7 +139,7 @@ export default function ContextMenu() {
 
   return (
     <div
-      className="fixed z-[9500] w-44 overflow-hidden rounded-lg border border-arch-border bg-arch-panel/95 py-1 shadow-2xl backdrop-blur-md"
+      className="fixed z-9500 w-44 overflow-hidden rounded-lg border border-arch-border bg-arch-panel/95 py-1 shadow-2xl backdrop-blur-md"
       style={{ left, top }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -145,8 +155,8 @@ export default function ContextMenu() {
               type="button"
               onClick={() => run(item.key)}
               className={
-                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-arch-text transition hover:bg-white/10' +
-                (item.key === 'poweroff' ? ' text-arch-red' : '')
+                "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-arch-text transition hover:bg-white/10" +
+                (item.key === "poweroff" ? " text-arch-red" : "")
               }
             >
               <Icon size={12} className="text-arch-muted" />

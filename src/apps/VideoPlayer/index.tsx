@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Film,
   Link2,
@@ -14,13 +14,13 @@ import {
   VolumeX,
   Gauge,
   AlertCircle,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
 
 /* ----------------------------- hls.js CDN 动态加载 ----------------------------- */
 
-const HLS_CDN = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
+const HLS_CDN = "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js";
 
 /**
  * hls.js 走 CDN 动态注入，不在 npm 依赖里，这里声明最小可用形状：
@@ -49,13 +49,13 @@ declare global {
 let hlsPromise: Promise<boolean> | null = null;
 
 async function ensureHlsJs(): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === "undefined") return false;
   if (window.Hls) return true;
   // 原生支持（HLS 直接给 video）
-  if (videoCanPlay('application/vnd.apple.mpegurl')) return false;
+  if (videoCanPlay("application/vnd.apple.mpegurl")) return false;
   if (hlsPromise) return hlsPromise;
   hlsPromise = new Promise((resolve) => {
-    const s = document.createElement('script');
+    const s = document.createElement("script");
     s.src = HLS_CDN;
     s.async = true;
     s.onload = () => resolve(!!window.Hls);
@@ -70,7 +70,7 @@ async function ensureHlsJs(): Promise<boolean> {
 }
 
 function videoCanPlay(mime: string): boolean {
-  const v = document.createElement('video');
+  const v = document.createElement("video");
   return !!v.canPlayType(mime);
 }
 
@@ -101,7 +101,7 @@ export default function VideoPlayer(_: AppProps) {
   const itemsRef = useRef<VideoItem[]>([]);
   itemsRef.current = items;
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [urlDraft, setUrlDraft] = useState('');
+  const [urlDraft, setUrlDraft] = useState("");
   const [showUrlInput, setShowUrlInput] = useState(false);
 
   const [playing, setPlaying] = useState(false);
@@ -125,11 +125,11 @@ export default function VideoPlayer(_: AppProps) {
     const additions: VideoItem[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      if (!f.type.startsWith('video/')) continue;
+      if (!f.type.startsWith("video/")) continue;
       const url = URL.createObjectURL(f);
       additions.push({
         id: crypto.randomUUID(),
-        name: f.name.replace(/\.[^/.]+$/, ''),
+        name: f.name.replace(/\.[^/.]+$/, ""),
         url,
         isHls: false,
         origin: f.name,
@@ -150,11 +150,11 @@ export default function VideoPlayer(_: AppProps) {
     if (!raw) return;
     const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
     const isHls = /\.m3u8(\?|$|#)/i.test(url);
-    const name = url.split('/').pop()?.split('?')[0] ?? '在线视频';
+    const name = url.split("/").pop()?.split("?")[0] ?? "在线视频";
     const id = crypto.randomUUID();
     setItems([...items, { id, name, url, isHls, origin: url }]);
     setActiveId(id);
-    setUrlDraft('');
+    setUrlDraft("");
     setShowUrlInput(false);
     setError(null);
   };
@@ -169,7 +169,7 @@ export default function VideoPlayer(_: AppProps) {
     const attach = async () => {
       setError(null);
       // 先清掉
-      video.removeAttribute('src');
+      video.removeAttribute("src");
       video.load();
 
       if (!active.isHls) {
@@ -189,7 +189,7 @@ export default function VideoPlayer(_: AppProps) {
           hls.on(window.Hls.Events.ERROR, (_e: any, data: any) => {
             if (data?.fatal) {
               setError(
-                `HLS 播放失败：${data.type ?? '未知'} - ${data.details ?? ''}。若该 m3u8 有 CORS / Referer 限制，可能无法直接播放。`,
+                `HLS 播放失败：${data.type ?? "未知"} - ${data.details ?? ""}。若该 m3u8 有 CORS / Referer 限制，可能无法直接播放。`,
               );
             }
           });
@@ -199,7 +199,7 @@ export default function VideoPlayer(_: AppProps) {
         return;
       }
 
-      if (videoCanPlay('application/vnd.apple.mpegurl')) {
+      if (videoCanPlay("application/vnd.apple.mpegurl")) {
         // Safari 原生
         video.src = active.url;
         video.load();
@@ -220,7 +220,9 @@ export default function VideoPlayer(_: AppProps) {
           setError(`hls.js 加载后仍无法播放：${String(e)}`);
         }
       } else {
-        setError('当前浏览器无法播放 HLS / m3u8 流。Chrome / Edge 用户建议改用 Safari 或打开实验性 HLS 标志。');
+        setError(
+          "当前浏览器无法播放 HLS / m3u8 流。Chrome / Edge 用户建议改用 Safari 或打开实验性 HLS 标志。",
+        );
       }
     };
 
@@ -244,7 +246,7 @@ export default function VideoPlayer(_: AppProps) {
     if (playing) {
       v.play().catch((err: unknown) => {
         // 切源时旧的 load() 会中断 play()，属正常时序，不该把按钮按回暂停态
-        if (err instanceof DOMException && err.name === 'AbortError') return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setPlaying(false);
       });
     } else {
@@ -276,15 +278,15 @@ export default function VideoPlayer(_: AppProps) {
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
   /* ------------------------- 卸载：回收 blob URL ------------------------- */
   useEffect(() => {
     return () => {
       itemsRef.current.forEach((it) => {
-        if (it.url.startsWith('blob:')) URL.revokeObjectURL(it.url);
+        if (it.url.startsWith("blob:")) URL.revokeObjectURL(it.url);
       });
     };
   }, []);
@@ -294,27 +296,27 @@ export default function VideoPlayer(_: AppProps) {
     const onKey = (e: KeyboardEvent) => {
       // 焦点不在可编辑元素才响应
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
       if (!active) return;
-      if (e.code === 'Space') {
+      if (e.code === "Space") {
         e.preventDefault();
         setPlaying((p) => !p);
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === "ArrowRight") {
         e.preventDefault();
         if (videoRef.current) videoRef.current.currentTime += 5;
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         if (videoRef.current) videoRef.current.currentTime -= 5;
-      } else if (e.key === 'f' || e.key === 'F') {
+      } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         void toggleFullscreen();
-      } else if (e.key === 'm' || e.key === 'M') {
+      } else if (e.key === "m" || e.key === "M") {
         e.preventDefault();
         setMuted((m) => !m);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id]);
 
@@ -329,7 +331,7 @@ export default function VideoPlayer(_: AppProps) {
     // 副作用移出 setItems 更新器（StrictMode 下更新器会执行两次）
     const target = items.find((x) => x.id === id);
     if (!target) return;
-    if (target.url.startsWith('blob:')) URL.revokeObjectURL(target.url);
+    if (target.url.startsWith("blob:")) URL.revokeObjectURL(target.url);
     const next = items.filter((x) => x.id !== id);
     setItems(next);
     if (activeId === id) {
@@ -342,7 +344,7 @@ export default function VideoPlayer(_: AppProps) {
 
   const clearAll = () => {
     items.forEach((it) => {
-      if (it.url.startsWith('blob:')) URL.revokeObjectURL(it.url);
+      if (it.url.startsWith("blob:")) URL.revokeObjectURL(it.url);
     });
     setItems([]);
     setActiveId(null);
@@ -361,7 +363,10 @@ export default function VideoPlayer(_: AppProps) {
     const bar = seekBarRef.current;
     if (!bar || duration <= 0) return;
     const rect = bar.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const ratio = Math.max(
+      0,
+      Math.min(1, (e.clientX - rect.left) / rect.width),
+    );
     seekTo(ratio * duration);
     const move = (ev: PointerEvent) => {
       const r = bar.getBoundingClientRect();
@@ -369,20 +374,21 @@ export default function VideoPlayer(_: AppProps) {
       seekTo((x / r.width) * duration);
     };
     const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   };
 
   const fmtTime = (sec: number) => {
-    if (!isFinite(sec) || sec < 0) return '0:00';
+    if (!isFinite(sec) || sec < 0) return "0:00";
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
     const s = Math.floor(sec % 60);
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    return `${m}:${String(s).padStart(2, '0')}`;
+    if (h > 0)
+      return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${m}:${String(s).padStart(2, "0")}`;
   };
 
   const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -398,7 +404,7 @@ export default function VideoPlayer(_: AppProps) {
         className="hidden"
         onChange={(e) => {
           pickLocalFiles(e.target.files);
-          e.target.value = '';
+          e.target.value = "";
         }}
       />
 
@@ -420,8 +426,10 @@ export default function VideoPlayer(_: AppProps) {
             <button
               onClick={() => setShowUrlInput((v) => !v)}
               className={cn(
-                'rounded p-1.5 hover:bg-zinc-800',
-                showUrlInput ? 'bg-indigo-600/30 text-indigo-300' : 'text-zinc-400 hover:text-zinc-200',
+                "rounded p-1.5 hover:bg-zinc-800",
+                showUrlInput
+                  ? "bg-indigo-600/30 text-indigo-300"
+                  : "text-zinc-400 hover:text-zinc-200",
               )}
               title="输入在线 URL（含 m3u8）"
             >
@@ -445,8 +453,8 @@ export default function VideoPlayer(_: AppProps) {
               value={urlDraft}
               onChange={(e) => setUrlDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') submitUrl();
-                if (e.key === 'Escape') setShowUrlInput(false);
+                if (e.key === "Enter") submitUrl();
+                if (e.key === "Escape") setShowUrlInput(false);
               }}
               placeholder="https://...m3u8 / mp4 / webm"
               className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs outline-none focus:border-indigo-500"
@@ -483,8 +491,8 @@ export default function VideoPlayer(_: AppProps) {
               key={it.id}
               onClick={() => playById(it.id)}
               className={cn(
-                'flex cursor-pointer items-center justify-between gap-2 px-3 py-2 hover:bg-zinc-900',
-                activeId === it.id && 'bg-indigo-600/10',
+                "flex cursor-pointer items-center justify-between gap-2 px-3 py-2 hover:bg-zinc-900",
+                activeId === it.id && "bg-indigo-600/10",
               )}
             >
               <div className="flex min-w-0 items-center gap-2">
@@ -496,7 +504,11 @@ export default function VideoPlayer(_: AppProps) {
                 <div className="min-w-0">
                   <div className="truncate text-sm">{it.name}</div>
                   <div className="text-[10px] text-zinc-500">
-                    {it.isHls ? 'HLS / m3u8' : it.url.startsWith('blob:') ? '本地文件' : '在线'}
+                    {it.isHls
+                      ? "HLS / m3u8"
+                      : it.url.startsWith("blob:")
+                        ? "本地文件"
+                        : "在线"}
                   </div>
                 </div>
               </div>
@@ -516,7 +528,10 @@ export default function VideoPlayer(_: AppProps) {
       </aside>
 
       {/* 右：播放器 */}
-      <main ref={containerRef} className="flex min-w-0 flex-1 flex-col bg-black">
+      <main
+        ref={containerRef}
+        className="flex min-w-0 flex-1 flex-col bg-black"
+      >
         {active ? (
           <>
             <div className="relative flex flex-1 items-center justify-center">
@@ -546,7 +561,9 @@ export default function VideoPlayer(_: AppProps) {
                   setPosition(0);
                 }}
                 onError={() =>
-                  setError('视频加载失败。可能是不支持的格式、CORS / Referer 限制，或源已失效。')
+                  setError(
+                    "视频加载失败。可能是不支持的格式、CORS / Referer 限制，或源已失效。",
+                  )
                 }
               />
 
@@ -571,7 +588,9 @@ export default function VideoPlayer(_: AppProps) {
 
             {/* 控制条 */}
             <div className="border-t border-zinc-800 bg-zinc-900/80 px-4 py-2.5">
-              <div className="mb-1.5 truncate text-sm font-medium">{active.name}</div>
+              <div className="mb-1.5 truncate text-sm font-medium">
+                {active.name}
+              </div>
               <div
                 ref={seekBarRef}
                 onPointerDown={onSeekPointerDown}
@@ -595,7 +614,8 @@ export default function VideoPlayer(_: AppProps) {
                 <button
                   onClick={() => {
                     const idx = items.findIndex((x) => x.id === activeId);
-                    const target = idx <= 0 ? items[items.length - 1] : items[idx - 1];
+                    const target =
+                      idx <= 0 ? items[items.length - 1] : items[idx - 1];
                     if (!target) return;
                     setActiveId(target.id);
                     setPlaying(true);
@@ -609,7 +629,7 @@ export default function VideoPlayer(_: AppProps) {
                 <button
                   onClick={() => setPlaying((p) => !p)}
                   className="flex size-9 items-center justify-center rounded-full bg-white text-black hover:scale-105 active:scale-95"
-                  title={playing ? '暂停（空格）' : '播放（空格）'}
+                  title={playing ? "暂停（空格）" : "播放（空格）"}
                 >
                   {playing ? (
                     <Pause size={16} fill="currentColor" />
@@ -621,7 +641,9 @@ export default function VideoPlayer(_: AppProps) {
                   onClick={() => {
                     const idx = items.findIndex((x) => x.id === activeId);
                     const target =
-                      idx < 0 || idx >= items.length - 1 ? items[0] : items[idx + 1];
+                      idx < 0 || idx >= items.length - 1
+                        ? items[0]
+                        : items[idx + 1];
                     if (!target) return;
                     setActiveId(target.id);
                     setPlaying(true);
@@ -640,7 +662,11 @@ export default function VideoPlayer(_: AppProps) {
                   className="rounded p-1.5 hover:bg-zinc-800"
                   title="静音（M）"
                 >
-                  {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                  {muted || volume === 0 ? (
+                    <VolumeX size={16} />
+                  ) : (
+                    <Volume2 size={16} />
+                  )}
                 </button>
                 <input
                   type="range"
@@ -661,8 +687,10 @@ export default function VideoPlayer(_: AppProps) {
                       key={r}
                       onClick={() => setRate(r)}
                       className={cn(
-                        'rounded px-1.5 py-0.5 text-[11px] hover:bg-zinc-800',
-                        rate === r ? 'bg-indigo-600/30 text-indigo-300' : 'text-zinc-400',
+                        "rounded px-1.5 py-0.5 text-[11px] hover:bg-zinc-800",
+                        rate === r
+                          ? "bg-indigo-600/30 text-indigo-300"
+                          : "text-zinc-400",
                       )}
                     >
                       {r}x
@@ -676,7 +704,11 @@ export default function VideoPlayer(_: AppProps) {
                     className="rounded p-1.5 hover:bg-zinc-800"
                     title="全屏（F）"
                   >
-                    {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    {isFullscreen ? (
+                      <Minimize2 size={16} />
+                    ) : (
+                      <Maximize2 size={16} />
+                    )}
                   </button>
                 </div>
               </div>
@@ -687,8 +719,8 @@ export default function VideoPlayer(_: AppProps) {
             <Film size={64} className="opacity-30" />
             <p className="text-sm">还没有在播放</p>
             <p className="max-w-xs text-center text-[11px] text-zinc-600">
-              从左侧点 <Plus /> 导入本地视频，或点 <Link2 /> 粘贴在线 URL
-              （支持 m3u8，会自动加载 hls.js）
+              从左侧点 <Plus /> 导入本地视频，或点 <Link2 /> 粘贴在线 URL （支持
+              m3u8，会自动加载 hls.js）
             </p>
             <p className="mt-2 text-[10px] text-zinc-700">
               快捷键：空格 播放/暂停 · ← → 跳 5 秒 · M 静音
@@ -703,9 +735,18 @@ export default function VideoPlayer(_: AppProps) {
 function PlayingIcon() {
   return (
     <span className="inline-flex h-3 w-3 items-end justify-center gap-0.5">
-      <span className="block w-0.5 animate-eq-1 bg-indigo-400" style={{ height: '60%' }} />
-      <span className="block w-0.5 animate-eq-2 bg-indigo-400" style={{ height: '100%' }} />
-      <span className="block w-0.5 animate-eq-3 bg-indigo-400" style={{ height: '50%' }} />
+      <span
+        className="block w-0.5 animate-eq-1 bg-indigo-400"
+        style={{ height: "60%" }}
+      />
+      <span
+        className="block w-0.5 animate-eq-2 bg-indigo-400"
+        style={{ height: "100%" }}
+      />
+      <span
+        className="block w-0.5 animate-eq-3 bg-indigo-400"
+        style={{ height: "50%" }}
+      />
     </span>
   );
 }

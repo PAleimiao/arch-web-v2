@@ -915,7 +915,7 @@ export default function NeteaseMusic(_: AppProps) {
                       step={0.01}
                       value={muted ? 0 : volume}
                       onChange={(e) => setVolume(Number(e.target.value))}
-                      className="h-1 w-20 accent-[var(--color-arch-accent)]"
+                      className="h-1 w-20 accent-arch-accent"
                     />
                   </div>
                 </div>
@@ -927,7 +927,7 @@ export default function NeteaseMusic(_: AppProps) {
               className="h-40 overflow-y-auto border-t border-arch-border bg-black/20 px-6 py-3 text-center text-[12.5px] leading-7"
             >
               {lyrics.length === 0 ? (
-                <p className="text-[11px] leading-[9rem] text-arch-muted">暂无歌词</p>
+                <p className="text-[11px] leading-36 text-arch-muted">暂无歌词</p>
               ) : (
                 lyrics.map((ln, i) => (
                   <p

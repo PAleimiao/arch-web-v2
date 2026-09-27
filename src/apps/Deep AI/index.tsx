@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
   KeyRound,
@@ -11,13 +11,13 @@ import {
   Trash2,
   Wand2,
   Zap,
-} from 'lucide-react';
-import { cn } from '@/lib/cn';
-import type { AppProps } from '@/shell/types';
+} from "lucide-react";
+import { cn } from "@/lib/cn";
+import type { AppProps } from "@/shell/types";
 
 type ChatMessage = {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 };
 
@@ -45,68 +45,68 @@ type ProviderPreset = {
   hint: string;
 };
 
-const STORAGE_KEY = 'arch-ai-assistant-config-v1';
+const STORAGE_KEY = "arch-ai-assistant-config-v1";
 
 const PROVIDER_PRESETS: ProviderPreset[] = [
   {
-    id: 'openai',
-    label: 'OpenAI 兼容',
-    baseUrl: 'https://api.openai.com/v1',
-    model: 'gpt-4o-mini',
-    hint: '适合 OpenAI / Azure OpenAI / 兼容接口',
+    id: "openai",
+    label: "OpenAI 兼容",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+    hint: "适合 OpenAI / Azure OpenAI / 兼容接口",
   },
   {
-    id: 'deepseek',
-    label: 'DeepSeek',
-    baseUrl: 'https://api.deepseek.com',
-    model: 'deepseek-chat',
-    hint: '适合 DeepSeek 官方接口',
+    id: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    model: "deepseek-chat",
+    hint: "适合 DeepSeek 官方接口",
   },
   {
-    id: 'ollama',
-    label: 'Ollama',
-    baseUrl: 'http://localhost:11434',
-    model: 'llama3.1',
-    hint: '适合本地部署模型',
+    id: "ollama",
+    label: "Ollama",
+    baseUrl: "http://localhost:11434",
+    model: "llama3.1",
+    hint: "适合本地部署模型",
   },
   {
-    id: 'custom',
-    label: '自定义',
-    baseUrl: '',
-    model: '',
-    hint: '任何兼容 OpenAI 接口的服务',
+    id: "custom",
+    label: "自定义",
+    baseUrl: "",
+    model: "",
+    hint: "任何兼容 OpenAI 接口的服务",
   },
 ];
 
 const QUICK_PROMPTS = [
-  '帮我总结这段内容的重点，并给出 3 个改进建议。',
-  '把这个需求拆成步骤，列出可执行方案。',
-  '帮我写一份简洁的周报内容。',
-  '用中文解释这个问题，并给出示例。',
+  "帮我总结这段内容的重点，并给出 3 个改进建议。",
+  "把这个需求拆成步骤，列出可执行方案。",
+  "帮我写一份简洁的周报内容。",
+  "用中文解释这个问题，并给出示例。",
 ];
 
 const DEFAULT_CONFIG: ApiConfig = {
-  provider: 'openai',
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: '',
-  model: 'gpt-4o-mini',
+  provider: "openai",
+  baseUrl: "https://api.openai.com/v1",
+  apiKey: "",
+  model: "gpt-4o-mini",
 };
 
 const DEFAULT_AGENT: Agent = {
-  id: 'default-agent',
-  name: '默认助手',
+  id: "default-agent",
+  name: "默认助手",
   prompt:
-    '你是一个简洁、可靠的个人 AI 助手。先理解用户意图，再给出结构清晰、直接可执行的回答。',
-  model: 'gpt-4o-mini',
-  accent: '#61afef',
-  description: '默认的通用助手，适合日常提问、总结与整理。',
+    "你是一个简洁、可靠的个人 AI 助手。先理解用户意图，再给出结构清晰、直接可执行的回答。",
+  model: "gpt-4o-mini",
+  accent: "#61afef",
+  description: "默认的通用助手，适合日常提问、总结与整理。",
 };
 
-const AGENT_ACCENTS = ['#61afef', '#4ec9b0', '#c678dd', '#d19a66', '#e06c75'];
+const AGENT_ACCENTS = ["#61afef", "#4ec9b0", "#c678dd", "#d19a66", "#e06c75"];
 
 function loadStoredData() {
   try {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === "undefined") return null;
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
 
@@ -116,11 +116,13 @@ function loadStoredData() {
       activeAgentId?: string;
     };
 
-    const agents = Array.isArray(parsed.agents) && parsed.agents.length > 0
-      ? parsed.agents
-      : [DEFAULT_AGENT];
+    const agents =
+      Array.isArray(parsed.agents) && parsed.agents.length > 0
+        ? parsed.agents
+        : [DEFAULT_AGENT];
 
-    const activeAgentId = parsed.activeAgentId ?? agents[0]?.id ?? DEFAULT_AGENT.id;
+    const activeAgentId =
+      parsed.activeAgentId ?? agents[0]?.id ?? DEFAULT_AGENT.id;
 
     return {
       config: { ...DEFAULT_CONFIG, ...parsed.config },
@@ -133,8 +135,8 @@ function loadStoredData() {
 }
 
 function buildEndpoint(baseUrl: string) {
-  const trimmed = baseUrl.trim().replace(/\/+$/, '');
-  if (!trimmed) return 'https://api.openai.com/v1/chat/completions';
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) return "https://api.openai.com/v1/chat/completions";
 
   if (/\/api\/chat$/i.test(trimmed) || /\/chat\/completions$/i.test(trimmed)) {
     return trimmed;
@@ -145,10 +147,10 @@ function buildEndpoint(baseUrl: string) {
 
 function createWelcomeMessage() {
   return {
-    id: 'welcome',
-    role: 'assistant' as const,
+    id: "welcome",
+    role: "assistant" as const,
     content:
-      '欢迎使用 AI 助手。先在左侧配置自己的 API，再选择适合的 Agent，即可开始会话。',
+      "欢迎使用 AI 助手。先在左侧配置自己的 API，再选择适合的 Agent，即可开始会话。",
   };
 }
 
@@ -156,22 +158,24 @@ export default function DeepAI({ context }: AppProps) {
   const [config, setConfig] = useState<ApiConfig>(DEFAULT_CONFIG);
   const [agents, setAgents] = useState<Agent[]>([DEFAULT_AGENT]);
   const [activeAgentId, setActiveAgentId] = useState<string>(DEFAULT_AGENT.id);
-  const [messages, setMessages] = useState<ChatMessage[]>([createWelcomeMessage()]);
-  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    createWelcomeMessage(),
+  ]);
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(true);
   const [showAgentForm, setShowAgentForm] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [newAgent, setNewAgent] = useState({
-    name: '',
-    prompt: '',
-    description: '',
-    model: '',
+    name: "",
+    prompt: "",
+    description: "",
+    model: "",
   });
 
   useEffect(() => {
-    context.setTitle('AI 助手');
+    context.setTitle("AI 助手");
   }, [context]);
 
   useEffect(() => {
@@ -185,7 +189,7 @@ export default function DeepAI({ context }: AppProps) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || typeof window === 'undefined') return;
+    if (!hydrated || typeof window === "undefined") return;
 
     try {
       window.localStorage.setItem(
@@ -202,14 +206,18 @@ export default function DeepAI({ context }: AppProps) {
   }, [hydrated, config, agents, activeAgentId]);
 
   const activeAgent = useMemo(
-    () => agents.find((agent) => agent.id === activeAgentId) ?? agents[0] ?? DEFAULT_AGENT,
+    () =>
+      agents.find((agent) => agent.id === activeAgentId) ??
+      agents[0] ??
+      DEFAULT_AGENT,
     [agents, activeAgentId],
   );
 
-  const canSend = !!config.apiKey.trim() && !!config.baseUrl.trim() && !isLoading;
-  const todayLabel = new Date().toLocaleDateString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
+  const canSend =
+    !!config.apiKey.trim() && !!config.baseUrl.trim() && !isLoading;
+  const todayLabel = new Date().toLocaleDateString("zh-CN", {
+    month: "short",
+    day: "numeric",
   });
 
   function applyPreset(preset: ProviderPreset) {
@@ -226,41 +234,41 @@ export default function DeepAI({ context }: AppProps) {
     const trimmed = input.trim();
     if (!trimmed || !canSend) {
       if (!config.apiKey.trim()) {
-        setError('请先导入自己的 API Key。');
+        setError("请先导入自己的 API Key。");
       } else if (!config.baseUrl.trim()) {
-        setError('请先填写 API 地址。');
+        setError("请先填写 API 地址。");
       }
       return;
     }
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
-      role: 'user',
+      role: "user",
       content: trimmed,
     };
 
     const conversation = [...messages, userMessage];
     setMessages(conversation);
-    setInput('');
+    setInput("");
     setIsLoading(true);
     setError(null);
 
     try {
       const endpoint = buildEndpoint(config.baseUrl);
       const response = await fetch(endpoint, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${config.apiKey.trim()}`,
         },
         body: JSON.stringify({
           model: activeAgent.model || config.model,
           messages: [
             {
-              role: 'system',
+              role: "system",
               content:
                 activeAgent.prompt ||
-                '你是一个简洁、可靠的个人 AI 助手。保持回答清晰、直接、围绕用户需求。',
+                "你是一个简洁、可靠的个人 AI 助手。保持回答清晰、直接、围绕用户需求。",
             },
             ...conversation.map((item) => ({
               role: item.role,
@@ -276,26 +284,26 @@ export default function DeepAI({ context }: AppProps) {
       try {
         data = raw ? JSON.parse(raw) : null;
       } catch {
-        throw new Error(raw || '返回内容不是 JSON。');
+        throw new Error(raw || "返回内容不是 JSON。");
       }
 
       if (!response.ok) {
-        throw new Error(data?.error?.message || '请求失败。');
+        throw new Error(data?.error?.message || "请求失败。");
       }
 
       const reply =
-        data?.choices?.[0]?.message?.content?.trim() || '（模型返回空内容）';
+        data?.choices?.[0]?.message?.content?.trim() || "（模型返回空内容）";
 
       setMessages((prev) => [
         ...prev,
         {
           id: `assistant-${Date.now()}`,
-          role: 'assistant',
+          role: "assistant",
           content: reply,
         },
       ]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '消息发送失败。';
+      const message = err instanceof Error ? err.message : "消息发送失败。";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -307,30 +315,30 @@ export default function DeepAI({ context }: AppProps) {
     const prompt = newAgent.prompt.trim();
 
     if (!name) {
-      setError('Agent 名称不能为空。');
+      setError("Agent 名称不能为空。");
       return;
     }
 
     const nextAgent: Agent = {
       id: `agent-${Date.now()}`,
       name,
-      prompt: prompt || '你是一个简洁、可靠的个人 AI 助手。',
+      prompt: prompt || "你是一个简洁、可靠的个人 AI 助手。",
       model: newAgent.model.trim() || config.model,
       accent: AGENT_ACCENTS[(agents.length + 1) % AGENT_ACCENTS.length],
       description:
-        newAgent.description.trim() || '自定义 Agent，用于指定特定场景。',
+        newAgent.description.trim() || "自定义 Agent，用于指定特定场景。",
     };
 
     setAgents((prev) => [...prev, nextAgent]);
     setActiveAgentId(nextAgent.id);
     setShowAgentForm(false);
-    setNewAgent({ name: '', prompt: '', description: '', model: '' });
+    setNewAgent({ name: "", prompt: "", description: "", model: "" });
     setError(null);
   }
 
   function handleRemoveAgent(id: string) {
     if (agents.length === 1) {
-      setError('至少保留一个默认 Agent。');
+      setError("至少保留一个默认 Agent。");
       return;
     }
 
@@ -357,7 +365,9 @@ export default function DeepAI({ context }: AppProps) {
             </div>
             <div>
               <div className="text-sm font-medium">AI 助手</div>
-              <div className="text-[10px] text-arch-muted">自定义 API • Agent</div>
+              <div className="text-[10px] text-arch-muted">
+                自定义 API • Agent
+              </div>
             </div>
           </div>
 
@@ -385,14 +395,16 @@ export default function DeepAI({ context }: AppProps) {
                   type="button"
                   onClick={() => applyPreset(preset)}
                   className={cn(
-                    'rounded-lg border px-2 py-1.5 text-left text-[10px] transition',
+                    "rounded-lg border px-2 py-1.5 text-left text-[10px] transition",
                     config.provider === preset.id
-                      ? 'border-arch-accent bg-arch-accent/10 text-arch-text'
-                      : 'border-arch-border bg-black/10 text-arch-muted hover:bg-white/5',
+                      ? "border-arch-accent bg-arch-accent/10 text-arch-text"
+                      : "border-arch-border bg-black/10 text-arch-muted hover:bg-white/5",
                   )}
                 >
                   <div className="font-medium">{preset.label}</div>
-                  <div className="mt-0.5 text-[9px] opacity-70">{preset.hint}</div>
+                  <div className="mt-0.5 text-[9px] opacity-70">
+                    {preset.hint}
+                  </div>
                 </button>
               ))}
             </div>
@@ -456,20 +468,27 @@ export default function DeepAI({ context }: AppProps) {
           <div className="mb-3 space-y-2 rounded-xl border border-arch-border bg-black/20 p-3">
             <input
               value={newAgent.name}
-              onChange={(e) => setNewAgent((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(e) =>
+                setNewAgent((prev) => ({ ...prev, name: e.target.value }))
+              }
               placeholder="Agent 名称"
               className="w-full rounded-lg border border-arch-border bg-black/25 px-2.5 py-1.5 text-xs text-arch-text outline-none transition focus:border-arch-accent"
             />
             <input
               value={newAgent.model}
-              onChange={(e) => setNewAgent((prev) => ({ ...prev, model: e.target.value }))}
+              onChange={(e) =>
+                setNewAgent((prev) => ({ ...prev, model: e.target.value }))
+              }
               placeholder="模型（可不填）"
               className="w-full rounded-lg border border-arch-border bg-black/25 px-2.5 py-1.5 text-xs text-arch-text outline-none transition focus:border-arch-accent"
             />
             <textarea
               value={newAgent.description}
               onChange={(e) =>
-                setNewAgent((prev) => ({ ...prev, description: e.target.value }))
+                setNewAgent((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
               }
               placeholder="Agent 简介（可选）"
               rows={2}
@@ -477,7 +496,9 @@ export default function DeepAI({ context }: AppProps) {
             />
             <textarea
               value={newAgent.prompt}
-              onChange={(e) => setNewAgent((prev) => ({ ...prev, prompt: e.target.value }))}
+              onChange={(e) =>
+                setNewAgent((prev) => ({ ...prev, prompt: e.target.value }))
+              }
               placeholder="系统提示词（可选）"
               rows={3}
               className="w-full rounded-lg border border-arch-border bg-black/25 px-2.5 py-1.5 text-xs text-arch-text outline-none transition focus:border-arch-accent"
@@ -497,10 +518,10 @@ export default function DeepAI({ context }: AppProps) {
             <div
               key={agent.id}
               className={cn(
-                'flex items-center gap-2 rounded-xl border p-2 transition',
+                "flex items-center gap-2 rounded-xl border p-2 transition",
                 activeAgent.id === agent.id
-                  ? 'border-arch-accent/60 bg-arch-accent/10'
-                  : 'border-arch-border bg-black/10 hover:bg-white/5',
+                  ? "border-arch-accent/60 bg-arch-accent/10"
+                  : "border-arch-border bg-black/10 hover:bg-white/5",
               )}
             >
               <button
@@ -570,7 +591,9 @@ export default function DeepAI({ context }: AppProps) {
               style={{ backgroundColor: activeAgent.accent }}
             />
             <div>
-              <div className="text-sm font-medium text-arch-text">{activeAgent.name}</div>
+              <div className="text-sm font-medium text-arch-text">
+                {activeAgent.name}
+              </div>
               <div className="text-[10px] text-arch-muted">
                 {activeAgent.model || config.model} · {todayLabel}
               </div>
@@ -592,7 +615,7 @@ export default function DeepAI({ context }: AppProps) {
               新会话
             </button>
             <div className="rounded-full border border-arch-border bg-black/20 px-2 py-1 text-[10px] text-arch-muted">
-              {canSend ? '已就绪' : '等待 API 配置'}
+              {canSend ? "已就绪" : "等待 API 配置"}
             </div>
           </div>
         </header>
@@ -614,10 +637,10 @@ export default function DeepAI({ context }: AppProps) {
               <div
                 key={message.id}
                 className={cn(
-                  'max-w-[85%] rounded-2xl border px-3 py-2 text-sm leading-relaxed shadow-sm',
-                  message.role === 'user'
-                    ? 'ml-auto border-arch-accent/40 bg-arch-accent/10 text-arch-text'
-                    : 'border-arch-border bg-black/10 text-arch-text',
+                  "max-w-[85%] rounded-2xl border px-3 py-2 text-sm leading-relaxed shadow-sm",
+                  message.role === "user"
+                    ? "ml-auto border-arch-accent/40 bg-arch-accent/10 text-arch-text"
+                    : "border-arch-border bg-black/10 text-arch-text",
                 )}
               >
                 {message.content}
@@ -640,19 +663,19 @@ export default function DeepAI({ context }: AppProps) {
 
         <footer className="border-t border-arch-border bg-arch-panel/50 p-3">
           <div className="mx-auto flex max-w-3xl items-end gap-2">
-            <div className="flex min-h-[44px] flex-1 items-end rounded-2xl border border-arch-border bg-black/20 px-3 py-2">
+            <div className="flex min-h-11 flex-1 items-end rounded-2xl border border-arch-border bg-black/20 px-3 py-2">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     void handleSend();
                   }
                 }}
                 rows={1}
                 placeholder="输入你的问题…"
-                className="min-h-[24px] flex-1 resize-none bg-transparent text-sm text-arch-text outline-none placeholder:text-arch-muted"
+                className="min-h-6 flex-1 resize-none bg-transparent text-sm text-arch-text outline-none placeholder:text-arch-muted"
               />
             </div>
             <button
@@ -660,8 +683,10 @@ export default function DeepAI({ context }: AppProps) {
               onClick={() => void handleSend()}
               disabled={!canSend}
               className={cn(
-                'inline-flex h-11 w-11 items-center justify-center rounded-2xl text-white transition',
-                canSend ? 'bg-arch-accent hover:brightness-110' : 'cursor-not-allowed bg-arch-border',
+                "inline-flex h-11 w-11 items-center justify-center rounded-2xl text-white transition",
+                canSend
+                  ? "bg-arch-accent hover:brightness-110"
+                  : "cursor-not-allowed bg-arch-border",
               )}
               aria-label="发送消息"
             >

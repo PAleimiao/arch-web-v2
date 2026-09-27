@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 /**
  * 「软件包」= 应用。pacman 装的卸的其实就是应用在启动器 / 桌面上的可见性。
@@ -16,10 +16,10 @@ interface PackageState {
   resetAll: () => void;
 }
 
-const KEY = 'arch-web-os:packages';
+const KEY = "arch-web-os:packages";
 
 function load(): string[] {
-  if (typeof localStorage === 'undefined') return [];
+  if (typeof localStorage === "undefined") return [];
   try {
     const raw = localStorage.getItem(KEY);
     return raw ? (JSON.parse(raw) as string[]) : [];
@@ -29,7 +29,7 @@ function load(): string[] {
 }
 
 function persist(disabled: string[]) {
-  if (typeof localStorage === 'undefined') return;
+  if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(KEY, JSON.stringify(disabled));
   } catch {

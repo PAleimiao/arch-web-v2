@@ -1,21 +1,21 @@
-import { Suspense, useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
-import type { AppContext } from '@/shell/types';
-import { getApp, loadApp } from '@/apps/registry';
-import { useWindowStore } from '@/stores/useWindowStore';
-import { useOSStore } from '@/stores/useOSStore';
-import { useWindowDrag, type Direction } from './useWindowDrag';
-import { cn } from '@/lib/cn';
+import { Suspense, useMemo } from "react";
+import { Loader2 } from "lucide-react";
+import type { AppContext } from "@/shell/types";
+import { getApp, loadApp } from "@/apps/registry";
+import { useWindowStore } from "@/stores/useWindowStore";
+import { useOSStore } from "@/stores/useOSStore";
+import { useWindowDrag, type Direction } from "./useWindowDrag";
+import { cn } from "@/lib/cn";
 
 const HANDLES: Array<{ dir: Direction; className: string }> = [
-  { dir: 'n', className: 'top-0 left-2 right-2 h-1 cursor-ns-resize' },
-  { dir: 's', className: 'bottom-0 left-2 right-2 h-1 cursor-ns-resize' },
-  { dir: 'w', className: 'left-0 top-2 bottom-2 w-1 cursor-ew-resize' },
-  { dir: 'e', className: 'right-0 top-2 bottom-2 w-1 cursor-ew-resize' },
-  { dir: 'nw', className: 'left-0 top-0 h-3 w-3 cursor-nwse-resize' },
-  { dir: 'ne', className: 'right-0 top-0 h-3 w-3 cursor-nesw-resize' },
-  { dir: 'sw', className: 'left-0 bottom-0 h-3 w-3 cursor-nesw-resize' },
-  { dir: 'se', className: 'right-0 bottom-0 h-3 w-3 cursor-nwse-resize' },
+  { dir: "n", className: "top-0 left-2 right-2 h-1 cursor-ns-resize" },
+  { dir: "s", className: "bottom-0 left-2 right-2 h-1 cursor-ns-resize" },
+  { dir: "w", className: "left-0 top-2 bottom-2 w-1 cursor-ew-resize" },
+  { dir: "e", className: "right-0 top-2 bottom-2 w-1 cursor-ew-resize" },
+  { dir: "nw", className: "left-0 top-0 h-3 w-3 cursor-nwse-resize" },
+  { dir: "ne", className: "right-0 top-0 h-3 w-3 cursor-nesw-resize" },
+  { dir: "sw", className: "left-0 bottom-0 h-3 w-3 cursor-nesw-resize" },
+  { dir: "se", className: "right-0 bottom-0 h-3 w-3 cursor-nwse-resize" },
 ];
 
 function AppFallback() {
@@ -58,10 +58,10 @@ export default function WindowFrame({ id }: { id: string }) {
     <div
       data-window
       className={cn(
-        'animate-window-in absolute flex flex-col overflow-hidden rounded-lg border shadow-2xl',
+        "animate-window-in absolute flex flex-col overflow-hidden rounded-lg border shadow-2xl",
         active
-          ? 'border-arch-accent/60 shadow-black/60'
-          : 'border-arch-border shadow-black/40',
+          ? "border-arch-accent/60 shadow-black/60"
+          : "border-arch-border shadow-black/40",
       )}
       style={{
         left: win.x,
@@ -70,7 +70,7 @@ export default function WindowFrame({ id }: { id: string }) {
         height: win.height,
         zIndex: win.zIndex,
         background: `rgba(19, 23, 34, ${opacity})`,
-        backdropFilter: 'blur(18px)',
+        backdropFilter: "blur(18px)",
       }}
       onPointerDown={() => useWindowStore.getState().focus(id)}
     >
@@ -111,7 +111,7 @@ export default function WindowFrame({ id }: { id: string }) {
           </span>
         </div>
 
-        <div className="w-[42px]" />
+        <div className="w-10.5" />
       </div>
 
       {/* 内容区 */}
@@ -126,7 +126,7 @@ export default function WindowFrame({ id }: { id: string }) {
         HANDLES.map((h) => (
           <div
             key={h.dir}
-            className={cn('absolute', h.className)}
+            className={cn("absolute", h.className)}
             onPointerDown={startResize(h.dir)}
           />
         ))}
@@ -135,7 +135,5 @@ export default function WindowFrame({ id }: { id: string }) {
 }
 
 function MissingApp({ id }: { id: string }) {
-  return (
-    <div className="p-4 text-xs text-arch-red">应用未注册：{id}</div>
-  );
+  return <div className="p-4 text-xs text-arch-red">应用未注册：{id}</div>;
 }

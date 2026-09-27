@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { Pause, Play, RotateCcw, Trophy } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { Pause, Play, RotateCcw, Trophy } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
 
 const COLS = 10;
 const ROWS = 20;
-const STORAGE_KEY = 'archweb_tetris_best';
+const STORAGE_KEY = "archweb_tetris_best";
 
-type PieceType = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';
-const TYPES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+type PieceType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
+const TYPES: PieceType[] = ["I", "O", "T", "S", "Z", "J", "L"];
 
 type Cell = number; // 0 empty, 1..7 color index
 
@@ -34,34 +34,79 @@ interface Model {
 }
 
 const SHAPES: Record<PieceType, number[][]> = {
-  I: [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]],
-  O: [[1, 1], [1, 1]],
-  T: [[0, 1, 0], [1, 1, 1], [0, 0, 0]],
-  S: [[0, 1, 1], [1, 1, 0], [0, 0, 0]],
-  Z: [[1, 1, 0], [0, 1, 1], [0, 0, 0]],
-  J: [[1, 0, 0], [1, 1, 1], [0, 0, 0]],
-  L: [[0, 0, 1], [1, 1, 1], [0, 0, 0]],
+  I: [
+    [0, 0, 0, 0],
+    [1, 1, 1, 1],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+  ],
+  O: [
+    [1, 1],
+    [1, 1],
+  ],
+  T: [
+    [0, 1, 0],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+  S: [
+    [0, 1, 1],
+    [1, 1, 0],
+    [0, 0, 0],
+  ],
+  Z: [
+    [1, 1, 0],
+    [0, 1, 1],
+    [0, 0, 0],
+  ],
+  J: [
+    [1, 0, 0],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+  L: [
+    [0, 0, 1],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
 };
 
-const COLOR_INDEX: Record<PieceType, number> = { I: 1, O: 2, T: 3, S: 4, Z: 5, J: 6, L: 7 };
+const COLOR_INDEX: Record<PieceType, number> = {
+  I: 1,
+  O: 2,
+  T: 3,
+  S: 4,
+  Z: 5,
+  J: 6,
+  L: 7,
+};
 
 const COLOR_CLASS: Record<number, string> = {
-  1: 'bg-cyan-400',
-  2: 'bg-yellow-400',
-  3: 'bg-purple-400',
-  4: 'bg-emerald-400',
-  5: 'bg-rose-400',
-  6: 'bg-blue-400',
-  7: 'bg-orange-400',
+  1: "bg-cyan-400",
+  2: "bg-yellow-400",
+  3: "bg-purple-400",
+  4: "bg-emerald-400",
+  5: "bg-rose-400",
+  6: "bg-blue-400",
+  7: "bg-orange-400",
 };
 
 const KICKS: Array<[number, number]> = [
-  [0, 0], [-1, 0], [1, 0], [0, -1], [-2, 0], [2, 0], [-1, -1], [1, -1],
+  [0, 0],
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [-2, 0],
+  [2, 0],
+  [-1, -1],
+  [1, -1],
 ];
 
 function rotateCW(m: number[][]): number[][] {
   const n = m.length;
-  const out: number[][] = Array.from({ length: n }, () => Array<number>(n).fill(0));
+  const out: number[][] = Array.from({ length: n }, () =>
+    Array<number>(n).fill(0),
+  );
   for (let r = 0; r < n; r++) {
     const row = m[r];
     if (!row) continue;
@@ -94,10 +139,16 @@ function emptyBoard(): Cell[][] {
 function randomType(): PieceType {
   const idx = Math.floor(Math.random() * TYPES.length);
   const t = TYPES[idx];
-  return t ?? 'T';
+  return t ?? "T";
 }
 
-function collides(board: Cell[][], type: PieceType, rot: number, x: number, y: number): boolean {
+function collides(
+  board: Cell[][],
+  type: PieceType,
+  rot: number,
+  x: number,
+  y: number,
+): boolean {
   const cells = cellsOf(type, rot);
   for (const [r, c] of cells) {
     const bx = x + c;
@@ -122,7 +173,9 @@ function clearLines(board: Cell[][]): { board: Cell[][]; rows: number[] } {
     else kept.push(row);
   }
   const removed = rows.length;
-  const fresh = Array.from({ length: removed }, () => Array<number>(COLS).fill(0));
+  const fresh = Array.from({ length: removed }, () =>
+    Array<number>(COLS).fill(0),
+  );
   return { board: [...fresh, ...kept], rows };
 }
 
@@ -145,7 +198,8 @@ function lockPiece(m: Model) {
   for (const [r, c] of cells) {
     const by = cur.y + r;
     const bx = cur.x + c;
-    if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) board[by][bx] = COLOR_INDEX[cur.type];
+    if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS)
+      board[by][bx] = COLOR_INDEX[cur.type];
   }
   const { board: cleared, rows } = clearLines(board);
   m.board = cleared;
@@ -266,7 +320,11 @@ function MiniPiece({ type }: { type: PieceType }) {
   return (
     <div
       className="grid gap-px"
-      style={{ gridTemplateColumns: `repeat(${size}, 1fr)`, width: 64, height: 64 }}
+      style={{
+        gridTemplateColumns: `repeat(${size}, 1fr)`,
+        width: 64,
+        height: 64,
+      }}
     >
       {Array.from({ length: size * size }).map((_, i) => {
         const r = Math.floor(i / size);
@@ -275,7 +333,10 @@ function MiniPiece({ type }: { type: PieceType }) {
         return (
           <div
             key={i}
-            className={cn('rounded-[2px]', on ? COLOR_CLASS[COLOR_INDEX[type]] : 'bg-arch-bg/40')}
+            className={cn(
+              "rounded-xs",
+              on ? COLOR_CLASS[COLOR_INDEX[type]] : "bg-arch-bg/40",
+            )}
           />
         );
       })}
@@ -335,43 +396,43 @@ export default function Tetris({ context }: AppProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const m = gameRef.current;
-      if (e.key === 'p' || e.key === 'P') {
+      if (e.key === "p" || e.key === "P") {
         e.preventDefault();
         if (!m.over) setPaused((p) => !p);
         return;
       }
-      if (e.key === 'r' || e.key === 'R') {
+      if (e.key === "r" || e.key === "R") {
         e.preventDefault();
         restart();
         return;
       }
       if (pausedRef.current || m.over) return;
       switch (e.key) {
-        case 'ArrowLeft':
+        case "ArrowLeft":
           e.preventDefault();
           if (tryMove(m, -1, 0)) force();
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           e.preventDefault();
           if (tryMove(m, 1, 0)) force();
           break;
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
           softDrop(m);
           sync();
           break;
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
           rotate(m);
           force();
           break;
-        case ' ':
+        case " ":
           e.preventDefault();
           hardDrop(m);
           sync();
           break;
-        case 'c':
-        case 'C':
+        case "c":
+        case "C":
           e.preventDefault();
           hold(m);
           force();
@@ -380,8 +441,8 @@ export default function Tetris({ context }: AppProps) {
           break;
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sync]);
 
@@ -395,14 +456,15 @@ export default function Tetris({ context }: AppProps) {
   }, [force]);
 
   useEffect(() => {
-    context.setTitle('俄罗斯方块');
+    context.setTitle("俄罗斯方块");
   }, [context]);
 
   const m = gameRef.current;
   const ghostY = (() => {
     if (!m.cur) return 0;
     let dy = 0;
-    while (!collides(m.board, m.cur.type, m.cur.rot, m.cur.x, m.cur.y + dy + 1)) dy++;
+    while (!collides(m.board, m.cur.type, m.cur.rot, m.cur.x, m.cur.y + dy + 1))
+      dy++;
     return dy;
   })();
 
@@ -422,7 +484,8 @@ export default function Tetris({ context }: AppProps) {
     for (const [r, c] of cells) {
       const by = m.cur.y + r;
       const bx = m.cur.x + c;
-      if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) grid[by][bx] = COLOR_INDEX[m.cur.type];
+      if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS)
+        grid[by][bx] = COLOR_INDEX[m.cur.type];
     }
   }
 
@@ -440,7 +503,7 @@ export default function Tetris({ context }: AppProps) {
             title="暂停 (P)"
           >
             {paused ? <Play size={12} /> : <Pause size={12} />}
-            {paused ? '继续' : '暂停'}
+            {paused ? "继续" : "暂停"}
           </button>
           <button
             onClick={restart}
@@ -454,7 +517,7 @@ export default function Tetris({ context }: AppProps) {
       </header>
 
       <div className="flex min-h-0 flex-1 gap-3 p-3">
-        <div className="mx-auto flex aspect-[1/2] h-full max-h-full">
+        <div className="mx-auto flex aspect-1/2 h-full max-h-full">
           <div
             className="grid h-full w-full overflow-hidden rounded-md border border-arch-border bg-arch-panel"
             style={{
@@ -466,7 +529,12 @@ export default function Tetris({ context }: AppProps) {
               row.map((v, c) => {
                 const flashing = m.flash.includes(r);
                 if (v === 0) {
-                  return <div key={`${r}-${c}`} className="rounded-[1px] bg-arch-bg/30" />;
+                  return (
+                    <div
+                      key={`${r}-${c}`}
+                      className="rounded-[1px] bg-arch-bg/30"
+                    />
+                  );
                 }
                 if (v === -1) {
                   return (
@@ -476,11 +544,15 @@ export default function Tetris({ context }: AppProps) {
                     />
                   );
                 }
-                const cls = COLOR_CLASS[v] ?? 'bg-zinc-500';
+                const cls = COLOR_CLASS[v] ?? "bg-zinc-500";
                 return (
                   <div
                     key={`${r}-${c}`}
-                    className={cn('rounded-[1px]', cls, flashing && 'animate-pulse ring-1 ring-white')}
+                    className={cn(
+                      "rounded-[1px]",
+                      cls,
+                      flashing && "animate-pulse ring-1 ring-white",
+                    )}
                   />
                 );
               }),
@@ -498,25 +570,37 @@ export default function Tetris({ context }: AppProps) {
           <div className="rounded-md bg-arch-panel p-2">
             <div className="mb-1 text-arch-muted">持有 (C)</div>
             <div className="flex justify-center py-1">
-              {m.hold ? <MiniPiece type={m.hold} /> : <div className="text-arch-muted">—</div>}
+              {m.hold ? (
+                <MiniPiece type={m.hold} />
+              ) : (
+                <div className="text-arch-muted">—</div>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-1 gap-2">
             <div className="rounded-md bg-arch-panel px-2.5 py-1 text-center text-arch-muted">
               分数
-              <div className="text-base font-semibold text-arch-text tabular-nums">{m.score}</div>
+              <div className="text-base font-semibold text-arch-text tabular-nums">
+                {m.score}
+              </div>
             </div>
             <div className="rounded-md bg-arch-panel px-2.5 py-1 text-center text-arch-muted">
               等级
-              <div className="text-base font-semibold text-arch-accent tabular-nums">{m.level}</div>
+              <div className="text-base font-semibold text-arch-accent tabular-nums">
+                {m.level}
+              </div>
             </div>
             <div className="rounded-md bg-arch-panel px-2.5 py-1 text-center text-arch-muted">
               消行
-              <div className="text-base font-semibold text-arch-text tabular-nums">{m.lines}</div>
+              <div className="text-base font-semibold text-arch-text tabular-nums">
+                {m.lines}
+              </div>
             </div>
             <div className="rounded-md bg-arch-panel px-2.5 py-1 text-center text-arch-muted">
               最高
-              <div className="text-base font-semibold text-arch-green tabular-nums">{m.best}</div>
+              <div className="text-base font-semibold text-arch-green tabular-nums">
+                {m.best}
+              </div>
             </div>
           </div>
         </aside>
@@ -525,8 +609,12 @@ export default function Tetris({ context }: AppProps) {
       {over && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="flex flex-col items-center">
-            <div className="mb-2 text-2xl font-bold text-arch-red">游戏结束</div>
-            <div className="mb-1 text-sm text-arch-muted">得分 {m.score} · 消行 {m.lines}</div>
+            <div className="mb-2 text-2xl font-bold text-arch-red">
+              游戏结束
+            </div>
+            <div className="mb-1 text-sm text-arch-muted">
+              得分 {m.score} · 消行 {m.lines}
+            </div>
             <div className="mb-4 text-xs text-arch-muted">最高 {m.best}</div>
             <button
               onClick={restart}

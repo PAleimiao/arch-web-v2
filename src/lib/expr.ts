@@ -5,28 +5,28 @@
  * 支持：数字（含小数）、+ - * /、括号、一元正负号、空白。
  */
 
-type Tok = { t: 'num'; v: number } | { t: 'op'; v: string };
+type Tok = { t: "num"; v: number } | { t: "op"; v: string };
 
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
   let i = 0;
   while (i < src.length) {
     const c = src[i];
-    if (c === ' ' || c === '\t') {
+    if (c === " " || c === "\t") {
       i++;
       continue;
     }
-    if ((c >= '0' && c <= '9') || c === '.') {
+    if ((c >= "0" && c <= "9") || c === ".") {
       let j = i;
       while (j < src.length && /[0-9.]/.test(src[j])) j++;
       const n = Number(src.slice(i, j));
       if (!Number.isFinite(n)) throw new Error(`非法数字 ${src.slice(i, j)}`);
-      out.push({ t: 'num', v: n });
+      out.push({ t: "num", v: n });
       i = j;
       continue;
     }
-    if ('+-*/()'.includes(c)) {
-      out.push({ t: 'op', v: c });
+    if ("+-*/()".includes(c)) {
+      out.push({ t: "op", v: c });
       i++;
       continue;
     }
@@ -44,10 +44,10 @@ export function evalExpr(src: string): number {
     let left = parseTerm();
     for (;;) {
       const tk = peek();
-      if (!tk || tk.t !== 'op' || (tk.v !== '+' && tk.v !== '-')) break;
+      if (!tk || tk.t !== "op" || (tk.v !== "+" && tk.v !== "-")) break;
       pos++;
       const right = parseTerm();
-      left = tk.v === '+' ? left + right : left - right;
+      left = tk.v === "+" ? left + right : left - right;
     }
     return left;
   };
@@ -56,41 +56,42 @@ export function evalExpr(src: string): number {
     let left = parseFactor();
     for (;;) {
       const tk = peek();
-      if (!tk || tk.t !== 'op' || (tk.v !== '*' && tk.v !== '/')) break;
+      if (!tk || tk.t !== "op" || (tk.v !== "*" && tk.v !== "/")) break;
       pos++;
       const right = parseFactor();
-      if (tk.v === '/' && right === 0) throw new Error('除零');
-      left = tk.v === '*' ? left * right : left / right;
+      if (tk.v === "/" && right === 0) throw new Error("除零");
+      left = tk.v === "*" ? left * right : left / right;
     }
     return left;
   };
 
   const parseFactor = (): number => {
     const tk = peek();
-    if (!tk) throw new Error('表达式不完整');
-    if (tk.t === 'num') {
+    if (!tk) throw new Error("表达式不完整");
+    if (tk.t === "num") {
       pos++;
       return tk.v;
     }
-    if (tk.v === '-' || tk.v === '+') {
+    if (tk.v === "-" || tk.v === "+") {
       pos++;
       const v = parseFactor();
-      return tk.v === '-' ? -v : v;
+      return tk.v === "-" ? -v : v;
     }
-    if (tk.v === '(') {
+    if (tk.v === "(") {
       pos++;
       const v = parseExpr();
       const close = peek();
-      if (!close || close.t !== 'op' || close.v !== ')') throw new Error('括号不匹配');
+      if (!close || close.t !== "op" || close.v !== ")")
+        throw new Error("括号不匹配");
       pos++;
       return v;
     }
-    throw new Error('语法错误');
+    throw new Error("语法错误");
   };
 
-  if (toks.length === 0) throw new Error('空表达式');
+  if (toks.length === 0) throw new Error("空表达式");
   const value = parseExpr();
-  if (pos < toks.length) throw new Error('表达式有多余内容');
+  if (pos < toks.length) throw new Error("表达式有多余内容");
   return value;
 }
 

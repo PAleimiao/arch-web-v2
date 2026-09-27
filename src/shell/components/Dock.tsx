@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
-import { useWindowStore } from '@/stores/useWindowStore';
-import { useOSStore } from '@/stores/useOSStore';
-import { usePackageStore } from '@/stores/usePackageStore';
-import { notify } from '@/stores/useNotifyStore';
-import { getApp } from '@/apps/registry';
-import { cn } from '@/lib/cn';
+import react from "react";
+import { useWindowStore } from "@/stores/useWindowStore";
+import { useOSStore } from "@/stores/useOSStore";
+import { usePackageStore } from "@/stores/usePackageStore";
+import { notify } from "@/stores/useNotifyStore";
+import { getApp } from "@/apps/registry";
+import { cn } from "@/lib/cn";
 
-const PINNED_IDS = ['terminal', 'files', 'browser', 'music', 'settings'] as const;
+const PINNED_IDS = [
+  "terminal",
+  "files",
+  "browser",
+  "music",
+  "settings",
+] as const;
 
 interface DockMenu {
   appId: string;
@@ -30,17 +36,17 @@ export default function Dock() {
   const disabled = usePackageStore((s) => s.disabled);
   const removePkg = usePackageStore((s) => s.remove);
 
-  const [menu, setMenu] = useState<DockMenu | null>(null);
-  const [peeked, setPeeked] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = react.useState<DockMenu | null>(null);
+  const [peeked, setPeeked] = react.useState(false);
+  const wrapRef = react.useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  react.useEffect(() => {
     if (!menu) return;
     const onDown = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setMenu(null);
     };
-    window.addEventListener('mousedown', onDown);
-    return () => window.removeEventListener('mousedown', onDown);
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, [menu]);
 
   // 计算每个 app 当前的窗口数（用于徽章）
@@ -100,23 +106,23 @@ export default function Dock() {
       onMouseEnter={() => setPeeked(true)}
       onMouseLeave={() => setPeeked(false)}
       className={cn(
-        'pointer-events-none absolute left-1/2 z-[7000] -translate-x-1/2',
-        dockAutoHide ? 'bottom-0 pb-2' : 'bottom-2',
+        "pointer-events-none absolute left-1/2 z-7000 -translate-x-1/2",
+        dockAutoHide ? "bottom-0 pb-2" : "bottom-2",
       )}
     >
       <div
         ref={wrapRef}
         className={cn(
-          'pointer-events-auto relative flex items-end gap-1.5 rounded-2xl border border-white/10 bg-black/45 px-2 py-1.5 shadow-2xl backdrop-blur-md transition-transform duration-200',
-          dockAutoHide && !peeked && !menu && 'translate-y-[140%]',
+          "pointer-events-auto relative flex items-end gap-1.5 rounded-2xl border border-white/10 bg-black/45 px-2 py-1.5 shadow-2xl backdrop-blur-md transition-transform duration-200",
+          dockAutoHide && !peeked && !menu && "translate-y-[140%]",
         )}
       >
         {menu && menuApp && (
           <div
-            className="animate-pop-in absolute z-[7100] w-40 overflow-hidden rounded-lg border border-arch-border bg-arch-panel/97 py-1 text-[11px] shadow-2xl backdrop-blur"
+            className="animate-pop-in absolute z-7100 w-40 overflow-hidden rounded-lg border border-arch-border bg-arch-panel/97 py-1 text-[11px] shadow-2xl backdrop-blur"
             style={{
               left: Math.max(4, Math.min(menu.x - 80, window.innerWidth - 200)),
-              bottom: '100%',
+              bottom: "100%",
               marginBottom: 8,
             }}
           >
@@ -157,7 +163,9 @@ export default function Dock() {
                   type="button"
                   className="block w-full px-3 py-1.5 text-left hover:bg-white/10"
                   onClick={() => {
-                    menuWins.forEach((w) => useWindowStore.getState().minimize(w.id));
+                    menuWins.forEach((w) =>
+                      useWindowStore.getState().minimize(w.id),
+                    );
                     setMenu(null);
                   }}
                 >
@@ -180,7 +188,7 @@ export default function Dock() {
               className="block w-full border-t border-arch-border px-3 py-1.5 text-left text-arch-red hover:bg-white/10"
               onClick={() => {
                 removePkg(menuApp.id);
-                notify('已从 Dock 卸载', menuApp.name, 'warn');
+                notify("已从 Dock 卸载", menuApp.name, "warn");
                 setMenu(null);
               }}
             >
@@ -211,18 +219,18 @@ export default function Dock() {
                 }}
                 style={{ width: itemSize, height: itemSize }}
                 className={cn(
-                  'group relative flex items-center justify-center rounded-xl transition-all duration-150 hover:-translate-y-1 hover:bg-white/10',
-                  active && 'bg-white/12',
+                  "group relative flex items-center justify-center rounded-xl transition-all duration-150 hover:-translate-y-1 hover:bg-white/10",
+                  active && "bg-white/12",
                 )}
               >
                 <Icon
                   size={Math.round(itemSize * 0.46)}
-                  style={{ color: app.accent ?? '#1793d1' }}
+                  style={{ color: app.accent ?? "#1793d1" }}
                   className="drop-shadow"
                 />
                 {/* 多窗口徽章（>1 才显示） */}
                 {count > 1 && (
-                  <span className="absolute right-0.5 top-0.5 min-w-[16px] rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-[14px] text-white shadow ring-1 ring-black/40">
+                  <span className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-3.5 text-white shadow ring-1 ring-black/40">
                     {count}
                   </span>
                 )}
@@ -230,8 +238,8 @@ export default function Dock() {
                 {count === 1 && (
                   <span
                     className={cn(
-                      'absolute -bottom-0.5 h-1 w-1 rounded-full transition',
-                      active ? 'bg-arch-accent' : 'bg-white/60',
+                      "absolute -bottom-0.5 h-1 w-1 rounded-full transition",
+                      active ? "bg-arch-accent" : "bg-white/60",
                     )}
                   />
                 )}
@@ -242,8 +250,8 @@ export default function Dock() {
                       <span
                         key={i}
                         className={cn(
-                          'h-0.5 w-1 rounded-full',
-                          active ? 'bg-arch-accent' : 'bg-white/50',
+                          "h-0.5 w-1 rounded-full",
+                          active ? "bg-arch-accent" : "bg-white/50",
                         )}
                       />
                     ))}
@@ -255,7 +263,9 @@ export default function Dock() {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      for (const w of windows.filter((x) => x.appId === appId)) {
+                      for (const w of windows.filter(
+                        (x) => x.appId === appId,
+                      )) {
                         close(w.id);
                       }
                     }}
@@ -278,13 +288,16 @@ export default function Dock() {
           title="应用启动器"
           style={{ width: itemSize, height: itemSize }}
           className={cn(
-            'flex items-center justify-center rounded-xl transition hover:-translate-y-1 hover:bg-white/10',
-            launcherOpen && 'bg-arch-accent/25',
+            "flex items-center justify-center rounded-xl transition hover:-translate-y-1 hover:bg-white/10",
+            launcherOpen && "bg-arch-accent/25",
           )}
         >
-          <div className="grid grid-cols-2 gap-[3px]">
+          <div className="grid grid-cols-2 gap-0.75">
             {Array.from({ length: 4 }).map((_, i) => (
-              <span key={i} className="h-1.5 w-1.5 rounded-[1px] bg-arch-text/70" />
+              <span
+                key={i}
+                className="h-1.5 w-1.5 rounded-[1px] bg-arch-text/70"
+              />
             ))}
           </div>
         </button>

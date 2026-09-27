@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   Sun,
   CloudSun,
@@ -14,10 +14,10 @@ import {
   RotateCcw,
   AlertTriangle,
   MapPin,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
 
 interface GeoResult {
   name: string;
@@ -59,7 +59,7 @@ interface SavedCity {
   longitude: number;
 }
 
-const STORAGE_KEY = 'arch-web-os:weather-city';
+const STORAGE_KEY = "arch-web-os:weather-city";
 const TIMEOUT_MS = 8000;
 
 interface WmoInfo {
@@ -68,18 +68,18 @@ interface WmoInfo {
 }
 
 function wmo(code: number): WmoInfo {
-  if (code === 0) return { desc: '晴', Icon: Sun };
-  if (code === 1) return { desc: '晴间多云', Icon: CloudSun };
-  if (code === 2) return { desc: '多云', Icon: CloudSun };
-  if (code === 3) return { desc: '阴', Icon: Cloud };
-  if (code === 45 || code === 48) return { desc: '雾', Icon: CloudFog };
-  if (code >= 51 && code <= 57) return { desc: '毛毛雨', Icon: CloudRain };
-  if (code >= 61 && code <= 67) return { desc: '雨', Icon: CloudRain };
-  if (code >= 71 && code <= 77) return { desc: '雪', Icon: CloudSnow };
-  if (code >= 80 && code <= 82) return { desc: '阵雨', Icon: CloudRain };
-  if (code >= 85 && code <= 86) return { desc: '阵雪', Icon: CloudSnow };
-  if (code >= 95) return { desc: '雷暴', Icon: CloudLightning };
-  return { desc: '未知', Icon: Cloud };
+  if (code === 0) return { desc: "晴", Icon: Sun };
+  if (code === 1) return { desc: "晴间多云", Icon: CloudSun };
+  if (code === 2) return { desc: "多云", Icon: CloudSun };
+  if (code === 3) return { desc: "阴", Icon: Cloud };
+  if (code === 45 || code === 48) return { desc: "雾", Icon: CloudFog };
+  if (code >= 51 && code <= 57) return { desc: "毛毛雨", Icon: CloudRain };
+  if (code >= 61 && code <= 67) return { desc: "雨", Icon: CloudRain };
+  if (code >= 71 && code <= 77) return { desc: "雪", Icon: CloudSnow };
+  if (code >= 80 && code <= 82) return { desc: "阵雨", Icon: CloudRain };
+  if (code >= 85 && code <= 86) return { desc: "阵雪", Icon: CloudSnow };
+  if (code >= 95) return { desc: "雷暴", Icon: CloudLightning };
+  return { desc: "未知", Icon: Cloud };
 }
 
 function loadSaved(): SavedCity | null {
@@ -87,7 +87,8 @@ function loadSaved(): SavedCity | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw) as SavedCity;
-    if (typeof v.latitude === 'number' && typeof v.longitude === 'number') return v;
+    if (typeof v.latitude === "number" && typeof v.longitude === "number")
+      return v;
     return null;
   } catch {
     return null;
@@ -103,19 +104,23 @@ function saveCity(c: SavedCity) {
 }
 
 export default function Weather({ context }: AppProps) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
-  const [cityName, setCityName] = useState('');
+  const [cityName, setCityName] = useState("");
   const [current, setCurrent] = useState<Current | null>(null);
   const [daily, setDaily] = useState<Daily | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<number | null>(null);
-  const lastCoordsRef = useRef<{ lat: number; lon: number; name: string } | null>(null);
+  const lastCoordsRef = useRef<{
+    lat: number;
+    lon: number;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
-    context.setTitle('天气');
+    context.setTitle("天气");
   }, [context]);
 
   useEffect(() => {
@@ -142,7 +147,7 @@ export default function Weather({ context }: AppProps) {
     timerRef.current = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     setLoading(true);
-    setError('');
+    setError("");
     setResults([]);
     try {
       const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
@@ -153,23 +158,30 @@ export default function Weather({ context }: AppProps) {
       const data = (await res.json()) as GeoResponse;
       const list = data.results ?? [];
       if (list.length === 0) {
-        setError('没有找到匹配的城市，请检查拼写');
+        setError("没有找到匹配的城市，请检查拼写");
         setLoading(false);
         return;
       }
       setResults(list);
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setError('请求超时（8 秒），请检查网络后重试');
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("请求超时（8 秒），请检查网络后重试");
       } else {
-        setError('网络错误：' + (err instanceof Error ? err.message : String(err)));
+        setError(
+          "网络错误：" + (err instanceof Error ? err.message : String(err)),
+        );
       }
     } finally {
       setLoading(false);
     }
   }
 
-  async function fetchForecast(lat: number, lon: number, name: string, persist = true) {
+  async function fetchForecast(
+    lat: number,
+    lon: number,
+    name: string,
+    persist = true,
+  ) {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -177,7 +189,7 @@ export default function Weather({ context }: AppProps) {
     timerRef.current = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     setLoading(true);
-    setError('');
+    setError("");
     setResults([]);
     lastCoordsRef.current = { lat, lon, name };
     try {
@@ -194,10 +206,12 @@ export default function Weather({ context }: AppProps) {
       setCityName(name);
       if (persist) saveCity({ name, latitude: lat, longitude: lon });
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setError('请求超时（8 秒），请检查网络后重试');
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("请求超时（8 秒），请检查网络后重试");
       } else {
-        setError('网络错误：' + (err instanceof Error ? err.message : String(err)));
+        setError(
+          "网络错误：" + (err instanceof Error ? err.message : String(err)),
+        );
       }
     } finally {
       setLoading(false);
@@ -218,7 +232,7 @@ export default function Weather({ context }: AppProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void searchCity(query);
+              if (e.key === "Enter") void searchCity(query);
             }}
             placeholder="输入城市名，如：北京 / 上海 / Tokyo"
             className="w-full bg-transparent py-1 text-arch-text outline-none placeholder:text-arch-muted"
@@ -243,7 +257,8 @@ export default function Weather({ context }: AppProps) {
                 type="button"
                 onClick={() => {
                   const last = lastCoordsRef.current;
-                  if (last) void fetchForecast(last.lat, last.lon, last.name, false);
+                  if (last)
+                    void fetchForecast(last.lat, last.lon, last.name, false);
                 }}
                 className="mt-1 flex items-center gap-1 text-arch-accent hover:underline"
               >
@@ -260,13 +275,15 @@ export default function Weather({ context }: AppProps) {
               <button
                 key={`${r.latitude}-${r.longitude}`}
                 type="button"
-                onClick={() => void fetchForecast(r.latitude, r.longitude, r.name)}
+                onClick={() =>
+                  void fetchForecast(r.latitude, r.longitude, r.name)
+                }
                 className="flex w-full items-center gap-2 border-b border-arch-border px-3 py-2 text-left text-[12px] last:border-b-0 hover:bg-arch-panel"
               >
                 <MapPin size={14} className="text-arch-accent" />
                 <span className="text-arch-text">{r.name}</span>
                 <span className="text-arch-muted">
-                  {[r.admin1, r.country].filter(Boolean).join(' · ')}
+                  {[r.admin1, r.country].filter(Boolean).join(" · ")}
                 </span>
               </button>
             ))}
@@ -274,7 +291,9 @@ export default function Weather({ context }: AppProps) {
         )}
 
         {loading && (
-          <p className="py-6 text-center text-[12px] text-arch-muted">加载中…</p>
+          <p className="py-6 text-center text-[12px] text-arch-muted">
+            加载中…
+          </p>
         )}
 
         {!loading && !error && !current && results.length === 0 && (
@@ -305,16 +324,30 @@ export default function Weather({ context }: AppProps) {
                   return (
                     <>
                       <Icon size={48} />
-                      <span className="mt-1 text-[12px] text-arch-text">{desc}</span>
+                      <span className="mt-1 text-[12px] text-arch-text">
+                        {desc}
+                      </span>
                     </>
                   );
                 })()}
               </div>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-              <Metric icon={Droplets} label="湿度" value={`${current.relative_humidity_2m}%`} />
-              <Metric icon={Wind} label="风速" value={`${current.wind_speed_10m} km/h`} />
-              <Metric icon={Thermometer} label="降水" value={`${current.precipitation} mm`} />
+              <Metric
+                icon={Droplets}
+                label="湿度"
+                value={`${current.relative_humidity_2m}%`}
+              />
+              <Metric
+                icon={Wind}
+                label="风速"
+                value={`${current.wind_speed_10m} km/h`}
+              />
+              <Metric
+                icon={Thermometer}
+                label="降水"
+                value={`${current.precipitation} mm`}
+              />
             </div>
           </div>
         )}
@@ -329,16 +362,24 @@ export default function Weather({ context }: AppProps) {
                 const mx = daily.temperature_2m_max[i];
                 const mn = daily.temperature_2m_min[i];
                 const sum = daily.precipitation_sum[i];
-                if (code === undefined || mx === undefined || mn === undefined) return null;
+                if (code === undefined || mx === undefined || mn === undefined)
+                  return null;
                 const { Icon, desc } = wmo(code);
-                const dayLabel = new Date(t).toLocaleDateString('zh-CN', { weekday: 'short' });
+                const dayLabel = new Date(t).toLocaleDateString("zh-CN", {
+                  weekday: "short",
+                });
                 const maxH = range > 0 ? ((mx - minAll) / range) * 64 + 4 : 8;
                 const minH = range > 0 ? ((mn - minAll) / range) * 64 + 4 : 4;
                 return (
-                  <div key={t} className="flex flex-col items-center gap-1 text-center">
-                    <span className="text-[10px] text-arch-muted">{dayLabel}</span>
+                  <div
+                    key={t}
+                    className="flex flex-col items-center gap-1 text-center"
+                  >
+                    <span className="text-[10px] text-arch-muted">
+                      {dayLabel}
+                    </span>
                     <Icon size={18} className="text-arch-accent" />
-                    <div className="flex h-[72px] items-end gap-0.5">
+                    <div className="flex h-18 items-end gap-0.5">
                       <div
                         className="w-1.5 rounded-sm bg-arch-red/70"
                         style={{ height: `${maxH}px` }}
@@ -350,10 +391,14 @@ export default function Weather({ context }: AppProps) {
                         title={`最低 ${Math.round(mn)}°`}
                       />
                     </div>
-                    <span className="text-[11px] tabular-nums text-arch-text">{Math.round(mx)}°</span>
-                    <span className="text-[10px] tabular-nums text-arch-muted">{Math.round(mn)}°</span>
+                    <span className="text-[11px] tabular-nums text-arch-text">
+                      {Math.round(mx)}°
+                    </span>
+                    <span className="text-[10px] tabular-nums text-arch-muted">
+                      {Math.round(mn)}°
+                    </span>
                     <span className="text-[9px] text-arch-muted" title={desc}>
-                      {sum > 0 ? `${sum}mm` : '—'}
+                      {sum > 0 ? `${sum}mm` : "—"}
                     </span>
                   </div>
                 );
@@ -379,7 +424,11 @@ function Metric({
   value: string;
 }) {
   return (
-    <div className={cn('flex flex-col items-center gap-0.5 rounded bg-arch-bg py-2')}>
+    <div
+      className={cn(
+        "flex flex-col items-center gap-0.5 rounded bg-arch-bg py-2",
+      )}
+    >
       <Icon size={15} className="text-arch-accent" />
       <span className="text-arch-muted">{label}</span>
       <span className="tabular-nums text-arch-text">{value}</span>

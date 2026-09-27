@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -8,10 +8,10 @@ import {
   Trash2,
   Pencil,
   X,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
 
 interface CalEvent {
   id: string;
@@ -22,10 +22,10 @@ interface CalEvent {
 
 type EventMap = Record<string, CalEvent[]>;
 
-const KEY = 'arch-web-os:calendar';
+const KEY = "arch-web-os:calendar";
 
 function loadCal(): EventMap {
-  if (typeof localStorage === 'undefined') return {};
+  if (typeof localStorage === "undefined") return {};
   try {
     const raw = localStorage.getItem(KEY);
     return raw ? (JSON.parse(raw) as EventMap) : {};
@@ -35,7 +35,7 @@ function loadCal(): EventMap {
 }
 
 function pad(n: number): string {
-  return String(n).padStart(2, '0');
+  return String(n).padStart(2, "0");
 }
 
 function keyOf(y: number, m: number, d: number): string {
@@ -46,11 +46,11 @@ function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-const WEEK = ['一', '二', '三', '四', '五', '六', '日'];
+const WEEK = ["一", "二", "三", "四", "五", "六", "日"];
 
 export default function Calendar({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('日历');
+    context.setTitle("日历");
   }, [context]);
 
   const today = new Date();
@@ -60,9 +60,9 @@ export default function Calendar({ context }: AppProps) {
   const [events, setEvents] = useState<EventMap>(loadCal);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftTitle, setDraftTitle] = useState('');
-  const [draftTime, setDraftTime] = useState('');
-  const [draftNote, setDraftNote] = useState('');
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftTime, setDraftTime] = useState("");
+  const [draftNote, setDraftNote] = useState("");
 
   useEffect(() => {
     try {
@@ -72,7 +72,11 @@ export default function Calendar({ context }: AppProps) {
     }
   }, [events]);
 
-  const todayKey = keyOf(today.getFullYear(), today.getMonth(), today.getDate());
+  const todayKey = keyOf(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
 
   const prevMonth = () => {
     if (viewMonth === 0) {
@@ -99,9 +103,9 @@ export default function Calendar({ context }: AppProps) {
   const selectDay = (y: number, m: number, d: number) => {
     setSelected(new Date(y, m, d));
     setEditingId(null);
-    setDraftTitle('');
-    setDraftTime('');
-    setDraftNote('');
+    setDraftTitle("");
+    setDraftTime("");
+    setDraftNote("");
     if (m !== viewMonth) {
       setViewYear(y);
       setViewMonth(m);
@@ -115,7 +119,8 @@ export default function Calendar({ context }: AppProps) {
 
   // 月历网格（6 行 42 格，周一为起点）
   const firstWeekday = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7;
-  const cells: Array<{ y: number; m: number; d: number; inMonth: boolean }> = [];
+  const cells: Array<{ y: number; m: number; d: number; inMonth: boolean }> =
+    [];
   for (let i = 0; i < 42; i++) {
     const date = new Date(viewYear, viewMonth, 1 + i - firstWeekday);
     cells.push({
@@ -134,7 +139,7 @@ export default function Calendar({ context }: AppProps) {
 
   const saveEvent = () => {
     if (!draftTitle.trim()) {
-      notify('请填写标题', '事件标题不能为空', 'warn');
+      notify("请填写标题", "事件标题不能为空", "warn");
       return;
     }
     setEvents((prev) => {
@@ -161,9 +166,9 @@ export default function Calendar({ context }: AppProps) {
       return { ...prev, [selKey]: list };
     });
     setEditingId(null);
-    setDraftTitle('');
-    setDraftTime('');
-    setDraftNote('');
+    setDraftTitle("");
+    setDraftTime("");
+    setDraftNote("");
   };
 
   const deleteEvent = (id: string) => {
@@ -173,9 +178,9 @@ export default function Calendar({ context }: AppProps) {
     }));
     if (editingId === id) {
       setEditingId(null);
-      setDraftTitle('');
-      setDraftTime('');
-      setDraftNote('');
+      setDraftTitle("");
+      setDraftTime("");
+      setDraftNote("");
     }
   };
 
@@ -211,7 +216,11 @@ export default function Calendar({ context }: AppProps) {
         >
           <ChevronLeft size={14} />
         </button>
-        <button type="button" onClick={nextMonth} className="rounded p-1 hover:bg-white/10">
+        <button
+          type="button"
+          onClick={nextMonth}
+          className="rounded p-1 hover:bg-white/10"
+        >
           <ChevronRight size={14} />
         </button>
         <button
@@ -235,8 +244,8 @@ export default function Calendar({ context }: AppProps) {
               <div
                 key={i}
                 className={cn(
-                  'py-1',
-                  isToday ? 'text-arch-accent' : 'text-arch-muted',
+                  "py-1",
+                  isToday ? "text-arch-accent" : "text-arch-muted",
                 )}
               >
                 {WEEK[i]}
@@ -261,15 +270,15 @@ export default function Calendar({ context }: AppProps) {
                   type="button"
                   onClick={() => selectDay(c.y, c.m, c.d)}
                   className={cn(
-                    'flex flex-col items-center border border-arch-border/60 py-1 text-[12px]',
-                    c.inMonth ? 'text-arch-text' : 'text-arch-muted/50',
-                    isSel ? 'bg-arch-accent/20' : 'hover:bg-white/5',
+                    "flex flex-col items-center border border-arch-border/60 py-1 text-[12px]",
+                    c.inMonth ? "text-arch-text" : "text-arch-muted/50",
+                    isSel ? "bg-arch-accent/20" : "hover:bg-white/5",
                   )}
                 >
                   <span
                     className={cn(
-                      'flex h-5 w-5 items-center justify-center rounded-full',
-                      isToday && 'bg-arch-accent text-white',
+                      "flex h-5 w-5 items-center justify-center rounded-full",
+                      isToday && "bg-arch-accent text-white",
                     )}
                   >
                     {c.d}
@@ -292,7 +301,8 @@ export default function Calendar({ context }: AppProps) {
           {/* 右侧：编辑 + 当月事件 */}
           <div className="flex w-60 shrink-0 flex-col border-l border-arch-border bg-arch-panel/40">
             <div className="border-b border-arch-border p-2 text-[11px] text-arch-muted">
-              {selected.getFullYear()} 年 {selected.getMonth() + 1} 月 {selected.getDate()} 日
+              {selected.getFullYear()} 年 {selected.getMonth() + 1} 月{" "}
+              {selected.getDate()} 日
             </div>
             <div className="space-y-2 border-b border-arch-border p-2">
               <input
@@ -320,7 +330,7 @@ export default function Calendar({ context }: AppProps) {
                   onClick={saveEvent}
                   className="flex flex-1 items-center justify-center gap-1 rounded bg-arch-accent px-2 py-1 text-[11px] text-white hover:bg-arch-accent/80"
                 >
-                  <Plus size={12} /> {editingId ? '更新' : '添加'}
+                  <Plus size={12} /> {editingId ? "更新" : "添加"}
                 </button>
                 {editingId && (
                   <button
@@ -336,9 +346,9 @@ export default function Calendar({ context }: AppProps) {
                     type="button"
                     onClick={() => {
                       setEditingId(null);
-                      setDraftTitle('');
-                      setDraftTime('');
-                      setDraftNote('');
+                      setDraftTitle("");
+                      setDraftTime("");
+                      setDraftNote("");
                     }}
                     className="flex items-center justify-center rounded bg-arch-panel px-2 py-1 text-[11px]"
                   >
@@ -360,7 +370,7 @@ export default function Calendar({ context }: AppProps) {
                   className="mb-1 flex w-full items-center gap-2 rounded border border-arch-border bg-arch-panel/40 px-2 py-1 text-left text-[11px] hover:bg-white/10"
                 >
                   <span className="shrink-0 font-mono text-arch-muted">
-                    {pad(day)} {ev.time || '--:--'}
+                    {pad(day)} {ev.time || "--:--"}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{ev.title}</span>
                   <Pencil size={11} className="shrink-0 text-arch-muted" />

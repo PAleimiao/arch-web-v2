@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @theme {
   --color-arch-bg: #0b0e14;
@@ -12,11 +12,11 @@
   --color-arch-red: #e06c75;
 
   --font-sans:
-    'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-    'Noto Sans CJK SC', system-ui, sans-serif;
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", system-ui, sans-serif;
   --font-mono:
-    'Cascadia Code', 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC',
-    'Microsoft YaHei', ui-monospace, monospace;
+    "Cascadia Code", "JetBrains Mono", Consolas, "Noto Sans Mono CJK SC",
+    "Microsoft YaHei", ui-monospace, monospace;
 }
 
 * {
@@ -142,7 +142,7 @@ body {
 
 /* ------------------------------ 亮色主题 ------------------------------ */
 /* 变量在 :root 上由 @theme 生成，这里只在切到亮色时覆盖 */
-[data-theme='light'] {
+[data-theme="light"] {
   --color-arch-bg: #eef1f6;
   --color-arch-panel: #ffffff;
   --color-arch-border: #d3d9e4;
@@ -150,27 +150,27 @@ body {
   --color-arch-muted: #667085;
 }
 
-[data-theme='light'] body {
+[data-theme="light"] body {
   background: var(--color-arch-bg);
   color: var(--color-arch-text);
 }
 
-[data-theme='light'] ::-webkit-scrollbar-thumb {
+[data-theme="light"] ::-webkit-scrollbar-thumb {
   background: #c2cad8;
 }
-[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: #a9b4c6;
 }
 
-[data-theme='light'] .desktop-icon-label {
+[data-theme="light"] .desktop-icon-label {
   color: #10141c;
   text-shadow: 0 1px 2px rgb(255 255 255 / 85%);
 }
 
 /* ---------------------------- 关闭动画模式 ---------------------------- */
-[data-motion='off'] *,
-[data-motion='off'] *::before,
-[data-motion='off'] *::after {
+[data-motion="off"] *,
+[data-motion="off"] *::before,
+[data-motion="off"] *::after {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
@@ -226,7 +226,7 @@ body {
 
 /* 通用虚线拖拽提示 */
 .drop-outline {
-  outline: 2px dashed color-mix(in srgb, var(--color-arch-accent) 70%, transparent);
+  outline: 2px dashed
+    color-mix(in srgb, var(--color-arch-accent) 70%, transparent);
   outline-offset: -4px;
 }
-

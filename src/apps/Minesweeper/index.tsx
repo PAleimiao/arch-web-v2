@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { Bomb, Flag, RotateCcw, Smile, Timer } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
+import { useEffect, useRef, useState } from "react";
+import { Bomb, Flag, RotateCcw, Smile, Timer } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
 
 /**
  * 经典扫雷
@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn';
  * - 计时 + 计雷（剩余 = 雷数 - 已标）
  */
 
-type Difficulty = 'easy' | 'medium' | 'hard';
+type Difficulty = "easy" | "medium" | "hard";
 interface Config {
   rows: number;
   cols: number;
@@ -20,12 +20,12 @@ interface Config {
   label: string;
 }
 const PRESETS: Record<Difficulty, Config> = {
-  easy: { rows: 9, cols: 9, mines: 10, label: '入门 9×9 / 10雷' },
-  medium: { rows: 16, cols: 16, mines: 40, label: '进阶 16×16 / 40雷' },
-  hard: { rows: 16, cols: 30, mines: 99, label: '高手 16×30 / 99雷' },
+  easy: { rows: 9, cols: 9, mines: 10, label: "入门 9×9 / 10雷" },
+  medium: { rows: 16, cols: 16, mines: 40, label: "进阶 16×16 / 40雷" },
+  hard: { rows: 16, cols: 30, mines: 99, label: "高手 16×30 / 99雷" },
 };
 
-type CellState = 'hidden' | 'revealed' | 'flagged';
+type CellState = "hidden" | "revealed" | "flagged";
 
 interface Cell {
   isMine: boolean;
@@ -35,19 +35,21 @@ interface Cell {
 }
 
 const STATUS = {
-  idle: { Icon: Smile, color: '' },
-  playing: { Icon: Smile, color: '' },
-  won: { Icon: Smile, color: 'text-emerald-400' },
-  lost: { Icon: Smile, color: 'text-red-400' },
+  idle: { Icon: Smile, color: "" },
+  playing: { Icon: Smile, color: "" },
+  won: { Icon: Smile, color: "text-emerald-400" },
+  lost: { Icon: Smile, color: "text-red-400" },
 } as const;
 
 type GameStatus = keyof typeof STATUS;
 
 export default function Minesweeper(_: AppProps) {
-  const [diff, setDiff] = useState<Difficulty>('easy');
+  const [diff, setDiff] = useState<Difficulty>("easy");
   const cfg = PRESETS[diff];
-  const [board, setBoard] = useState<Cell[][]>(() => emptyBoard(cfg.rows, cfg.cols));
-  const [status, setStatus] = useState<GameStatus>('idle');
+  const [board, setBoard] = useState<Cell[][]>(() =>
+    emptyBoard(cfg.rows, cfg.cols),
+  );
+  const [status, setStatus] = useState<GameStatus>("idle");
   const [flags, setFlags] = useState(0);
   const [startTime, setStartTime] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -56,8 +58,11 @@ export default function Minesweeper(_: AppProps) {
 
   // 计时
   useEffect(() => {
-    if (status !== 'playing') return;
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 250);
+    if (status !== "playing") return;
+    const t = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startTime) / 1000)),
+      250,
+    );
     return () => clearInterval(t);
   }, [status, startTime]);
 
@@ -66,7 +71,7 @@ export default function Minesweeper(_: AppProps) {
     setDiff(nextDiff);
     const c = PRESETS[nextDiff];
     setBoard(emptyBoard(c.rows, c.cols));
-    setStatus('idle');
+    setStatus("idle");
     setFlags(0);
     setStartTime(0);
     setElapsed(0);
@@ -126,7 +131,8 @@ export default function Minesweeper(_: AppProps) {
     if (carryFlags) {
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          if (carryFlags[r]?.[c]?.state === 'flagged') cells[r][c].state = 'flagged';
+          if (carryFlags[r]?.[c]?.state === "flagged")
+            cells[r][c].state = "flagged";
         }
       }
     }
@@ -146,8 +152,8 @@ export default function Minesweeper(_: AppProps) {
       const [cr, cc] = stack.pop()!;
       if (cr < 0 || cr >= rows || cc < 0 || cc >= cols) continue;
       const cell = next[cr][cc];
-      if (cell.state !== 'hidden') continue;
-      cell.state = 'revealed';
+      if (cell.state !== "hidden") continue;
+      cell.state = "revealed";
       if (cell.around > 0) continue;
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
@@ -159,82 +165,81 @@ export default function Minesweeper(_: AppProps) {
     return next;
   };
 
-  const click = (r: number, c: number, button: 'left' | 'right') => {
-    if (status === 'won' || status === 'lost') return;
+  const click = (r: number, c: number, button: "left" | "right") => {
+    if (status === "won" || status === "lost") return;
     const cfg = PRESETS[diff];
     let boardN = board;
     // 右键插旗：开局前也允许，但不算开局（不布雷、不计时）
-    if (button === 'right') {
+    if (button === "right") {
       const target = boardN[r][c];
-      if (target.state === 'revealed') return;
-      const flagged = target.state === 'flagged';
-      boardN[r][c] = { ...target, state: flagged ? 'hidden' : 'flagged' };
+      if (target.state === "revealed") return;
+      const flagged = target.state === "flagged";
+      boardN[r][c] = { ...target, state: flagged ? "hidden" : "flagged" };
       setBoard(boardN.map((row) => row.slice()));
       setFlags((f) => f + (flagged ? -1 : 1));
       return;
     }
     // 左键：第一次真正点开才布雷，保证首点安全
-    if (status === 'idle') {
+    if (status === "idle") {
       boardN = spawnMines(cfg.rows, cfg.cols, cfg.mines, [r, c], board);
       setStartTime(Date.now());
-      setStatus('playing');
+      setStatus("playing");
     }
     const cell = boardN[r][c];
-    if (cell.state === 'flagged') return;
+    if (cell.state === "flagged") return;
     if (cell.isMine) {
       const revealed = boardN.map((row) =>
-        row.map((c) =>
-          c.isMine ? { ...c, state: 'revealed' as const } : c,
-        ),
+        row.map((c) => (c.isMine ? { ...c, state: "revealed" as const } : c)),
       );
       setBoard(revealed);
-      setStatus('lost');
+      setStatus("lost");
       return;
     }
     const next = floodReveal(boardN, r, c, cfg.rows, cfg.cols);
     setBoard(next);
     // 检查胜利
-    const unrevealedSafe = next.flat().filter((c) => !c.isMine && c.state !== 'revealed').length;
+    const unrevealedSafe = next
+      .flat()
+      .filter((c) => !c.isMine && c.state !== "revealed").length;
     if (unrevealedSafe === 0) {
-      setStatus('won');
+      setStatus("won");
     }
   };
 
   /* ------------------------ 键盘支持 ------------------------ */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target && (e.target as HTMLElement).tagName === 'SELECT') return;
+      if (e.target && (e.target as HTMLElement).tagName === "SELECT") return;
       const [r, c] = cursor;
       const cfg = PRESETS[diff];
-      if (e.key === 'ArrowUp') {
+      if (e.key === "ArrowUp") {
         e.preventDefault();
         setCursor([Math.max(0, r - 1), c]);
-      } else if (e.key === 'ArrowDown') {
+      } else if (e.key === "ArrowDown") {
         e.preventDefault();
         setCursor([Math.min(cfg.rows - 1, r + 1), c]);
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         setCursor([r, Math.max(0, c - 1)]);
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === "ArrowRight") {
         e.preventDefault();
         setCursor([r, Math.min(cfg.cols - 1, c + 1)]);
-      } else if (e.key === 'Enter' || e.key === ' ') {
+      } else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        click(r, c, e.key === ' ' ? 'right' : 'left');
-      } else if (e.key === 'r' || e.key === 'R') {
+        click(r, c, e.key === " " ? "right" : "left");
+      } else if (e.key === "r" || e.key === "R") {
         reset();
-      } else if (e.key === 'f' || e.key === 'F') {
-        click(r, c, 'right');
+      } else if (e.key === "f" || e.key === "F") {
+        click(r, c, "right");
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, status, diff, board]);
 
   const { Icon } = STATUS[status];
-  const cellSize =
-    diff === 'easy' ? 32 : diff === 'medium' ? 26 : 22;
+  const cellSize = diff === "easy" ? 32 : diff === "medium" ? 26 : 22;
 
   return (
     <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
@@ -258,11 +263,16 @@ export default function Minesweeper(_: AppProps) {
         <div className="flex items-center gap-3 font-mono text-xs">
           <span className="flex items-center gap-1 text-emerald-400 tabular-nums">
             <Timer size={12} />
-            {String(Math.min(999, elapsed)).padStart(3, '0')}
+            {String(Math.min(999, elapsed)).padStart(3, "0")}
           </span>
-          <span className={cn('flex items-center gap-1 tabular-nums', status === 'lost' ? 'text-red-300' : 'text-amber-300')}>
+          <span
+            className={cn(
+              "flex items-center gap-1 tabular-nums",
+              status === "lost" ? "text-red-300" : "text-amber-300",
+            )}
+          >
             <Flag size={12} />
-            {String(Math.max(0, cfg.mines - flags)).padStart(2, '0')}
+            {String(Math.max(0, cfg.mines - flags)).padStart(2, "0")}
           </span>
           <button
             onClick={() => reset()}
@@ -291,32 +301,40 @@ export default function Minesweeper(_: AppProps) {
               return (
                 <button
                   key={`${r}-${c}`}
-                  onClick={() => click(r, c, 'left')}
+                  onClick={() => click(r, c, "left")}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    click(r, c, 'right');
+                    click(r, c, "right");
                   }}
                   onMouseMove={() => setCursor([r, c])}
                   className={cn(
-                    'm-px flex items-center justify-center rounded-sm border text-[13px] font-bold transition',
+                    "m-px flex items-center justify-center rounded-sm border text-[13px] font-bold transition",
                     cellSize === 32
-                      ? 'size-7'
+                      ? "size-7"
                       : cellSize === 26
-                        ? 'size-[23px]'
-                        : 'size-[19px]',
-                    cell.state === 'hidden'
-                      ? 'border-zinc-700 bg-gradient-to-br from-zinc-700 to-zinc-800 hover:from-zinc-600 hover:to-zinc-700 active:translate-y-px'
-                      : 'border-zinc-800 bg-zinc-900',
-                    isCursor && cell.state === 'hidden' && 'ring-1 ring-amber-400',
+                        ? "size-5.75"
+                        : "size-4.75",
+                    cell.state === "hidden"
+                      ? "border-zinc-700 bg-linear-to-br from-zinc-700 to-zinc-800 hover:from-zinc-600 hover:to-zinc-700 active:translate-y-px"
+                      : "border-zinc-800 bg-zinc-900",
+                    isCursor &&
+                      cell.state === "hidden" &&
+                      "ring-1 ring-amber-400",
                   )}
                 >
-                  {cell.state === 'flagged' && <Flag size={cellSize * 0.55} className="text-rose-400" />}
-                  {cell.state === 'revealed' && cell.isMine && (
+                  {cell.state === "flagged" && (
+                    <Flag size={cellSize * 0.55} className="text-rose-400" />
+                  )}
+                  {cell.state === "revealed" && cell.isMine && (
                     <Bomb size={cellSize * 0.6} className="text-red-500" />
                   )}
-                  {cell.state === 'revealed' && !cell.isMine && cell.around > 0 && (
-                    <span className={AROUND_COLORS[cell.around]}>{cell.around}</span>
-                  )}
+                  {cell.state === "revealed" &&
+                    !cell.isMine &&
+                    cell.around > 0 && (
+                      <span className={AROUND_COLORS[cell.around]}>
+                        {cell.around}
+                      </span>
+                    )}
                 </button>
               );
             }),
@@ -332,19 +350,19 @@ export default function Minesweeper(_: AppProps) {
 }
 
 const AROUND_COLORS = [
-  '',
-  'text-blue-400',
-  'text-emerald-400',
-  'text-rose-400',
-  'text-violet-400',
-  'text-orange-400',
-  'text-cyan-400',
-  'text-fuchsia-400',
-  'text-amber-400',
+  "",
+  "text-blue-400",
+  "text-emerald-400",
+  "text-rose-400",
+  "text-violet-400",
+  "text-orange-400",
+  "text-cyan-400",
+  "text-fuchsia-400",
+  "text-amber-400",
 ];
 
 function emptyCell(): Cell {
-  return { isMine: false, state: 'hidden', around: 0 };
+  return { isMine: false, state: "hidden", around: 0 };
 }
 
 function emptyBoard(rows: number, cols: number): Cell[][] {

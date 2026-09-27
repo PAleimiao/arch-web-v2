@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Gauge,
   Monitor,
@@ -7,20 +7,28 @@ import {
   Sun,
   Volume2,
   VolumeX,
-} from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { useOSStore } from '@/stores/useOSStore';
-import { useMediaStore } from '@/stores/useMediaStore';
-import { usePackageStore } from '@/stores/usePackageStore';
+} from "lucide-react";
+import { cn } from "@/lib/cn";
+import { useOSStore } from "@/stores/useOSStore";
+import { useMediaStore } from "@/stores/useMediaStore";
+import { usePackageStore } from "@/stores/usePackageStore";
 
 const WALLPAPERS: Array<{ path: string; label: string }> = [
-  { path: `${import.meta.env.BASE_URL}/wallpapers/grid.svg`, label: '网格' },
-  { path: `${import.meta.env.BASE_URL}/wallpapers/arch.svg`, label: 'Arch' },
-  { path: `${import.meta.env.BASE_URL}/wallpapers/aurora.svg`, label: '极光' },
-  { path: `${import.meta.env.BASE_URL}/wallpapers/dots.svg`, label: '圆点' },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/grid.svg`, label: "网格" },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/arch.svg`, label: "Arch" },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/aurora.svg`, label: "极光" },
+  { path: `${import.meta.env.BASE_URL}/wallpapers/dots.svg`, label: "圆点" },
 ];
 
-const ACCENTS = ['#1793d1', '#4ec9b0', '#e06c75', '#c678dd', '#d19a66', '#61afef', '#e84393'];
+const ACCENTS = [
+  "#1793d1",
+  "#4ec9b0",
+  "#e06c75",
+  "#c678dd",
+  "#d19a66",
+  "#61afef",
+  "#e84393",
+];
 
 function useStorageUsage(open: boolean) {
   const [text, setText] = useState<string | null>(null);
@@ -56,9 +64,7 @@ export default function QuickSettings() {
   const muted = useMediaStore((s) => s.muted);
   const setVolume = useMediaStore((s) => s.setVolume);
   const toggleMute = useMediaStore((s) => s.toggleMute);
-  const installedCount = usePackageStore(
-    (s) => s.disabled.length,
-  );
+  const installedCount = usePackageStore((s) => s.disabled.length);
   const storage = useStorageUsage(open);
 
   const hasMedia = useMediaStore((s) => Boolean(s.current));
@@ -70,8 +76,8 @@ export default function QuickSettings() {
         onClick={() => setOpen((v) => !v)}
         title="快速设置"
         className={cn(
-          'flex items-center gap-1.5 rounded px-2 py-0.5 transition',
-          open ? 'bg-white/15' : 'hover:bg-white/10',
+          "flex items-center gap-1.5 rounded px-2 py-0.5 transition",
+          open ? "bg-white/15" : "hover:bg-white/10",
         )}
       >
         {muted ? (
@@ -87,22 +93,24 @@ export default function QuickSettings() {
           <button
             type="button"
             aria-label="关闭快速设置"
-            className="fixed inset-0 z-[6000] cursor-default"
+            className="fixed inset-0 z-6000 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <div className="animate-pop-in absolute right-0 top-8 z-[6001] w-72 rounded-lg border border-arch-border bg-arch-panel/97 p-3 text-[11px] shadow-2xl backdrop-blur">
+          <div className="animate-pop-in absolute right-0 top-8 z-6001 w-72 rounded-lg border border-arch-border bg-arch-panel/97 p-3 text-[11px] shadow-2xl backdrop-blur">
             {/* 音量 */}
             <div className="mb-3">
               <div className="mb-1.5 flex items-center justify-between text-arch-muted">
                 <span>音量</span>
-                <span className="tabular-nums">{Math.round((muted ? 0 : volume) * 100)}%</span>
+                <span className="tabular-nums">
+                  {Math.round((muted ? 0 : volume) * 100)}%
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleMute}
                   className="rounded p-1 transition hover:bg-white/10"
-                  title={muted ? '取消静音' : '静音'}
+                  title={muted ? "取消静音" : "静音"}
                 >
                   {muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
                 </button>
@@ -116,7 +124,7 @@ export default function QuickSettings() {
                     setVolume(Number(e.target.value));
                     if (muted && Number(e.target.value) > 0) toggleMute();
                   }}
-                  className="h-1 w-full accent-[var(--color-arch-accent)]"
+                  className="h-1 w-full accent-arch-accent"
                 />
               </div>
               {!hasMedia && (
@@ -132,10 +140,10 @@ export default function QuickSettings() {
                 type="button"
                 onClick={() => update({ darkMode: true })}
                 className={cn(
-                  'flex flex-1 items-center justify-center gap-1 rounded border px-2 py-1.5 transition',
+                  "flex flex-1 items-center justify-center gap-1 rounded border px-2 py-1.5 transition",
                   settings.darkMode
-                    ? 'border-arch-accent bg-arch-accent/20 text-arch-text'
-                    : 'border-arch-border text-arch-muted hover:bg-white/5',
+                    ? "border-arch-accent bg-arch-accent/20 text-arch-text"
+                    : "border-arch-border text-arch-muted hover:bg-white/5",
                 )}
               >
                 <Moon size={12} /> 暗色
@@ -144,10 +152,10 @@ export default function QuickSettings() {
                 type="button"
                 onClick={() => update({ darkMode: false })}
                 className={cn(
-                  'flex flex-1 items-center justify-center gap-1 rounded border px-2 py-1.5 transition',
+                  "flex flex-1 items-center justify-center gap-1 rounded border px-2 py-1.5 transition",
                   !settings.darkMode
-                    ? 'border-arch-accent bg-arch-accent/20 text-arch-text'
-                    : 'border-arch-border text-arch-muted hover:bg-white/5',
+                    ? "border-arch-accent bg-arch-accent/20 text-arch-text"
+                    : "border-arch-border text-arch-muted hover:bg-white/5",
                 )}
               >
                 <Sun size={12} /> 亮色
@@ -165,10 +173,10 @@ export default function QuickSettings() {
                     onClick={() => update({ accentColor: c })}
                     title={c}
                     className={cn(
-                      'h-5 w-5 rounded-full border-2 transition',
+                      "h-5 w-5 rounded-full border-2 transition",
                       settings.accentColor.toLowerCase() === c.toLowerCase()
-                        ? 'border-white scale-110'
-                        : 'border-transparent hover:scale-105',
+                        ? "border-white scale-110"
+                        : "border-transparent hover:scale-105",
                     )}
                     style={{ background: c }}
                   />
@@ -187,10 +195,10 @@ export default function QuickSettings() {
                     onClick={() => update({ wallpaper: w.path })}
                     title={w.label}
                     className={cn(
-                      'h-9 overflow-hidden rounded border-2 bg-cover bg-center transition',
+                      "h-9 overflow-hidden rounded border-2 bg-cover bg-center transition",
                       settings.wallpaper === w.path
-                        ? 'border-arch-accent'
-                        : 'border-arch-border hover:border-arch-muted',
+                        ? "border-arch-accent"
+                        : "border-arch-border hover:border-arch-muted",
                     )}
                     style={{ backgroundImage: `url(${w.path})` }}
                   />
@@ -208,7 +216,7 @@ export default function QuickSettings() {
                   type="checkbox"
                   checked={settings.animations}
                   onChange={(e) => update({ animations: e.target.checked })}
-                  className="accent-[var(--color-arch-accent)]"
+                  className="accent-arch-accent"
                 />
               </label>
               <label className="flex cursor-pointer items-center justify-between">
@@ -219,7 +227,7 @@ export default function QuickSettings() {
                   type="checkbox"
                   checked={settings.clockSeconds}
                   onChange={(e) => update({ clockSeconds: e.target.checked })}
-                  className="accent-[var(--color-arch-accent)]"
+                  className="accent-arch-accent"
                 />
               </label>
               <label className="flex cursor-pointer items-center justify-between">
@@ -230,7 +238,7 @@ export default function QuickSettings() {
                   type="checkbox"
                   checked={settings.desktopAllApps}
                   onChange={(e) => update({ desktopAllApps: e.target.checked })}
-                  className="accent-[var(--color-arch-accent)]"
+                  className="accent-arch-accent"
                 />
               </label>
             </div>
@@ -249,14 +257,16 @@ export default function QuickSettings() {
                 max={1}
                 step={0.02}
                 value={settings.windowOpacity}
-                onChange={(e) => update({ windowOpacity: Number(e.target.value) })}
-                className="h-1 w-full accent-[var(--color-arch-accent)]"
+                onChange={(e) =>
+                  update({ windowOpacity: Number(e.target.value) })
+                }
+                className="h-1 w-full accent-arch-accent"
               />
             </div>
 
             <div className="flex items-center justify-between border-t border-arch-border pt-2">
               <span className="text-[10px] text-arch-muted">
-                {storage ?? '存储用量不可读'}
+                {storage ?? "存储用量不可读"}
                 {installedCount > 0 && ` · 已卸载 ${installedCount} 个`}
               </span>
               <button

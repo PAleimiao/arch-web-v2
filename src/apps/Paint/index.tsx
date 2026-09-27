@@ -4,7 +4,7 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
-} from 'react';
+} from "react";
 import {
   Pencil,
   Eraser,
@@ -20,23 +20,24 @@ import {
   Download,
   Copy,
   Grid3x3,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { hexToRgb, rgbToHex } from '@/lib/color';
-import { notify } from '@/stores/useNotifyStore';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { hexToRgb, rgbToHex } from "@/lib/color";
+import { notify } from "@/stores/useNotifyStore";
 
-type Tool = 'brush' | 'eraser' | 'line' | 'rect' | 'ellipse' | 'fill' | 'picker' | 'text';
+type Tool =
+  "brush" | "eraser" | "line" | "rect" | "ellipse" | "fill" | "picker" | "text";
 
 const TOOLS: { id: Tool; label: string; icon: typeof Pencil }[] = [
-  { id: 'brush', label: '画笔', icon: Pencil },
-  { id: 'eraser', label: '橡皮', icon: Eraser },
-  { id: 'line', label: '直线', icon: Minus },
-  { id: 'rect', label: '矩形', icon: Square },
-  { id: 'ellipse', label: '椭圆', icon: Circle },
-  { id: 'fill', label: '填充', icon: PaintBucket },
-  { id: 'picker', label: '取色', icon: Pipette },
-  { id: 'text', label: '文字', icon: TypeIcon },
+  { id: "brush", label: "画笔", icon: Pencil },
+  { id: "eraser", label: "橡皮", icon: Eraser },
+  { id: "line", label: "直线", icon: Minus },
+  { id: "rect", label: "矩形", icon: Square },
+  { id: "ellipse", label: "椭圆", icon: Circle },
+  { id: "fill", label: "填充", icon: PaintBucket },
+  { id: "picker", label: "取色", icon: Pipette },
+  { id: "text", label: "文字", icon: TypeIcon },
 ];
 
 const MAX_HISTORY = 25;
@@ -49,7 +50,14 @@ function hexToRgba(hex: string, alpha: number): Rgba {
   return [r, g, b, Math.round(Math.max(0, Math.min(1, alpha)) * 255)];
 }
 
-function matchPixel(d: Uint8ClampedArray, i: number, r: number, g: number, b: number, a: number): boolean {
+function matchPixel(
+  d: Uint8ClampedArray,
+  i: number,
+  r: number,
+  g: number,
+  b: number,
+  a: number,
+): boolean {
   return d[i] === r && d[i + 1] === g && d[i + 2] === b && d[i + 3] === a;
 }
 
@@ -62,7 +70,8 @@ function floodFill(img: ImageData, sx: number, sy: number, fill: Rgba): void {
   const sg = data[startIdx + 1];
   const sb = data[startIdx + 2];
   const sa = data[startIdx + 3];
-  if (sr === fill[0] && sg === fill[1] && sb === fill[2] && sa === fill[3]) return;
+  if (sr === fill[0] && sg === fill[1] && sb === fill[2] && sa === fill[3])
+    return;
 
   const stack: number[] = [sx, sy];
   const max = width * height;
@@ -126,11 +135,13 @@ export default function Paint({ context }: AppProps) {
   const historyRef = useRef<ImageData[]>([]);
   const redoRef = useRef<ImageData[]>([]);
 
-  const textInputRef = useRef<{ x: number; y: number; value: string } | null>(null);
+  const textInputRef = useRef<{ x: number; y: number; value: string } | null>(
+    null,
+  );
   const textSnapRef = useRef<ImageData | null>(null);
 
-  const [tool, setTool] = useState<Tool>('brush');
-  const [color, setColor] = useState('#1793d1');
+  const [tool, setTool] = useState<Tool>("brush");
+  const [color, setColor] = useState("#1793d1");
   const [size, setSize] = useState(4);
   const [opacity, setOpacity] = useState(1);
   const [showGrid, setShowGrid] = useState(false);
@@ -138,7 +149,11 @@ export default function Paint({ context }: AppProps) {
   const [canRedo, setCanRedo] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [dims, setDims] = useState({ w: 0, h: 0 });
-  const [textInput, setTextInput] = useState<{ x: number; y: number; value: string } | null>(null);
+  const [textInput, setTextInput] = useState<{
+    x: number;
+    y: number;
+    value: string;
+  } | null>(null);
 
   function syncFlags() {
     setCanUndo(historyRef.current.length > 0);
@@ -148,7 +163,8 @@ export default function Paint({ context }: AppProps) {
   function snapshot(): ImageData | null {
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
-    if (!canvas || !ctx || canvas.width === 0 || canvas.height === 0) return null;
+    if (!canvas || !ctx || canvas.width === 0 || canvas.height === 0)
+      return null;
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
@@ -192,29 +208,29 @@ export default function Paint({ context }: AppProps) {
     const dpr = window.devicePixelRatio || 1;
     const newW = Math.round(cssW * dpr);
     const newH = Math.round(cssH * dpr);
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const had = canvas.width > 0 && canvas.height > 0;
-    const temp = document.createElement('canvas');
+    const temp = document.createElement("canvas");
     if (had) {
       temp.width = canvas.width;
       temp.height = canvas.height;
-      const tctx = temp.getContext('2d');
+      const tctx = temp.getContext("2d");
       tctx?.drawImage(canvas, 0, 0);
     }
     canvas.width = newW;
     canvas.height = newH;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     if (had) {
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(temp, 0, 0);
       ctx.restore();
     } else {
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, cssW, cssH);
     }
     ctxRef.current = ctx;
@@ -253,14 +269,14 @@ export default function Paint({ context }: AppProps) {
     eraser: boolean,
   ) {
     ctx.globalAlpha = opacity;
-    ctx.strokeStyle = eraser ? 'rgba(0,0,0,1)' : color;
-    ctx.globalCompositeOperation = eraser ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = eraser ? "rgba(0,0,0,1)" : color;
+    ctx.globalCompositeOperation = eraser ? "destination-out" : "source-over";
     ctx.lineWidth = size;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.stroke();
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
   }
 
@@ -275,14 +291,14 @@ export default function Paint({ context }: AppProps) {
     ctx.globalAlpha = opacity;
     ctx.strokeStyle = color;
     ctx.lineWidth = size;
-    if (t === 'line') {
+    if (t === "line") {
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.lineTo(x1, y1);
       ctx.stroke();
-    } else if (t === 'rect') {
+    } else if (t === "rect") {
       ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
-    } else if (t === 'ellipse') {
+    } else if (t === "ellipse") {
       const cx = (x0 + x1) / 2;
       const cy = (y0 + y1) / 2;
       const rx = Math.abs(x1 - x0) / 2;
@@ -301,34 +317,36 @@ export default function Paint({ context }: AppProps) {
     canvas.setPointerCapture(e.pointerId);
     const { x, y } = getPos(e);
 
-    if (tool === 'picker') {
+    if (tool === "picker") {
       const dpr = dprRef.current;
       const dx = Math.round(x * dpr);
       const dy = Math.round(y * dpr);
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const i = (dy * canvas.width + dx) * 4;
       if (i >= 0 && i + 2 < img.data.length) {
-        setColor(rgbToHex({ r: img.data[i], g: img.data[i + 1], b: img.data[i + 2] }));
+        setColor(
+          rgbToHex({ r: img.data[i], g: img.data[i + 1], b: img.data[i + 2] }),
+        );
       }
       return;
     }
 
-    if (tool === 'text') {
+    if (tool === "text") {
       textSnapRef.current = snapshot();
-      const next = { x, y, value: '' };
+      const next = { x, y, value: "" };
       textInputRef.current = next;
       setTextInput(next);
       return;
     }
 
-    if (tool === 'fill') {
+    if (tool === "fill") {
       const prev = snapshot();
       if (!prev) return;
       const dpr = dprRef.current;
       const dx = Math.round(x * dpr);
       const dy = Math.round(y * dpr);
       if (canvas.width * canvas.height > FILL_AREA_LIMIT) {
-        notify('画布过大', '已跳过填充以保护性能', 'warn');
+        notify("画布过大", "已跳过填充以保护性能", "warn");
         return;
       }
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -344,9 +362,9 @@ export default function Paint({ context }: AppProps) {
     drawingRef.current = true;
     startRef.current = { x, y };
     lastRef.current = { x, y };
-    if (tool === 'brush' || tool === 'eraser') {
+    if (tool === "brush" || tool === "eraser") {
       pushHistory(prev);
-      drawSegment(ctx, x, y, x, y, tool === 'eraser');
+      drawSegment(ctx, x, y, x, y, tool === "eraser");
     } else {
       snapRef.current = prev;
     }
@@ -357,9 +375,9 @@ export default function Paint({ context }: AppProps) {
     setPos({ x: Math.round(x), y: Math.round(y) });
     const ctx = ctxRef.current;
     if (!ctx || !drawingRef.current) return;
-    if (tool === 'brush' || tool === 'eraser') {
+    if (tool === "brush" || tool === "eraser") {
       const l = lastRef.current;
-      drawSegment(ctx, l.x, l.y, x, y, tool === 'eraser');
+      drawSegment(ctx, l.x, l.y, x, y, tool === "eraser");
       lastRef.current = { x, y };
     } else {
       const s = startRef.current;
@@ -375,7 +393,10 @@ export default function Paint({ context }: AppProps) {
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
     if (!canvas || !ctx) return;
-    if (drawingRef.current && (tool === 'line' || tool === 'rect' || tool === 'ellipse')) {
+    if (
+      drawingRef.current &&
+      (tool === "line" || tool === "rect" || tool === "ellipse")
+    ) {
       const s = startRef.current;
       const { x, y } = getPos(e);
       const prev = snapRef.current;
@@ -401,7 +422,7 @@ export default function Paint({ context }: AppProps) {
       setTextInput(null);
       return;
     }
-    if (ti.value.trim() === '') {
+    if (ti.value.trim() === "") {
       setTextInput(null);
       return;
     }
@@ -410,7 +431,7 @@ export default function Paint({ context }: AppProps) {
       ctx.putImageData(snap, 0, 0);
       ctx.globalAlpha = opacity;
       ctx.fillStyle = color;
-      ctx.textBaseline = 'top';
+      ctx.textBaseline = "top";
       const fontPx = Math.max(12, size * 3);
       ctx.font = `${fontPx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
       ctx.fillText(ti.value, ti.x, ti.y);
@@ -439,39 +460,41 @@ export default function Paint({ context }: AppProps) {
     if (!canvas) return;
     canvas.toBlob((blob) => {
       if (!blob) {
-        notify('导出失败', '无法生成图片', 'error');
+        notify("导出失败", "无法生成图片", "error");
         return;
       }
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `paint-${Date.now()}.png`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      notify('已导出', 'PNG 已下载', 'success');
-    }, 'image/png');
+      notify("已导出", "PNG 已下载", "success");
+    }, "image/png");
   }
 
   async function copyImage() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
-      notify('不支持', '当前浏览器无法写入图片剪贴板', 'warn');
+    if (!navigator.clipboard || typeof ClipboardItem === "undefined") {
+      notify("不支持", "当前浏览器无法写入图片剪贴板", "warn");
       return;
     }
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        notify('已复制', '图片已复制到剪贴板', 'success');
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": blob }),
+        ]);
+        notify("已复制", "图片已复制到剪贴板", "success");
       } catch {
-        notify('复制失败', '浏览器拒绝了剪贴板写入', 'error');
+        notify("复制失败", "浏览器拒绝了剪贴板写入", "error");
       }
-    }, 'image/png');
+    }, "image/png");
   }
 
   useEffect(() => {
-    context.setTitle('画图');
+    context.setTitle("画图");
   }, [context]);
 
   return (
@@ -489,10 +512,10 @@ export default function Paint({ context }: AppProps) {
                 title={t.label}
                 onClick={() => setTool(t.id)}
                 className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded border',
+                  "flex h-7 w-7 items-center justify-center rounded border",
                   active
-                    ? 'border-arch-accent bg-arch-accent text-white'
-                    : 'border-arch-border text-arch-muted hover:text-arch-text',
+                    ? "border-arch-accent bg-arch-accent text-white"
+                    : "border-arch-border text-arch-muted hover:text-arch-text",
                 )}
               >
                 <Icon size={15} />
@@ -523,7 +546,9 @@ export default function Paint({ context }: AppProps) {
             onChange={(e) => setSize(Number(e.target.value))}
             className="w-20 accent-arch-accent"
           />
-          <span className="w-6 text-right tabular-nums text-arch-text">{size}</span>
+          <span className="w-6 text-right tabular-nums text-arch-text">
+            {size}
+          </span>
         </label>
 
         <label className="flex items-center gap-1 text-arch-muted">
@@ -550,8 +575,10 @@ export default function Paint({ context }: AppProps) {
           onClick={undo}
           disabled={!canUndo}
           className={cn(
-            'flex h-7 w-7 items-center justify-center rounded border border-arch-border',
-            canUndo ? 'text-arch-muted hover:text-arch-text' : 'cursor-not-allowed opacity-40',
+            "flex h-7 w-7 items-center justify-center rounded border border-arch-border",
+            canUndo
+              ? "text-arch-muted hover:text-arch-text"
+              : "cursor-not-allowed opacity-40",
           )}
         >
           <Undo2 size={15} />
@@ -562,8 +589,10 @@ export default function Paint({ context }: AppProps) {
           onClick={redo}
           disabled={!canRedo}
           className={cn(
-            'flex h-7 w-7 items-center justify-center rounded border border-arch-border',
-            canRedo ? 'text-arch-muted hover:text-arch-text' : 'cursor-not-allowed opacity-40',
+            "flex h-7 w-7 items-center justify-center rounded border border-arch-border",
+            canRedo
+              ? "text-arch-muted hover:text-arch-text"
+              : "cursor-not-allowed opacity-40",
           )}
         >
           <Redo2 size={15} />
@@ -584,10 +613,10 @@ export default function Paint({ context }: AppProps) {
           title="网格"
           onClick={() => setShowGrid((v) => !v)}
           className={cn(
-            'flex h-7 w-7 items-center justify-center rounded border',
+            "flex h-7 w-7 items-center justify-center rounded border",
             showGrid
-              ? 'border-arch-accent bg-arch-accent text-white'
-              : 'border-arch-border text-arch-muted hover:text-arch-text',
+              ? "border-arch-accent bg-arch-accent text-white"
+              : "border-arch-border text-arch-muted hover:text-arch-text",
           )}
         >
           <Grid3x3 size={15} />
@@ -630,10 +659,10 @@ export default function Paint({ context }: AppProps) {
               setTextInput(next);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === "Enter") {
                 e.preventDefault();
                 commitText();
-              } else if (e.key === 'Escape') {
+              } else if (e.key === "Escape") {
                 e.preventDefault();
                 setTextInput(null);
                 textInputRef.current = null;
@@ -641,16 +670,16 @@ export default function Paint({ context }: AppProps) {
             }}
             onBlur={commitText}
             style={{
-              position: 'absolute',
+              position: "absolute",
               left: textInput.x,
               top: textInput.y,
               color,
               opacity,
               fontSize: Math.max(12, size * 3),
-              background: 'transparent',
-              border: '1px dashed var(--color-arch-accent)',
-              outline: 'none',
-              fontFamily: 'ui-monospace, monospace',
+              background: "transparent",
+              border: "1px dashed var(--color-arch-accent)",
+              outline: "none",
+              fontFamily: "ui-monospace, monospace",
               padding: 0,
               margin: 0,
               minWidth: 40,
@@ -667,6 +696,6 @@ export default function Paint({ context }: AppProps) {
 
 const gridStyle: CSSProperties = {
   backgroundImage:
-    'linear-gradient(to right, rgba(120,130,150,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(120,130,150,0.12) 1px, transparent 1px)',
-  backgroundSize: '20px 20px',
+    "linear-gradient(to right, rgba(120,130,150,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(120,130,150,0.12) 1px, transparent 1px)",
+  backgroundSize: "20px 20px",
 };

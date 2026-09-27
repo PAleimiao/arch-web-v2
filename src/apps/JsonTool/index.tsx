@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Braces, Copy, Check, Hash, ListTree } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
+import { useEffect, useState } from "react";
+import { Braces, Copy, Check, Hash, ListTree } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
 
 const MAX_LEN = 200_000;
 
-type Action = 'format' | 'minify' | 'validate' | 'interface' | 'yaml' | 'stats';
+type Action = "format" | "minify" | "validate" | "interface" | "yaml" | "stats";
 
 const SAMPLE = `{
   "name": "arch-web",
@@ -32,7 +32,7 @@ function locateError(input: string, err: unknown): JsonError {
     let line = 1;
     let col = 1;
     for (let i = 0; i < pos && i < input.length; i++) {
-      if (input[i] === '\n') {
+      if (input[i] === "\n") {
         line++;
         col = 1;
       } else {
@@ -47,7 +47,7 @@ function locateError(input: string, err: unknown): JsonError {
 /** 按 ASCII 排序对象键（递归） */
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     const obj = value as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const k of Object.keys(obj).sort()) out[k] = sortKeys(obj[k]);
@@ -58,43 +58,45 @@ function sortKeys(value: unknown): unknown {
 
 /** 推断一个值的 TypeScript 类型字符串 */
 function typeOf(value: unknown): string {
-  if (value === null) return 'null';
+  if (value === null) return "null";
   if (Array.isArray(value)) {
-    if (value.length === 0) return 'unknown[]';
+    if (value.length === 0) return "unknown[]";
     const merged = mergeTypes(value.map(typeOf));
     return `${merged}[]`;
   }
   switch (typeof value) {
-    case 'string':
-      return 'string';
-    case 'number':
-      return 'number';
-    case 'boolean':
-      return 'boolean';
-    case 'object':
-      return 'Record<string, unknown>';
+    case "string":
+      return "string";
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "object":
+      return "Record<string, unknown>";
     default:
-      return 'unknown';
+      return "unknown";
   }
 }
 
 function mergeTypes(types: string[]): string {
   const uniq = [...new Set(types)];
-  if (uniq.length === 1) return uniq[0] ?? 'unknown';
-  return uniq.join(' | ');
+  if (uniq.length === 1) return uniq[0] ?? "unknown";
+  return uniq.join(" | ");
 }
 
 /** 把对象转成 TS interface 文本 */
-function toInterface(value: unknown, rootName = 'Root'): string {
+function toInterface(value: unknown, rootName = "Root"): string {
   const lines: string[] = [];
   const walk = (name: string, val: unknown, indent: number) => {
-    const pad = '  '.repeat(indent);
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
-      lines.push(`${pad}${name === rootName ? 'export interface ' + name + ' ' : name + ': '}{`);
+    const pad = "  ".repeat(indent);
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      lines.push(
+        `${pad}${name === rootName ? "export interface " + name + " " : name + ": "}{`,
+      );
       const obj = val as Record<string, unknown>;
       for (const k of Object.keys(obj)) {
         const child = obj[k];
-        if (child && typeof child === 'object' && !Array.isArray(child)) {
+        if (child && typeof child === "object" && !Array.isArray(child)) {
           const childName = /^[A-Za-z_$][\w$]*$/.test(k) ? k : `'${k}'`;
           lines.push(`${pad}  ${childName}: {`);
           walk(k, child, indent + 2);
@@ -110,49 +112,53 @@ function toInterface(value: unknown, rootName = 'Root'): string {
     }
   };
   walk(rootName, value, 0);
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /** 简易 YAML 风格输出 */
 function toYaml(value: unknown, indent = 0): string {
-  const pad = '  '.repeat(indent);
+  const pad = "  ".repeat(indent);
   if (Array.isArray(value)) {
     if (value.length === 0) return `${pad}[]`;
     return value
       .map((v) => {
-        if (v && typeof v === 'object' && !Array.isArray(v)) {
-          const inner = toYaml(v, indent + 1).split('\n');
-          return `${pad}- ${inner[0]?.replace(/^\s*/, '') ?? ''}\n${inner.slice(1).join('\n')}`;
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          const inner = toYaml(v, indent + 1).split("\n");
+          return `${pad}- ${inner[0]?.replace(/^\s*/, "") ?? ""}\n${inner.slice(1).join("\n")}`;
         }
         return `${pad}- ${scalar(v)}`;
       })
-      .join('\n');
+      .join("\n");
   }
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     const obj = value as Record<string, unknown>;
     const keys = Object.keys(obj);
     if (keys.length === 0) return `${pad}{}`;
     return keys
       .map((k) => {
         const v = obj[k];
-        if (v && typeof v === 'object') {
+        if (v && typeof v === "object") {
           return `${pad}${k}:\n${toYaml(v, indent + 1)}`;
         }
         return `${pad}${k}: ${scalar(v)}`;
       })
-      .join('\n');
+      .join("\n");
   }
   return `${pad}${scalar(value)}`;
 }
 
 function scalar(v: unknown): string {
-  if (v === null) return 'null';
-  if (typeof v === 'string') return `"${v}"`;
+  if (v === null) return "null";
+  if (typeof v === "string") return `"${v}"`;
   return String(v);
 }
 
 /** 统计：键数量、嵌套深度、最长数组长度 */
-function stats(value: unknown): { keys: number; depth: number; maxArray: number } {
+function stats(value: unknown): {
+  keys: number;
+  depth: number;
+  maxArray: number;
+} {
   let keys = 0;
   let maxDepth = 0;
   let maxArray = 0;
@@ -161,7 +167,7 @@ function stats(value: unknown): { keys: number; depth: number; maxArray: number 
     if (Array.isArray(v)) {
       maxArray = Math.max(maxArray, v.length);
       v.forEach((item) => walk(item, depth + 1));
-    } else if (v && typeof v === 'object') {
+    } else if (v && typeof v === "object") {
       const obj = v as Record<string, unknown>;
       const ks = Object.keys(obj);
       keys += ks.length;
@@ -174,13 +180,13 @@ function stats(value: unknown): { keys: number; depth: number; maxArray: number 
 
 export default function JsonTool({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('JSON 工具');
+    context.setTitle("JSON 工具");
   }, [context]);
   const [input, setInput] = useState(SAMPLE);
   const [indent, setIndent] = useState(2);
   const [sortKey, setSortKey] = useState(false);
-  const [action, setAction] = useState<Action>('format');
-  const [output, setOutput] = useState('');
+  const [action, setAction] = useState<Action>("format");
+  const [output, setOutput] = useState("");
   const [error, setError] = useState<JsonError | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -189,32 +195,32 @@ export default function JsonTool({ context }: AppProps) {
   const run = (a: Action) => {
     setAction(a);
     setError(null);
-    if (input.trim() === '') {
-      setOutput('');
+    if (input.trim() === "") {
+      setOutput("");
       return;
     }
     try {
       let parsed: unknown = JSON.parse(input);
-      if (sortKey && (parsed && typeof parsed === 'object')) {
+      if (sortKey && parsed && typeof parsed === "object") {
         parsed = sortKeys(parsed);
       }
       switch (a) {
-        case 'format':
+        case "format":
           setOutput(JSON.stringify(parsed, null, indent));
           break;
-        case 'minify':
+        case "minify":
           setOutput(JSON.stringify(parsed));
           break;
-        case 'validate':
-          setOutput('校验通过：输入是合法的 JSON。');
+        case "validate":
+          setOutput("校验通过：输入是合法的 JSON。");
           break;
-        case 'interface':
+        case "interface":
           setOutput(toInterface(parsed));
           break;
-        case 'yaml':
+        case "yaml":
           setOutput(toYaml(parsed));
           break;
-        case 'stats': {
+        case "stats": {
           const s = stats(parsed);
           setOutput(
             `键数量：${s.keys}\n嵌套深度：${s.depth}\n最长数组长度：${s.maxArray}`,
@@ -225,8 +231,8 @@ export default function JsonTool({ context }: AppProps) {
     } catch (err) {
       const e = locateError(input, err);
       setError(e);
-      setOutput('');
-      notify('JSON 解析失败', `第 ${e.line} 行第 ${e.column} 列`, 'error');
+      setOutput("");
+      notify("JSON 解析失败", `第 ${e.line} 行第 ${e.column} 列`, "error");
     }
   };
 
@@ -237,17 +243,17 @@ export default function JsonTool({ context }: AppProps) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     } catch {
-      notify('复制失败', '浏览器拒绝访问剪贴板', 'error');
+      notify("复制失败", "浏览器拒绝访问剪贴板", "error");
     }
   };
 
   const actions: Array<[Action, string]> = [
-    ['format', '格式化'],
-    ['minify', '压缩'],
-    ['validate', '校验'],
-    ['interface', '转 TS 接口'],
-    ['yaml', '转 YAML'],
-    ['stats', '统计'],
+    ["format", "格式化"],
+    ["minify", "压缩"],
+    ["validate", "校验"],
+    ["interface", "转 TS 接口"],
+    ["yaml", "转 YAML"],
+    ["stats", "统计"],
   ];
 
   return (
@@ -261,10 +267,10 @@ export default function JsonTool({ context }: AppProps) {
               type="button"
               onClick={() => run(a)}
               className={cn(
-                'rounded px-2 py-1 text-xs',
+                "rounded px-2 py-1 text-xs",
                 action === a
-                  ? 'bg-arch-accent text-white'
-                  : 'bg-arch-panel hover:bg-white/10',
+                  ? "bg-arch-accent text-white"
+                  : "bg-arch-panel hover:bg-white/10",
               )}
             >
               {label}
@@ -297,7 +303,7 @@ export default function JsonTool({ context }: AppProps) {
           className="ml-auto flex items-center gap-1 rounded bg-arch-panel px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
         >
           {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? '已复制' : '复制'}
+          {copied ? "已复制" : "复制"}
         </button>
       </div>
 
@@ -335,7 +341,7 @@ export default function JsonTool({ context }: AppProps) {
             </div>
           ) : (
             <pre className="min-h-0 flex-1 overflow-y-auto bg-arch-bg p-3 font-mono text-[12px] leading-5">
-              {output || '（点击上方按钮生成结果）'}
+              {output || "（点击上方按钮生成结果）"}
             </pre>
           )}
         </div>

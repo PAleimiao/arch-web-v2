@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Palette, Copy, Check, Pipette, Droplet, Shuffle } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
+import { useEffect, useState } from "react";
+import { Palette, Copy, Check, Pipette, Droplet, Shuffle } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
 import {
   hexToRgb,
   rgbToHex,
@@ -14,18 +14,18 @@ import {
   clamp,
   type Rgb,
   type Hsl,
-} from '@/lib/color';
-import { notify } from '@/stores/useNotifyStore';
-import { rememberClip } from '@/stores/useClipboardStore';
+} from "@/lib/color";
+import { notify } from "@/stores/useNotifyStore";
+import { rememberClip } from "@/stores/useClipboardStore";
 
 /** 把任意输入规范成 #rrggbb，非法返回 null */
 function normalizeHex(s: string): string | null {
-  let h = s.trim().replace(/^#/, '');
+  let h = s.trim().replace(/^#/, "");
   if (/^[0-9a-fA-F]{3}$/.test(h)) {
     h = h
-      .split('')
+      .split("")
       .map((c) => c + c)
-      .join('');
+      .join("");
   }
   if (/^[0-9a-fA-F]{6}$/.test(h)) return `#${h.toLowerCase()}`;
   return null;
@@ -57,66 +57,66 @@ function mixHsl(a: Hsl, b: Hsl, t: number): string {
 }
 
 const ANSI16: Array<[string, string]> = [
-  ['黑', '#000000'],
-  ['红', '#800000'],
-  ['绿', '#008000'],
-  ['黄', '#808000'],
-  ['蓝', '#000080'],
-  ['品红', '#800080'],
-  ['青', '#008080'],
-  ['白', '#c0c0c0'],
-  ['亮黑', '#808080'],
-  ['亮红', '#ff0000'],
-  ['亮绿', '#00ff00'],
-  ['亮黄', '#ffff00'],
-  ['亮蓝', '#0000ff'],
-  ['亮品红', '#ff00ff'],
-  ['亮青', '#00ffff'],
-  ['亮白', '#ffffff'],
+  ["黑", "#000000"],
+  ["红", "#800000"],
+  ["绿", "#008000"],
+  ["黄", "#808000"],
+  ["蓝", "#000080"],
+  ["品红", "#800080"],
+  ["青", "#008080"],
+  ["白", "#c0c0c0"],
+  ["亮黑", "#808080"],
+  ["亮红", "#ff0000"],
+  ["亮绿", "#00ff00"],
+  ["亮黄", "#ffff00"],
+  ["亮蓝", "#0000ff"],
+  ["亮品红", "#ff00ff"],
+  ["亮青", "#00ffff"],
+  ["亮白", "#ffffff"],
 ];
 
 const BRAND: Array<[string, string]> = [
-  ['Arch', '#1793d1'],
-  ['GitHub', '#24292e'],
-  ['红', '#e04343'],
-  ['蓝', '#2d8cf0'],
-  ['绿', '#2eb398'],
-  ['紫', '#8e44ad'],
-  ['橙', '#e67e22'],
-  ['黄', '#f1c40f'],
-  ['粉', '#e84393'],
-  ['青', '#1abc9c'],
+  ["Arch", "#1793d1"],
+  ["GitHub", "#24292e"],
+  ["红", "#e04343"],
+  ["蓝", "#2d8cf0"],
+  ["绿", "#2eb398"],
+  ["紫", "#8e44ad"],
+  ["橙", "#e67e22"],
+  ["黄", "#f1c40f"],
+  ["粉", "#e84393"],
+  ["青", "#1abc9c"],
 ];
 
 export default function ColorTool({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('颜色工具');
+    context.setTitle("颜色工具");
   }, [context]);
 
-  const [hex, setHex] = useState('#1793d1');
-  const [hexText, setHexText] = useState('#1793d1');
+  const [hex, setHex] = useState("#1793d1");
+  const [hexText, setHexText] = useState("#1793d1");
   const [copied, setCopied] = useState<string | null>(null);
 
   const rgb = hexToRgb(hex);
   const hsl = rgbToHsl(rgb);
 
-  const [mixA, setMixA] = useState('#1793d1');
-  const [mixB, setMixB] = useState('#e84393');
+  const [mixA, setMixA] = useState("#1793d1");
+  const [mixB, setMixB] = useState("#e84393");
   const [mixT, setMixT] = useState(0.5);
-  const [mixSpace, setMixSpace] = useState<'rgb' | 'hsl'>('rgb');
+  const [mixSpace, setMixSpace] = useState<"rgb" | "hsl">("rgb");
 
-  const [fg, setFg] = useState('#0b0e14');
-  const [bg, setBg] = useState('#1793d1');
+  const [fg, setFg] = useState("#0b0e14");
+  const [bg, setBg] = useState("#1793d1");
 
-  const copy = async (text: string, label = '已复制') => {
+  const copy = async (text: string, label = "已复制") => {
     try {
       await navigator.clipboard.writeText(text);
       rememberClip(text);
       setCopied(text.toUpperCase());
       window.setTimeout(() => setCopied(null), 1000);
-      notify(label, text, 'success');
+      notify(label, text, "success");
     } catch {
-      notify('复制失败', '浏览器拒绝了剪贴板访问', 'error');
+      notify("复制失败", "浏览器拒绝了剪贴板访问", "error");
     }
   };
 
@@ -126,22 +126,22 @@ export default function ColorTool({ context }: AppProps) {
     if (norm) setHex(norm);
   };
 
-  const setFromRgb = (ch: 'r' | 'g' | 'b', v: number) => {
+  const setFromRgb = (ch: "r" | "g" | "b", v: number) => {
     const next: Rgb = {
-      r: ch === 'r' ? clamp(v, 0, 255) : rgb.r,
-      g: ch === 'g' ? clamp(v, 0, 255) : rgb.g,
-      b: ch === 'b' ? clamp(v, 0, 255) : rgb.b,
+      r: ch === "r" ? clamp(v, 0, 255) : rgb.r,
+      g: ch === "g" ? clamp(v, 0, 255) : rgb.g,
+      b: ch === "b" ? clamp(v, 0, 255) : rgb.b,
     };
     const norm = rgbToHex(next);
     setHex(norm);
     setHexText(norm);
   };
 
-  const setFromHsl = (ch: 'h' | 's' | 'l', v: number) => {
+  const setFromHsl = (ch: "h" | "s" | "l", v: number) => {
     const next: Hsl = {
-      h: ch === 'h' ? clamp(v, 0, 360) : hsl.h,
-      s: ch === 's' ? clamp(v, 0, 100) : hsl.s,
-      l: ch === 'l' ? clamp(v, 0, 100) : hsl.l,
+      h: ch === "h" ? clamp(v, 0, 360) : hsl.h,
+      s: ch === "s" ? clamp(v, 0, 100) : hsl.s,
+      l: ch === "l" ? clamp(v, 0, 100) : hsl.l,
     };
     const norm = rgbToHex(hslToRgb(next));
     setHex(norm);
@@ -155,7 +155,7 @@ export default function ColorTool({ context }: AppProps) {
   const scheme = palette(hex);
 
   const mixResult =
-    mixSpace === 'rgb'
+    mixSpace === "rgb"
       ? mixRgb(hexToRgb(mixA), hexToRgb(mixB), mixT)
       : mixHsl(rgbToHsl(hexToRgb(mixA)), rgbToHsl(hexToRgb(mixB)), mixT);
 
@@ -163,16 +163,10 @@ export default function ColorTool({ context }: AppProps) {
   const passAA = ratio >= 4.5;
   const passAAA = ratio >= 7;
 
-  const Swatch = ({
-    color,
-    name,
-  }: {
-    color: string;
-    name?: string;
-  }) => (
+  const Swatch = ({ color, name }: { color: string; name?: string }) => (
     <button
       type="button"
-      title={`${name ? name + ' · ' : ''}${color} 点击复制`}
+      title={`${name ? name + " · " : ""}${color} 点击复制`}
       onClick={() => copy(color)}
       className="flex h-9 w-full items-center justify-center rounded border border-arch-border font-mono text-[10px]"
       style={{ background: color, color: readableText(color) }}
@@ -215,8 +209,10 @@ export default function ColorTool({ context }: AppProps) {
                 onChange={(e) => setFromHex(e.target.value)}
                 spellCheck={false}
                 className={cn(
-                  'w-40 rounded border bg-black/30 px-2 py-1 font-mono uppercase',
-                  normalizeHex(hexText) ? 'border-arch-border' : 'border-arch-red',
+                  "w-40 rounded border bg-black/30 px-2 py-1 font-mono uppercase",
+                  normalizeHex(hexText)
+                    ? "border-arch-border"
+                    : "border-arch-red",
                 )}
               />
             </label>
@@ -234,13 +230,13 @@ export default function ColorTool({ context }: AppProps) {
                 </button>
               </div>
               <div className="flex gap-1">
-                {(['r', 'g', 'b'] as const).map((ch) => (
+                {(["r", "g", "b"] as const).map((ch) => (
                   <input
                     key={ch}
                     type="number"
                     min={0}
                     max={255}
-                    value={ch === 'r' ? rgb.r : ch === 'g' ? rgb.g : rgb.b}
+                    value={ch === "r" ? rgb.r : ch === "g" ? rgb.g : rgb.b}
                     onChange={(e) => setFromRgb(ch, Number(e.target.value))}
                     className="w-full rounded border border-arch-border bg-black/30 px-1 py-1 text-center font-mono"
                   />
@@ -259,13 +255,13 @@ export default function ColorTool({ context }: AppProps) {
                 </button>
               </div>
               <div className="flex gap-1">
-                {(['h', 's', 'l'] as const).map((ch) => (
+                {(["h", "s", "l"] as const).map((ch) => (
                   <input
                     key={ch}
                     type="number"
                     min={0}
-                    max={ch === 'h' ? 360 : 100}
-                    value={ch === 'h' ? hsl.h : ch === 's' ? hsl.s : hsl.l}
+                    max={ch === "h" ? 360 : 100}
+                    value={ch === "h" ? hsl.h : ch === "s" ? hsl.s : hsl.l}
                     onChange={(e) => setFromHsl(ch, Number(e.target.value))}
                     className="w-full rounded border border-arch-border bg-black/30 px-1 py-1 text-center font-mono"
                   />
@@ -277,7 +273,7 @@ export default function ColorTool({ context }: AppProps) {
               <button
                 type="button"
                 onClick={() => copy(hex)}
-                className="flex h-[34px] w-full items-center justify-center gap-1 rounded border border-arch-border bg-black/30 font-mono hover:bg-white/10"
+                className="flex h-8.5 w-full items-center justify-center gap-1 rounded border border-arch-border bg-black/30 font-mono hover:bg-white/10"
               >
                 {hex} <Copy size={11} />
               </button>
@@ -335,16 +331,20 @@ export default function ColorTool({ context }: AppProps) {
               onChange={(e) => setMixT(Number(e.target.value) / 100)}
               className="w-40"
             />
-            <span className="w-10 text-center font-mono">{Math.round(mixT * 100)}%</span>
+            <span className="w-10 text-center font-mono">
+              {Math.round(mixT * 100)}%
+            </span>
             <div className="flex gap-1">
-              {(['rgb', 'hsl'] as const).map((sp) => (
+              {(["rgb", "hsl"] as const).map((sp) => (
                 <button
                   key={sp}
                   type="button"
                   onClick={() => setMixSpace(sp)}
                   className={cn(
-                    'rounded px-2 py-0.5 text-xs uppercase',
-                    mixSpace === sp ? 'bg-arch-accent text-white' : 'bg-arch-panel hover:bg-white/10',
+                    "rounded px-2 py-0.5 text-xs uppercase",
+                    mixSpace === sp
+                      ? "bg-arch-accent text-white"
+                      : "bg-arch-panel hover:bg-white/10",
                   )}
                 >
                   {sp}
@@ -386,22 +386,28 @@ export default function ColorTool({ context }: AppProps) {
                 className="h-7 w-7 cursor-pointer rounded border border-arch-border"
               />
             </label>
-            <span className="ml-2 font-mono text-base">{ratio.toFixed(2)} : 1</span>
-            <span
-              className={cn(
-                'rounded px-1.5 py-0.5 text-[11px]',
-                passAA ? 'bg-arch-green/20 text-arch-green' : 'bg-arch-red/20 text-arch-red',
-              )}
-            >
-              AA {passAA ? '通过' : '未过'}
+            <span className="ml-2 font-mono text-base">
+              {ratio.toFixed(2)} : 1
             </span>
             <span
               className={cn(
-                'rounded px-1.5 py-0.5 text-[11px]',
-                passAAA ? 'bg-arch-green/20 text-arch-green' : 'bg-arch-red/20 text-arch-red',
+                "rounded px-1.5 py-0.5 text-[11px]",
+                passAA
+                  ? "bg-arch-green/20 text-arch-green"
+                  : "bg-arch-red/20 text-arch-red",
               )}
             >
-              AAA {passAAA ? '通过' : '未过'}
+              AA {passAA ? "通过" : "未过"}
+            </span>
+            <span
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[11px]",
+                passAAA
+                  ? "bg-arch-green/20 text-arch-green"
+                  : "bg-arch-red/20 text-arch-red",
+              )}
+            >
+              AAA {passAAA ? "通过" : "未过"}
             </span>
           </div>
           <div
@@ -414,7 +420,9 @@ export default function ColorTool({ context }: AppProps) {
 
         {/* 预设 */}
         <section>
-          <h3 className="mb-2 text-[11px] text-arch-muted">预设（终端 ANSI 16 色）</h3>
+          <h3 className="mb-2 text-[11px] text-arch-muted">
+            预设（终端 ANSI 16 色）
+          </h3>
           <div className="mb-3 grid grid-cols-8 gap-1">
             {ANSI16.map(([name, c]) => (
               <Swatch key={c} color={c} name={name} />

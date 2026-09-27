@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { Gamepad, Pause, Play, RotateCcw, Trophy } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { Gamepad, Pause, Play, RotateCcw, Trophy } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
 
 const COLS = 20;
 const ROWS = 20;
-const STORAGE_KEY = 'archweb_snake_best';
+const STORAGE_KEY = "archweb_snake_best";
 
 interface Pos {
   x: number;
@@ -16,9 +16,13 @@ const DOWN: Pos = { x: 0, y: 1 };
 const LEFT: Pos = { x: -1, y: 0 };
 const RIGHT: Pos = { x: 1, y: 0 };
 
-type Diff = 'slow' | 'medium' | 'fast';
+type Diff = "slow" | "medium" | "fast";
 const SPEED: Record<Diff, number> = { slow: 150, medium: 100, fast: 60 };
-const DIFF_LABEL: Record<Diff, string> = { slow: '慢', medium: '中', fast: '快' };
+const DIFF_LABEL: Record<Diff, string> = {
+  slow: "慢",
+  medium: "中",
+  fast: "快",
+};
 
 interface Game {
   snake: Pos[];
@@ -79,13 +83,21 @@ function newGame(best: number): Game {
     { x: 7, y: 10 },
     { x: 6, y: 10 },
   ];
-  const g: Game = { snake, dir: RIGHT, queue: [], food: { x: 0, y: 0 }, alive: true, score: 0, best };
+  const g: Game = {
+    snake,
+    dir: RIGHT,
+    queue: [],
+    food: { x: 0, y: 0 },
+    alive: true,
+    score: 0,
+    best,
+  };
   spawnFood(g);
   return g;
 }
 
 export default function Snake({ context }: AppProps) {
-  const [diff, setDiff] = useState<Diff>('medium');
+  const [diff, setDiff] = useState<Diff>("medium");
   const [paused, setPaused] = useState(false);
   const [alive, setAlive] = useState(true);
   const [, force] = useReducer((n: number) => n + 1, 0);
@@ -148,32 +160,32 @@ export default function Snake({ context }: AppProps) {
       const g = gameRef.current;
       let want: Pos | null = null;
       switch (e.key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
+        case "ArrowUp":
+        case "w":
+        case "W":
           want = UP;
           break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
+        case "ArrowDown":
+        case "s":
+        case "S":
           want = DOWN;
           break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
+        case "ArrowLeft":
+        case "a":
+        case "A":
           want = LEFT;
           break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
+        case "ArrowRight":
+        case "d":
+        case "D":
           want = RIGHT;
           break;
-        case ' ':
+        case " ":
           e.preventDefault();
           setPaused((p) => !p);
           return;
-        case 'r':
-        case 'R':
+        case "r":
+        case "R":
           e.preventDefault();
           restart();
           return;
@@ -186,12 +198,12 @@ export default function Snake({ context }: AppProps) {
         if (g.queue.length < 3) g.queue.push(want);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [diff, restart]);
 
   useEffect(() => {
-    context.setTitle('贪吃蛇');
+    context.setTitle("贪吃蛇");
   }, [context]);
 
   const chooseDiff = (d: Diff) => {
@@ -206,14 +218,16 @@ export default function Snake({ context }: AppProps) {
 
   const g = gameRef.current;
   const len = Math.max(1, g.snake.length);
-  const cellType: Array<number | 'food' | 'empty'> = new Array(COLS * ROWS).fill('empty');
+  const cellType: Array<number | "food" | "empty"> = new Array(
+    COLS * ROWS,
+  ).fill("empty");
   g.snake.forEach((p, i) => {
     if (p.y >= 0 && p.y < ROWS && p.x >= 0 && p.x < COLS) {
       cellType[p.y * COLS + p.x] = i;
     }
   });
   if (g.food.y >= 0 && g.food.y < ROWS && g.food.x >= 0 && g.food.x < COLS) {
-    cellType[g.food.y * COLS + g.food.x] = 'food';
+    cellType[g.food.y * COLS + g.food.x] = "food";
   }
 
   return (
@@ -226,24 +240,30 @@ export default function Snake({ context }: AppProps) {
         <div className="flex items-center gap-2">
           <div className="rounded bg-arch-panel px-2.5 py-1 text-center text-xs text-arch-muted">
             得分
-            <div className="text-sm font-semibold text-arch-text tabular-nums">{g.score}</div>
+            <div className="text-sm font-semibold text-arch-text tabular-nums">
+              {g.score}
+            </div>
           </div>
           <div className="rounded bg-arch-panel px-2.5 py-1 text-center text-xs text-arch-muted">
             最高
-            <div className="text-sm font-semibold text-arch-green tabular-nums">{g.best}</div>
+            <div className="text-sm font-semibold text-arch-green tabular-nums">
+              {g.best}
+            </div>
           </div>
         </div>
       </header>
 
       <div className="flex items-center gap-2 border-b border-arch-border px-4 py-2 text-xs text-arch-muted">
         难度
-        {(['slow', 'medium', 'fast'] as Diff[]).map((d) => (
+        {(["slow", "medium", "fast"] as Diff[]).map((d) => (
           <button
             key={d}
             onClick={() => chooseDiff(d)}
             className={cn(
-              'rounded px-2.5 py-1 transition',
-              diff === d ? 'bg-arch-accent text-white' : 'bg-arch-panel text-arch-muted hover:text-arch-text',
+              "rounded px-2.5 py-1 transition",
+              diff === d
+                ? "bg-arch-accent text-white"
+                : "bg-arch-panel text-arch-muted hover:text-arch-text",
             )}
           >
             {DIFF_LABEL[d]}
@@ -255,7 +275,7 @@ export default function Snake({ context }: AppProps) {
           title="暂停 (空格)"
         >
           {paused ? <Play size={12} /> : <Pause size={12} />}
-          {paused ? '继续' : '暂停'}
+          {paused ? "继续" : "暂停"}
         </button>
         <button
           onClick={() => restart()}
@@ -277,13 +297,13 @@ export default function Snake({ context }: AppProps) {
             }}
           >
             {cellType.map((t, idx) => {
-              if (typeof t === 'number') {
+              if (typeof t === "number") {
                 if (t === 0) {
                   return (
                     <div
                       key={idx}
-                      className="rounded-[2px]"
-                      style={{ background: 'var(--color-arch-accent)' }}
+                      className="rounded-xs"
+                      style={{ background: "var(--color-arch-accent)" }}
                     />
                   );
                 }
@@ -295,14 +315,15 @@ export default function Snake({ context }: AppProps) {
                   />
                 );
               }
-              if (t === 'food') {
+              if (t === "food") {
                 return (
                   <div
                     key={idx}
                     className="rounded-full"
                     style={{
-                      background: 'var(--color-arch-red)',
-                      boxShadow: '0 0 8px 2px color-mix(in srgb, var(--color-arch-red) 70%, transparent)',
+                      background: "var(--color-arch-red)",
+                      boxShadow:
+                        "0 0 8px 2px color-mix(in srgb, var(--color-arch-red) 70%, transparent)",
                     }}
                   />
                 );

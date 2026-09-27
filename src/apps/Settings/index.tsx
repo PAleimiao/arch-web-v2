@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   AppWindow,
   Bell,
@@ -19,42 +19,58 @@ import {
   Sparkles,
   Sun,
   Trash2,
-} from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { APPS } from '@/apps/registry';
-import { useOSStore, type DesktopSettings } from '@/stores/useOSStore';
-import { useNotifyStore, notify } from '@/stores/useNotifyStore';
-import { usePackageStore } from '@/stores/usePackageStore';
-import { useWindowStore } from '@/stores/useWindowStore';
-import { vfs } from '@/services/filesystem';
-import type { AppProps } from '@/shell/types';
+} from "lucide-react";
+import { cn } from "@/lib/cn";
+import { APPS } from "@/apps/registry";
+import { useOSStore, type DesktopSettings } from "@/stores/useOSStore";
+import { useNotifyStore, notify } from "@/stores/useNotifyStore";
+import { usePackageStore } from "@/stores/usePackageStore";
+import { useWindowStore } from "@/stores/useWindowStore";
+import { vfs } from "@/services/filesystem";
+import type { AppProps } from "@/shell/types";
 
 const WALLPAPERS = [
-  { id: 'grid', label: '默认网格', url: `${import.meta.env.BASE_URL}/wallpapers/grid.svg` },
-  { id: 'arch', label: 'Arch Blue', url: `${import.meta.env.BASE_URL}/wallpapers/arch.svg` },
-  { id: 'dots', label: '暗夜点阵', url: `${import.meta.env.BASE_URL}/wallpapers/dots.svg` },
-  { id: 'aurora', label: '极光', url: `${import.meta.env.BASE_URL}/wallpapers/aurora.svg` },
+  {
+    id: "grid",
+    label: "默认网格",
+    url: `${import.meta.env.BASE_URL}/wallpapers/grid.svg`,
+  },
+  {
+    id: "arch",
+    label: "Arch Blue",
+    url: `${import.meta.env.BASE_URL}/wallpapers/arch.svg`,
+  },
+  {
+    id: "dots",
+    label: "暗夜点阵",
+    url: `${import.meta.env.BASE_URL}/wallpapers/dots.svg`,
+  },
+  {
+    id: "aurora",
+    label: "极光",
+    url: `${import.meta.env.BASE_URL}/wallpapers/aurora.svg`,
+  },
 ];
 
 const ACCENTS = [
-  { name: 'Arch 蓝', value: '#1793d1' },
-  { name: '薄荷', value: '#4ec9b0' },
-  { name: '珊瑚', value: '#e06c75' },
-  { name: '紫罗兰', value: '#c678dd' },
-  { name: '琥珀', value: '#d19a66' },
-  { name: '天青', value: '#61afef' },
-  { name: '桃红', value: '#e84393' },
+  { name: "Arch 蓝", value: "#1793d1" },
+  { name: "薄荷", value: "#4ec9b0" },
+  { name: "珊瑚", value: "#e06c75" },
+  { name: "紫罗兰", value: "#c678dd" },
+  { name: "琥珀", value: "#d19a66" },
+  { name: "天青", value: "#61afef" },
+  { name: "桃红", value: "#e84393" },
 ];
 
-type Tab = 'desktop' | 'appearance' | 'window' | 'system' | 'apps' | 'about';
+type Tab = "desktop" | "appearance" | "window" | "system" | "apps" | "about";
 
 const TABS: Array<{ id: Tab; label: string; Icon: typeof Monitor }> = [
-  { id: 'desktop', label: '桌面', Icon: Monitor },
-  { id: 'appearance', label: '外观', Icon: Palette },
-  { id: 'window', label: '窗口', Icon: AppWindow },
-  { id: 'system', label: '系统', Icon: Shield },
-  { id: 'apps', label: '应用', Icon: Package },
-  { id: 'about', label: '关于', Icon: Info },
+  { id: "desktop", label: "桌面", Icon: Monitor },
+  { id: "appearance", label: "外观", Icon: Palette },
+  { id: "window", label: "窗口", Icon: AppWindow },
+  { id: "system", label: "系统", Icon: Shield },
+  { id: "apps", label: "应用", Icon: Package },
+  { id: "about", label: "关于", Icon: Info },
 ];
 
 function Row({
@@ -90,13 +106,15 @@ function Switch({
     <label className="mb-2 flex cursor-pointer items-start justify-between gap-3">
       <span>
         <span className="block text-xs">{label}</span>
-        {hint && <span className="block text-[11px] text-arch-muted">{hint}</span>}
+        {hint && (
+          <span className="block text-[11px] text-arch-muted">{hint}</span>
+        )}
       </span>
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 accent-[var(--color-arch-accent)]"
+        className="mt-0.5 accent-arch-accent"
       />
     </label>
   );
@@ -104,7 +122,7 @@ function Switch({
 
 function AboutPanel() {
   const [uptime, setUptime] = useState(0);
-  const [memory, setMemory] = useState<string>('—');
+  const [memory, setMemory] = useState<string>("—");
 
   const bootedAt = useMemo(() => Date.now(), []);
 
@@ -112,7 +130,9 @@ function AboutPanel() {
     const tick = () => {
       const sec = Math.floor((Date.now() - bootedAt) / 1000);
       setUptime(sec);
-      const perf = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+      const perf = (
+        performance as unknown as { memory?: { usedJSHeapSize: number } }
+      ).memory;
       if (perf?.usedJSHeapSize) {
         setMemory(`${(perf.usedJSHeapSize / 1024 / 1024).toFixed(1)} MB`);
       }
@@ -132,7 +152,9 @@ function AboutPanel() {
   return (
     <>
       <section className="mb-6">
-        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">系统信息</h3>
+        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+          系统信息
+        </h3>
         <dl className="space-y-1 text-[11px]">
           <div className="flex justify-between border-b border-arch-border/50 pb-1">
             <dt className="text-arch-muted">版本</dt>
@@ -160,23 +182,32 @@ function AboutPanel() {
       </section>
 
       <section className="mb-6">
-        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">技术栈</h3>
+        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+          技术栈
+        </h3>
         <div className="flex flex-wrap gap-1.5">
-          {['Astro 5', 'React 19', 'Zustand', 'Tailwind CSS 4', 'TypeScript', 'Cloudflare Workers'].map(
-            (item) => (
-              <span
-                key={item}
-                className="rounded-full border border-arch-border px-2 py-0.5 text-[10.5px] text-arch-muted"
-              >
-                {item}
-              </span>
-            ),
-          )}
+          {[
+            "Astro 5",
+            "React 19",
+            "Zustand",
+            "Tailwind CSS 4",
+            "TypeScript",
+            "Cloudflare Workers",
+          ].map((item) => (
+            <span
+              key={item}
+              className="rounded-full border border-arch-border px-2 py-0.5 text-[10.5px] text-arch-muted"
+            >
+              {item}
+            </span>
+          ))}
         </div>
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">链接</h3>
+        <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+          链接
+        </h3>
         <div className="flex flex-col gap-1.5 text-[11px]">
           <a
             href="https://github.com/PAleimiao/arch-web-v2"
@@ -206,18 +237,24 @@ export default function Settings({ context }: AppProps) {
   const notifyCount = useNotifyStore((s) => s.items.length);
   const windowCount = useWindowStore((s) => s.windows.length);
 
-  const [tab, setTab] = useState<Tab>('desktop');
-  const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [storage, setStorage] = useState<string>('读取中…');
-  const [fsUsage, setFsUsage] = useState<{ files: number; bytes: number } | null>(null);
-  const [backend, setBackend] = useState<string>('—');
-  const [appQuery, setAppQuery] = useState('');
+  const [tab, setTab] = useState<Tab>("desktop");
+  const [uploadMsg, setUploadMsg] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
+  const [storage, setStorage] = useState<string>("读取中…");
+  const [fsUsage, setFsUsage] = useState<{
+    files: number;
+    bytes: number;
+  } | null>(null);
+  const [backend, setBackend] = useState<string>("—");
+  const [appQuery, setAppQuery] = useState("");
 
   const isPreset = WALLPAPERS.some((w) => w.url === settings.wallpaper);
   const isCustom = !isPreset;
 
   useEffect(() => {
-    context.setTitle('设置');
+    context.setTitle("设置");
   }, [context]);
 
   useEffect(() => {
@@ -232,10 +269,10 @@ export default function Settings({ context }: AppProps) {
             `${used.toFixed(2)} MB / ${quota >= 1024 ? `${(quota / 1024).toFixed(1)} GB` : `${quota.toFixed(0)} MB`}`,
           );
         } else if (!cancelled) {
-          setStorage('浏览器不支持 storage.estimate');
+          setStorage("浏览器不支持 storage.estimate");
         }
       } catch {
-        if (!cancelled) setStorage('读取失败');
+        if (!cancelled) setStorage("读取失败");
       }
       try {
         const u = await vfs.usage();
@@ -247,7 +284,7 @@ export default function Settings({ context }: AppProps) {
         const b = await vfs.backend();
         if (!cancelled) setBackend(b);
       } catch {
-        if (!cancelled) setBackend('—');
+        if (!cancelled) setBackend("—");
       }
     })();
     return () => {
@@ -257,26 +294,26 @@ export default function Settings({ context }: AppProps) {
 
   const handleFile = async (file: File | null) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setUploadMsg({ ok: false, text: '请选择图片文件' });
+    if (!file.type.startsWith("image/")) {
+      setUploadMsg({ ok: false, text: "请选择图片文件" });
       return;
     }
     const MAX = 1.5 * 1024 * 1024;
     if (file.size > MAX) {
-      setUploadMsg({ ok: false, text: '图片超过 1.5MB，请压缩后再上传' });
+      setUploadMsg({ ok: false, text: "图片超过 1.5MB，请压缩后再上传" });
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = String(reader.result || '');
+      const dataUrl = String(reader.result || "");
       try {
         update({ wallpaper: dataUrl });
         setUploadMsg({ ok: true, text: `已应用 ${file.name}` });
       } catch {
-        setUploadMsg({ ok: false, text: '保存失败（存储已满）' });
+        setUploadMsg({ ok: false, text: "保存失败（存储已满）" });
       }
     };
-    reader.onerror = () => setUploadMsg({ ok: false, text: '读取失败' });
+    reader.onerror = () => setUploadMsg({ ok: false, text: "读取失败" });
     reader.readAsDataURL(file);
   };
 
@@ -297,7 +334,7 @@ export default function Settings({ context }: AppProps) {
     darkMode: true,
     dockSize: 56,
     autoLockMinutes: 5,
-    accentColor: '#1793d1',
+    accentColor: "#1793d1",
     animations: true,
     clockSeconds: false,
     desktopAllApps: false,
@@ -318,10 +355,10 @@ export default function Settings({ context }: AppProps) {
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              'flex w-full items-center gap-2 rounded px-3 py-2 text-left transition',
+              "flex w-full items-center gap-2 rounded px-3 py-2 text-left transition",
               tab === id
-                ? 'bg-arch-accent/15 text-arch-accent'
-                : 'text-arch-text hover:bg-white/5',
+                ? "bg-arch-accent/15 text-arch-accent"
+                : "text-arch-text hover:bg-white/5",
             )}
           >
             <Icon size={14} /> {label}
@@ -338,10 +375,12 @@ export default function Settings({ context }: AppProps) {
 
       <div className="flex-1 overflow-auto p-5 text-sm">
         {/* ------------------------------ 桌面 ------------------------------ */}
-        {tab === 'desktop' && (
+        {tab === "desktop" && (
           <>
             <section className="mb-6">
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">壁纸</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                壁纸
+              </h3>
               <div className="grid grid-cols-4 gap-2">
                 {WALLPAPERS.map((w) => {
                   const active = settings.wallpaper === w.url;
@@ -354,27 +393,29 @@ export default function Settings({ context }: AppProps) {
                         setUploadMsg(null);
                       }}
                       className={cn(
-                        'overflow-hidden rounded-lg border-2 transition',
+                        "overflow-hidden rounded-lg border-2 transition",
                         active
-                          ? 'border-arch-accent'
-                          : 'border-transparent hover:border-arch-border',
+                          ? "border-arch-accent"
+                          : "border-transparent hover:border-arch-border",
                       )}
                     >
                       <div
                         className="h-16 w-full bg-cover bg-center"
                         style={{ backgroundImage: `url(${w.url})` }}
                       />
-                      <div className="bg-black/40 py-1 text-[11px]">{w.label}</div>
+                      <div className="bg-black/40 py-1 text-[11px]">
+                        {w.label}
+                      </div>
                     </button>
                   );
                 })}
 
                 <label
                   className={cn(
-                    'flex h-16 cursor-pointer items-center justify-center gap-1 rounded-lg border-2 border-dashed transition',
+                    "flex h-16 cursor-pointer items-center justify-center gap-1 rounded-lg border-2 border-dashed transition",
                     isCustom
-                      ? 'border-arch-accent bg-arch-accent/10 text-arch-accent'
-                      : 'border-arch-border/60 text-arch-muted hover:border-arch-border hover:text-arch-text',
+                      ? "border-arch-accent bg-arch-accent/10 text-arch-accent"
+                      : "border-arch-border/60 text-arch-muted hover:border-arch-border hover:text-arch-text",
                   )}
                   title="上传自己的图片（≤1.5MB）"
                 >
@@ -395,12 +436,14 @@ export default function Settings({ context }: AppProps) {
                     className="h-8 w-14 rounded border border-arch-border bg-cover bg-center"
                     style={{ backgroundImage: `url(${settings.wallpaper})` }}
                   />
-                  <span className="flex-1 text-arch-muted">已应用自定义图片</span>
+                  <span className="flex-1 text-arch-muted">
+                    已应用自定义图片
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
                       update({ wallpaper: DEFAULTS.wallpaper });
-                      setUploadMsg({ ok: true, text: '已恢复默认壁纸' });
+                      setUploadMsg({ ok: true, text: "已恢复默认壁纸" });
                     }}
                     className="flex items-center gap-1 rounded border border-arch-border px-2 py-1 hover:bg-white/10"
                   >
@@ -412,8 +455,8 @@ export default function Settings({ context }: AppProps) {
               {uploadMsg && (
                 <div
                   className={cn(
-                    'mt-2 text-[11px]',
-                    uploadMsg.ok ? 'text-arch-green' : 'text-arch-red',
+                    "mt-2 text-[11px]",
+                    uploadMsg.ok ? "text-arch-green" : "text-arch-red",
                   )}
                 >
                   {uploadMsg.text}
@@ -439,8 +482,10 @@ export default function Settings({ context }: AppProps) {
                   max={72}
                   step={4}
                   value={settings.desktopIconSize}
-                  onChange={(e) => update({ desktopIconSize: Number(e.target.value) })}
-                  className="w-full accent-[var(--color-arch-accent)]"
+                  onChange={(e) =>
+                    update({ desktopIconSize: Number(e.target.value) })
+                  }
+                  className="w-full accent-arch-accent"
                 />
               </Row>
             </section>
@@ -448,19 +493,21 @@ export default function Settings({ context }: AppProps) {
         )}
 
         {/* ------------------------------ 外观 ------------------------------ */}
-        {tab === 'appearance' && (
+        {tab === "appearance" && (
           <>
             <section className="mb-6">
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">主题</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                主题
+              </h3>
               <div className="mb-4 flex gap-2">
                 <button
                   type="button"
                   onClick={() => update({ darkMode: true })}
                   className={cn(
-                    'flex flex-1 items-center justify-center gap-1.5 rounded border px-3 py-2 transition',
+                    "flex flex-1 items-center justify-center gap-1.5 rounded border px-3 py-2 transition",
                     settings.darkMode
-                      ? 'border-arch-accent bg-arch-accent/20'
-                      : 'border-arch-border text-arch-muted hover:bg-white/5',
+                      ? "border-arch-accent bg-arch-accent/20"
+                      : "border-arch-border text-arch-muted hover:bg-white/5",
                   )}
                 >
                   <Moon size={13} /> 暗色
@@ -469,17 +516,19 @@ export default function Settings({ context }: AppProps) {
                   type="button"
                   onClick={() => update({ darkMode: false })}
                   className={cn(
-                    'flex flex-1 items-center justify-center gap-1.5 rounded border px-3 py-2 transition',
+                    "flex flex-1 items-center justify-center gap-1.5 rounded border px-3 py-2 transition",
                     !settings.darkMode
-                      ? 'border-arch-accent bg-arch-accent/20'
-                      : 'border-arch-border text-arch-muted hover:bg-white/5',
+                      ? "border-arch-accent bg-arch-accent/20"
+                      : "border-arch-border text-arch-muted hover:bg-white/5",
                   )}
                 >
                   <Sun size={13} /> 亮色
                 </button>
               </div>
 
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">强调色</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                强调色
+              </h3>
               <div className="flex flex-wrap gap-2">
                 {ACCENTS.map((a) => (
                   <button
@@ -488,10 +537,11 @@ export default function Settings({ context }: AppProps) {
                     title={a.name}
                     onClick={() => update({ accentColor: a.value })}
                     className={cn(
-                      'flex items-center gap-2 rounded border px-2 py-1 text-[11px] transition',
-                      settings.accentColor.toLowerCase() === a.value.toLowerCase()
-                        ? 'border-arch-accent bg-arch-accent/15 text-arch-text'
-                        : 'border-arch-border text-arch-muted hover:bg-white/5',
+                      "flex items-center gap-2 rounded border px-2 py-1 text-[11px] transition",
+                      settings.accentColor.toLowerCase() ===
+                        a.value.toLowerCase()
+                        ? "border-arch-accent bg-arch-accent/15 text-arch-text"
+                        : "border-arch-border text-arch-muted hover:bg-white/5",
                     )}
                   >
                     <span
@@ -514,7 +564,9 @@ export default function Settings({ context }: AppProps) {
             </section>
 
             <section>
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">动效</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                动效
+              </h3>
               <Switch
                 label="窗口与应用动画"
                 checked={settings.animations}
@@ -537,10 +589,12 @@ export default function Settings({ context }: AppProps) {
         )}
 
         {/* ------------------------------ 窗口 ------------------------------ */}
-        {tab === 'window' && (
+        {tab === "window" && (
           <>
             <section className="mb-6">
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">外观</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                外观
+              </h3>
               <Row
                 label={`背景不透明度 · ${(settings.windowOpacity * 100).toFixed(0)}%`}
                 hint="影响所有窗口面板的透明程度"
@@ -551,8 +605,10 @@ export default function Settings({ context }: AppProps) {
                   max={1}
                   step={0.02}
                   value={settings.windowOpacity}
-                  onChange={(e) => update({ windowOpacity: Number(e.target.value) })}
-                  className="w-full accent-[var(--color-arch-accent)]"
+                  onChange={(e) =>
+                    update({ windowOpacity: Number(e.target.value) })
+                  }
+                  className="w-full accent-arch-accent"
                 />
               </Row>
               <Row label={`Dock 尺寸 · ${settings.dockSize}px`}>
@@ -563,13 +619,15 @@ export default function Settings({ context }: AppProps) {
                   step={4}
                   value={settings.dockSize}
                   onChange={(e) => update({ dockSize: Number(e.target.value) })}
-                  className="w-full accent-[var(--color-arch-accent)]"
+                  className="w-full accent-arch-accent"
                 />
               </Row>
             </section>
 
             <section>
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">行为</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                行为
+              </h3>
               <Switch
                 label="边缘吸附"
                 checked={settings.edgeSnap}
@@ -588,7 +646,7 @@ export default function Settings({ context }: AppProps) {
                   onClick={() => {
                     const st = useWindowStore.getState();
                     st.windows.forEach((w) => st.close(w.id));
-                    notify('已关闭全部窗口', undefined, 'success');
+                    notify("已关闭全部窗口", undefined, "success");
                   }}
                   className="rounded border border-arch-border px-2 py-1 text-[11px] hover:bg-white/10"
                 >
@@ -610,10 +668,12 @@ export default function Settings({ context }: AppProps) {
         )}
 
         {/* ------------------------------ 系统 ------------------------------ */}
-        {tab === 'system' && (
+        {tab === "system" && (
           <>
             <section className="mb-6">
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">安全</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                安全
+              </h3>
               <Row label="无操作自动锁屏（分钟）" hint="设为 0 表示不自动锁屏">
                 <div className="flex items-center gap-2">
                   <input
@@ -622,7 +682,9 @@ export default function Settings({ context }: AppProps) {
                     max={120}
                     value={settings.autoLockMinutes}
                     onChange={(e) =>
-                      update({ autoLockMinutes: Math.max(0, Number(e.target.value)) })
+                      update({
+                        autoLockMinutes: Math.max(0, Number(e.target.value)),
+                      })
                     }
                     className="w-24 rounded border border-arch-border bg-black/30 px-2 py-1 text-xs"
                   />
@@ -653,7 +715,13 @@ export default function Settings({ context }: AppProps) {
               <dl className="space-y-1 text-[11px]">
                 <div className="flex justify-between border-b border-arch-border/50 pb-1">
                   <dt className="text-arch-muted">存储后端</dt>
-                  <dd>{backend === 'opfs' ? 'OPFS（文件系统 API）' : backend === 'idb' ? 'IndexedDB（降级）' : backend}</dd>
+                  <dd>
+                    {backend === "opfs"
+                      ? "OPFS（文件系统 API）"
+                      : backend === "idb"
+                        ? "IndexedDB（降级）"
+                        : backend}
+                  </dd>
                 </div>
                 <div className="flex justify-between border-b border-arch-border/50 pb-1">
                   <dt className="text-arch-muted">浏览器配额</dt>
@@ -661,12 +729,14 @@ export default function Settings({ context }: AppProps) {
                 </div>
                 <div className="flex justify-between border-b border-arch-border/50 pb-1">
                   <dt className="text-arch-muted">虚拟磁盘文件数</dt>
-                  <dd className="tabular-nums">{fsUsage ? fsUsage.files : '—'}</dd>
+                  <dd className="tabular-nums">
+                    {fsUsage ? fsUsage.files : "—"}
+                  </dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-arch-muted">虚拟磁盘占用</dt>
                   <dd className="tabular-nums">
-                    {fsUsage ? `${(fsUsage.bytes / 1024).toFixed(1)} KB` : '—'}
+                    {fsUsage ? `${(fsUsage.bytes / 1024).toFixed(1)} KB` : "—"}
                   </dd>
                 </div>
               </dl>
@@ -678,8 +748,8 @@ export default function Settings({ context }: AppProps) {
                 运行时
               </h3>
               <p className="text-[11px] leading-relaxed text-arch-muted">
-                逻辑核心 {navigator.hardwareConcurrency ?? '未知'} · 视口{' '}
-                {window.innerWidth}×{window.innerHeight} · 设备像素比{' '}
+                逻辑核心 {navigator.hardwareConcurrency ?? "未知"} · 视口{" "}
+                {window.innerWidth}×{window.innerHeight} · 设备像素比{" "}
                 {window.devicePixelRatio}
                 <br />
                 窗口 ID：{context.windowId}
@@ -687,7 +757,9 @@ export default function Settings({ context }: AppProps) {
             </section>
 
             <section className="mb-6">
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">通知</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                通知
+              </h3>
               <Switch
                 label="免打扰"
                 checked={settings.doNotDisturb}
@@ -698,7 +770,7 @@ export default function Settings({ context }: AppProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    notify('测试通知', '这是一条来自设置应用的通知', 'info');
+                    notify("测试通知", "这是一条来自设置应用的通知", "info");
                   }}
                   className="flex items-center gap-1 rounded border border-arch-border px-2 py-1 text-[11px] hover:bg-white/10"
                 >
@@ -722,13 +794,15 @@ export default function Settings({ context }: AppProps) {
             </section>
 
             <section className="border-t border-arch-border pt-3">
-              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">重置</h3>
+              <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
+                重置
+              </h3>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     update(DEFAULTS);
-                    notify('外观设置已恢复默认', undefined, 'success');
+                    notify("外观设置已恢复默认", undefined, "success");
                   }}
                   className="flex items-center gap-1 rounded border border-arch-border px-2 py-1 text-[11px] hover:bg-white/10"
                 >
@@ -738,7 +812,7 @@ export default function Settings({ context }: AppProps) {
                   type="button"
                   onClick={() => {
                     resetAll();
-                    notify('已重新安装全部应用', undefined, 'success');
+                    notify("已重新安装全部应用", undefined, "success");
                   }}
                   className="flex items-center gap-1 rounded border border-arch-border px-2 py-1 text-[11px] hover:bg-white/10"
                 >
@@ -747,7 +821,7 @@ export default function Settings({ context }: AppProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!window.confirm('清空通知历史？')) return;
+                    if (!window.confirm("清空通知历史？")) return;
                     useNotifyStore.getState().clear();
                   }}
                   className="rounded border border-arch-border px-2 py-1 text-[11px] hover:bg-white/10"
@@ -768,10 +842,10 @@ export default function Settings({ context }: AppProps) {
         )}
 
         {/* ------------------------------ 关于 ------------------------------ */}
-        {tab === 'about' && <AboutPanel />}
+        {tab === "about" && <AboutPanel />}
 
         {/* ------------------------------ 应用 ------------------------------ */}
-        {tab === 'apps' && (
+        {tab === "apps" && (
           <>
             <section className="mb-4">
               <h3 className="mb-2 text-xs uppercase tracking-wider text-arch-muted">
@@ -781,7 +855,9 @@ export default function Settings({ context }: AppProps) {
               <p className="mb-3 text-[11px] leading-relaxed text-arch-muted">
                 这里的「卸载」等价于把它从启动器和桌面上隐藏，代码仍在包里。
                 也可以在终端里用
-                <code className="mx-1 rounded bg-black/30 px-1">pacman -R 包名</code>
+                <code className="mx-1 rounded bg-black/30 px-1">
+                  pacman -R 包名
+                </code>
                 操作。
               </p>
               <div className="mb-3 flex items-center gap-2">
@@ -808,9 +884,12 @@ export default function Settings({ context }: AppProps) {
                   >
                     <span
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded"
-                      style={{ background: `${app.accent ?? '#1793d1'}33` }}
+                      style={{ background: `${app.accent ?? "#1793d1"}33` }}
                     >
-                      <Icon size={15} style={{ color: app.accent ?? '#1793d1' }} />
+                      <Icon
+                        size={15}
+                        style={{ color: app.accent ?? "#1793d1" }}
+                      />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -818,7 +897,9 @@ export default function Settings({ context }: AppProps) {
                         <span className="rounded bg-white/5 px-1 text-[10px] text-arch-muted">
                           {app.category}
                         </span>
-                        <code className="text-[10px] text-arch-muted">{app.id}</code>
+                        <code className="text-[10px] text-arch-muted">
+                          {app.id}
+                        </code>
                         {installed && (
                           <CheckCircle2 size={11} className="text-arch-green" />
                         )}
@@ -832,20 +913,20 @@ export default function Settings({ context }: AppProps) {
                       onClick={() => {
                         if (installed) {
                           remove(app.id);
-                          notify('已卸载', app.name, 'warn');
+                          notify("已卸载", app.name, "warn");
                         } else {
                           install(app.id);
-                          notify('已安装', app.name, 'success');
+                          notify("已安装", app.name, "success");
                         }
                       }}
                       className={cn(
-                        'shrink-0 rounded border px-2 py-1 text-[11px] transition',
+                        "shrink-0 rounded border px-2 py-1 text-[11px] transition",
                         installed
-                          ? 'border-arch-border text-arch-muted hover:border-arch-red hover:text-arch-red'
-                          : 'border-arch-accent bg-arch-accent/15 text-arch-accent hover:bg-arch-accent/25',
+                          ? "border-arch-border text-arch-muted hover:border-arch-red hover:text-arch-red"
+                          : "border-arch-accent bg-arch-accent/15 text-arch-accent hover:bg-arch-accent/25",
                       )}
                     >
-                      {installed ? '卸载' : '安装'}
+                      {installed ? "卸载" : "安装"}
                     </button>
                   </div>
                 );
