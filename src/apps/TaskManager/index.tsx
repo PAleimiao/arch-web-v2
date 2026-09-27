@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Activity,
   Cpu,
@@ -9,13 +9,13 @@ import {
   Rocket,
   Search,
   Trash2,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { APPS } from '@/apps/registry';
-import { notify } from '@/stores/useNotifyStore';
-import { useWindowStore } from '@/stores/useWindowStore';
-import { usePackageStore } from '@/stores/usePackageStore';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { APPS } from "@/apps/registry";
+import { notify } from "@/stores/useNotifyStore";
+import { useWindowStore } from "@/stores/useWindowStore";
+import { usePackageStore } from "@/stores/usePackageStore";
 
 interface PerfMemory {
   usedJSHeapSize: number;
@@ -45,12 +45,13 @@ function fmtDuration(ms: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  return `${m}:${String(sec).padStart(2, '0')}`;
+  if (h > 0)
+    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-type Tab = 'process' | 'startup';
-type SortKey = 'z' | 'area' | 'title';
+type Tab = "process" | "startup";
+type SortKey = "z" | "area" | "title";
 
 export default function TaskManager(_: AppProps) {
   const windows = useWindowStore((s) => s.windows);
@@ -64,9 +65,9 @@ export default function TaskManager(_: AppProps) {
   const installPkg = usePackageStore((s) => s.install);
   const removePkg = usePackageStore((s) => s.remove);
 
-  const [tab, setTab] = useState<Tab>('process');
-  const [query, setQuery] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('z');
+  const [tab, setTab] = useState<Tab>("process");
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("z");
 
   const [fps, setFps] = useState(0);
   const [heap, setHeap] = useState<number | null>(
@@ -94,7 +95,8 @@ export default function TaskManager(_: AppProps) {
     }, 1000);
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      if (intervalRef.current !== null) window.clearInterval(intervalRef.current);
+      if (intervalRef.current !== null)
+        window.clearInterval(intervalRef.current);
     };
   }, []);
 
@@ -108,9 +110,9 @@ export default function TaskManager(_: AppProps) {
         )
       : windows;
     const sorted = [...list].sort((a, b) => {
-      if (sortKey === 'area') return b.width * b.height - a.width * a.height;
-      if (sortKey === 'title')
-        return a.title.localeCompare(b.title, 'zh-Hans-CN');
+      if (sortKey === "area") return b.width * b.height - a.width * a.height;
+      if (sortKey === "title")
+        return a.title.localeCompare(b.title, "zh-Hans-CN");
       return b.zIndex - a.zIndex;
     });
     return sorted;
@@ -135,44 +137,67 @@ export default function TaskManager(_: AppProps) {
         estimated: true,
       };
     }
-    return { value: Math.round(EST_BASE + count * EST_PER_WINDOW), estimated: true };
+    return {
+      value: Math.round(EST_BASE + count * EST_PER_WINDOW),
+      estimated: true,
+    };
   };
 
   const activeCount = windows.filter((w) => !w.minimized).length;
 
   const endProcess = (id: string) => {
     close(id);
-    notify('已结束进程', `窗口 ${id} 已关闭`, 'info');
+    notify("已结束进程", `窗口 ${id} 已关闭`, "info");
   };
 
   const isInstalled = (id: string) => !disabled.includes(id);
 
   const doRemove = (id: string, name: string) => {
     removePkg(id);
-    notify('已卸载（模拟）', `${name} 已从启动器移除`, 'warn');
+    notify("已卸载（模拟）", `${name} 已从启动器移除`, "warn");
   };
 
   const doInstall = (id: string, name: string) => {
     installPkg(id);
-    notify('已重新安装（模拟）', `${name} 已恢复到启动器`, 'success');
+    notify("已重新安装（模拟）", `${name} 已恢复到启动器`, "success");
   };
 
   return (
     <div className="flex h-full flex-col bg-arch-bg text-arch-text text-[12px]">
       {/* 顶栏：实时指标 */}
       <div className="grid grid-cols-4 gap-px border-b border-arch-border bg-arch-border">
-        <Stat icon={<Activity size={14} />} label="FPS" value={String(fps)} tone={fps >= 50 ? 'green' : fps >= 30 ? 'accent' : 'red'} />
-        <Stat icon={<Cpu size={14} />} label="已用堆" value={heap !== null ? fmtBytes(heap) : '不可用'} tone={heap !== null ? 'accent' : 'muted'} />
-        <Stat icon={<Rocket size={14} />} label="活跃窗口" value={String(activeCount)} tone="accent" />
-        <Stat icon={<Cpu size={14} />} label="运行时长" value={fmtDuration(runtime)} tone="muted" />
+        <Stat
+          icon={<Activity size={14} />}
+          label="FPS"
+          value={String(fps)}
+          tone={fps >= 50 ? "green" : fps >= 30 ? "accent" : "red"}
+        />
+        <Stat
+          icon={<Cpu size={14} />}
+          label="已用堆"
+          value={heap !== null ? fmtBytes(heap) : "不可用"}
+          tone={heap !== null ? "accent" : "muted"}
+        />
+        <Stat
+          icon={<Rocket size={14} />}
+          label="活跃窗口"
+          value={String(activeCount)}
+          tone="accent"
+        />
+        <Stat
+          icon={<Cpu size={14} />}
+          label="运行时长"
+          value={fmtDuration(runtime)}
+          tone="muted"
+        />
       </div>
 
       {/* 标签页切换 */}
       <div className="flex items-center gap-1 border-b border-arch-border px-2 py-1">
-        <TabBtn active={tab === 'process'} onClick={() => setTab('process')}>
+        <TabBtn active={tab === "process"} onClick={() => setTab("process")}>
           进程
         </TabBtn>
-        <TabBtn active={tab === 'startup'} onClick={() => setTab('startup')}>
+        <TabBtn active={tab === "startup"} onClick={() => setTab("startup")}>
           启动项
         </TabBtn>
         <span className="ml-auto text-arch-muted">
@@ -180,7 +205,7 @@ export default function TaskManager(_: AppProps) {
         </span>
       </div>
 
-      {tab === 'process' ? (
+      {tab === "process" ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center gap-2 border-b border-arch-border px-2 py-1">
             <div className="flex items-center gap-1 rounded border border-arch-border bg-arch-panel px-2">
@@ -227,8 +252,8 @@ export default function TaskManager(_: AppProps) {
                   <tr
                     key={w.id}
                     className={cn(
-                      'border-b border-arch-border/60',
-                      w.id === activeId && 'bg-arch-accent/10',
+                      "border-b border-arch-border/60",
+                      w.id === activeId && "bg-arch-accent/10",
                     )}
                   >
                     <Td className="font-mono">{w.appId}</Td>
@@ -239,10 +264,10 @@ export default function TaskManager(_: AppProps) {
                     <Td>
                       <span
                         className={cn(
-                          w.minimized ? 'text-arch-muted' : 'text-arch-green',
+                          w.minimized ? "text-arch-muted" : "text-arch-green",
                         )}
                       >
-                        {w.minimized ? '已最小化' : '运行中'}
+                        {w.minimized ? "已最小化" : "运行中"}
                       </span>
                     </Td>
                     <Td className="text-right font-mono">
@@ -278,7 +303,10 @@ export default function TaskManager(_: AppProps) {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-arch-muted">
+                    <td
+                      colSpan={7}
+                      className="px-3 py-6 text-center text-arch-muted"
+                    >
                       没有匹配的进程
                     </td>
                   </tr>
@@ -304,7 +332,7 @@ export default function TaskManager(_: AppProps) {
                       {fmtBytes(mem.value)}
                     </span>
                     <span className="ml-1 text-arch-muted">
-                      {mem.estimated ? '估算' : ''}
+                      {mem.estimated ? "估算" : ""}
                     </span>
                   </div>
                 );
@@ -333,19 +361,16 @@ export default function TaskManager(_: AppProps) {
               {APPS.map((app) => {
                 const installed = isInstalled(app.id);
                 return (
-                  <tr
-                    key={app.id}
-                    className="border-b border-arch-border/60"
-                  >
+                  <tr key={app.id} className="border-b border-arch-border/60">
                     <Td className="font-mono text-arch-accent">{app.id}</Td>
                     <Td className="text-arch-muted">{app.description}</Td>
                     <Td>
                       <span
                         className={cn(
-                          installed ? 'text-arch-green' : 'text-arch-red',
+                          installed ? "text-arch-green" : "text-arch-red",
                         )}
                       >
-                        {installed ? '已安装' : '已卸载'}
+                        {installed ? "已安装" : "已卸载"}
                       </span>
                     </Td>
                     <Td>
@@ -390,22 +415,22 @@ function Stat({
   icon: ReactNode;
   label: string;
   value: string;
-  tone: 'green' | 'accent' | 'red' | 'muted';
+  tone: "green" | "accent" | "red" | "muted";
 }) {
   const color =
-    tone === 'green'
-      ? 'text-arch-green'
-      : tone === 'red'
-        ? 'text-arch-red'
-        : tone === 'accent'
-          ? 'text-arch-accent'
-          : 'text-arch-muted';
+    tone === "green"
+      ? "text-arch-green"
+      : tone === "red"
+        ? "text-arch-red"
+        : tone === "accent"
+          ? "text-arch-accent"
+          : "text-arch-muted";
   return (
     <div className="flex items-center gap-2 bg-arch-bg px-3 py-2">
       <span className="text-arch-muted">{icon}</span>
       <div className="leading-tight">
         <div className="text-arch-muted">{label}</div>
-        <div className={cn('font-mono text-sm', color)}>{value}</div>
+        <div className={cn("font-mono text-sm", color)}>{value}</div>
       </div>
     </div>
   );
@@ -425,8 +450,10 @@ function TabBtn({
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded px-3 py-1',
-        active ? 'bg-arch-accent text-white' : 'text-arch-muted hover:bg-arch-panel',
+        "rounded px-3 py-1",
+        active
+          ? "bg-arch-accent text-white"
+          : "text-arch-muted hover:bg-arch-panel",
       )}
     >
       {children}
@@ -441,9 +468,7 @@ function Th({
   children?: ReactNode;
   className?: string;
 }) {
-  return (
-    <th className={cn('px-3 py-1 font-normal', className)}>{children}</th>
-  );
+  return <th className={cn("px-3 py-1 font-normal", className)}>{children}</th>;
 }
 
 function Td({
@@ -456,7 +481,7 @@ function Td({
   title?: string;
 }) {
   return (
-    <td className={cn('px-3 py-1', className)} title={title}>
+    <td className={cn("px-3 py-1", className)} title={title}>
       {children}
     </td>
   );
@@ -479,8 +504,8 @@ function IconBtn({
       title={title}
       onClick={onClick}
       className={cn(
-        'rounded border border-arch-border p-1 hover:bg-arch-border',
-        danger ? 'text-arch-red' : 'text-arch-muted',
+        "rounded border border-arch-border p-1 hover:bg-arch-border",
+        danger ? "text-arch-red" : "text-arch-muted",
       )}
     >
       {children}

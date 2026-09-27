@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 export interface MediaTrack {
   /** 文件原始名 */
@@ -39,7 +39,9 @@ interface MediaState {
 
   setBridge: (b: MediaBridge | null) => void;
   /** MusicPlayer 在播放状态变化时调用（供悬浮 miniPlayer 或外部 HUD 订阅） */
-  sync: (patch: Partial<Pick<MediaState, 'playing' | 'position' | 'duration'>>) => void;
+  sync: (
+    patch: Partial<Pick<MediaState, "playing" | "position" | "duration">>,
+  ) => void;
   playTrack: (track: MediaTrack, restQueue?: MediaTrack[]) => void;
   togglePlay: () => void;
   next: () => void;
@@ -76,7 +78,13 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   sync: (patch) => set(patch),
 
   playTrack: (track, restQueue = []) => {
-    set({ current: track, queue: restQueue, position: 0, duration: 0, playing: true });
+    set({
+      current: track,
+      queue: restQueue,
+      position: 0,
+      duration: 0,
+      playing: true,
+    });
   },
 
   togglePlay: () => {
@@ -122,4 +130,3 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     });
   },
 }));
-

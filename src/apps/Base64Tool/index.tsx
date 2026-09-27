@@ -1,16 +1,24 @@
-import { useState, useEffect, type ReactNode } from 'react';
-import { Binary, Link2, Code, Copy, Check, Upload, AlertTriangle } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
+import { useState, useEffect, type ReactNode } from "react";
+import {
+  Binary,
+  Link2,
+  Code,
+  Copy,
+  Check,
+  Upload,
+  AlertTriangle,
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
 
-type Tab = 'base64' | 'url' | 'html';
+type Tab = "base64" | "url" | "html";
 
 const MAX_FILE = 5 * 1024 * 1024; // 5MB
 
 function utf8ToBase64(str: string): string {
   const bytes = new TextEncoder().encode(str);
-  let bin = '';
+  let bin = "";
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {
     bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
@@ -19,7 +27,7 @@ function utf8ToBase64(str: string): string {
 }
 
 function base64ToUtf8(b64: string): string {
-  const clean = b64.replace(/\s+/g, '');
+  const clean = b64.replace(/\s+/g, "");
   const bin = atob(clean);
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
   return new TextDecoder().decode(bytes);
@@ -27,34 +35,34 @@ function base64ToUtf8(b64: string): string {
 
 function escapeHtml(s: string): string {
   return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function unescapeHtml(s: string): string {
   return s
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&');
+    .replace(/&amp;/g, "&");
 }
 
 function parseQuery(q: string): Array<[string, string]> {
-  const raw = q.startsWith('?') ? q.slice(1) : q;
+  const raw = q.startsWith("?") ? q.slice(1) : q;
   const pairs: Array<[string, string]> = [];
-  if (raw.trim() === '') return pairs;
-  for (const part of raw.split('&')) {
+  if (raw.trim() === "") return pairs;
+  for (const part of raw.split("&")) {
     if (!part) continue;
-    const eq = part.indexOf('=');
+    const eq = part.indexOf("=");
     if (eq === -1) {
       try {
-        pairs.push([decodeURIComponent(part), '']);
+        pairs.push([decodeURIComponent(part), ""]);
       } catch {
-        pairs.push([part, '']);
+        pairs.push([part, ""]);
       }
     } else {
       const k = part.slice(0, eq);
@@ -71,24 +79,24 @@ function parseQuery(q: string): Array<[string, string]> {
 
 export default function Base64Tool({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('编解码工具');
+    context.setTitle("编解码工具");
   }, [context]);
-  const [tab, setTab] = useState<Tab>('base64');
+  const [tab, setTab] = useState<Tab>("base64");
 
   // Base64 状态
-  const [b64In, setB64In] = useState('Hello, 世界');
-  const [b64Out, setB64Out] = useState('');
+  const [b64In, setB64In] = useState("Hello, 世界");
+  const [b64Out, setB64Out] = useState("");
   const [b64Err, setB64Err] = useState<string | null>(null);
 
   // URL 状态
-  const [urlIn, setUrlIn] = useState('https://example.com/路径?x=1');
-  const [urlOut, setUrlOut] = useState('');
+  const [urlIn, setUrlIn] = useState("https://example.com/路径?x=1");
+  const [urlOut, setUrlOut] = useState("");
   const [urlErr, setUrlErr] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
 
   // HTML 状态
   const [htmlIn, setHtmlIn] = useState('<div class="box">文本 & 符号</div>');
-  const [htmlOut, setHtmlOut] = useState('');
+  const [htmlOut, setHtmlOut] = useState("");
 
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -103,7 +111,7 @@ export default function Base64Tool({ context }: AppProps) {
       await navigator.clipboard.writeText(text);
       flashCopied(key);
     } catch {
-      notify('复制失败', '浏览器拒绝访问剪贴板', 'error');
+      notify("复制失败", "浏览器拒绝访问剪贴板", "error");
     }
   };
 
@@ -113,8 +121,8 @@ export default function Base64Tool({ context }: AppProps) {
       setB64Out(utf8ToBase64(b64In));
       setB64Err(null);
     } catch {
-      setB64Out('');
-      setB64Err('编码失败（输入无法读取）');
+      setB64Out("");
+      setB64Err("编码失败（输入无法读取）");
     }
   };
   const b64Decode = () => {
@@ -122,23 +130,23 @@ export default function Base64Tool({ context }: AppProps) {
       setB64Out(base64ToUtf8(b64In));
       setB64Err(null);
     } catch {
-      setB64Out('');
-      setB64Err('不是合法的 Base64 字符串');
+      setB64Out("");
+      setB64Err("不是合法的 Base64 字符串");
     }
   };
 
   const onFile = (file: File | undefined) => {
     if (!file) return;
     if (file.size > MAX_FILE) {
-      notify('文件过大', `已限制为小于 ${MAX_FILE / 1024 / 1024}MB`, 'warn');
+      notify("文件过大", `已限制为小于 ${MAX_FILE / 1024 / 1024}MB`, "warn");
     }
     const reader = new FileReader();
     reader.onload = () => {
-      const result = String(reader.result ?? '');
-      const comma = result.indexOf(',');
+      const result = String(reader.result ?? "");
+      const comma = result.indexOf(",");
       setB64In(comma >= 0 ? result.slice(comma + 1) : result);
     };
-    reader.onerror = () => notify('读取失败', file.name, 'error');
+    reader.onerror = () => notify("读取失败", file.name, "error");
     reader.readAsDataURL(file);
   };
 
@@ -148,7 +156,7 @@ export default function Base64Tool({ context }: AppProps) {
       setUrlOut(encodeURIComponent(urlIn));
       setUrlErr(null);
     } catch {
-      setUrlErr('编码失败');
+      setUrlErr("编码失败");
     }
   };
   const urlDecode = () => {
@@ -156,7 +164,7 @@ export default function Base64Tool({ context }: AppProps) {
       setUrlOut(decodeURIComponent(urlIn));
       setUrlErr(null);
     } catch {
-      setUrlErr('包含非法的转义序列');
+      setUrlErr("包含非法的转义序列");
     }
   };
   const parseQueryInput = () => {
@@ -168,9 +176,9 @@ export default function Base64Tool({ context }: AppProps) {
   const htmlUnescape = () => setHtmlOut(unescapeHtml(htmlIn));
 
   const tabs: Array<[Tab, string, ReactNode]> = [
-    ['base64', 'Base64', <Binary key="b" size={13} />],
-    ['url', 'URL 编码', <Link2 key="u" size={13} />],
-    ['html', 'HTML 实体', <Code key="h" size={13} />],
+    ["base64", "Base64", <Binary key="b" size={13} />],
+    ["url", "URL 编码", <Link2 key="u" size={13} />],
+    ["html", "HTML 实体", <Code key="h" size={13} />],
   ];
 
   return (
@@ -182,10 +190,10 @@ export default function Base64Tool({ context }: AppProps) {
             type="button"
             onClick={() => setTab(t)}
             className={cn(
-              'flex items-center gap-1 rounded px-2 py-1 text-xs',
+              "flex items-center gap-1 rounded px-2 py-1 text-xs",
               tab === t
-                ? 'bg-arch-accent text-white'
-                : 'bg-arch-panel hover:bg-white/10',
+                ? "bg-arch-accent text-white"
+                : "bg-arch-panel hover:bg-white/10",
             )}
           >
             {icon}
@@ -195,7 +203,7 @@ export default function Base64Tool({ context }: AppProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {tab === 'base64' && (
+        {tab === "base64" && (
           <div className="flex h-full flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -222,11 +230,11 @@ export default function Base64Tool({ context }: AppProps) {
               </label>
               <button
                 type="button"
-                onClick={() => copy(b64Out, 'b64')}
+                onClick={() => copy(b64Out, "b64")}
                 disabled={!b64Out}
                 className="ml-auto flex items-center gap-1 rounded bg-arch-panel px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
               >
-                {copied === 'b64' ? <Check size={13} /> : <Copy size={13} />}
+                {copied === "b64" ? <Check size={13} /> : <Copy size={13} />}
                 复制
               </button>
             </div>
@@ -235,7 +243,7 @@ export default function Base64Tool({ context }: AppProps) {
               onChange={(e) => setB64In(e.target.value)}
               spellCheck={false}
               placeholder="输入文本或 Base64…"
-              className="min-h-[80px] flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 outline-none"
+              className="min-h-20 flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 outline-none"
             />
             {b64Err && (
               <div className="flex items-center gap-1 text-xs text-arch-red">
@@ -246,12 +254,12 @@ export default function Base64Tool({ context }: AppProps) {
               value={b64Out}
               readOnly
               placeholder="结果…"
-              className="min-h-[80px] flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 text-arch-green outline-none"
+              className="min-h-20 flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 text-arch-green outline-none"
             />
           </div>
         )}
 
-        {tab === 'url' && (
+        {tab === "url" && (
           <div className="flex h-full flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -277,11 +285,11 @@ export default function Base64Tool({ context }: AppProps) {
               </button>
               <button
                 type="button"
-                onClick={() => copy(urlOut, 'url')}
+                onClick={() => copy(urlOut, "url")}
                 disabled={!urlOut}
                 className="ml-auto flex items-center gap-1 rounded bg-arch-panel px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
               >
-                {copied === 'url' ? <Check size={13} /> : <Copy size={13} />}
+                {copied === "url" ? <Check size={13} /> : <Copy size={13} />}
                 复制
               </button>
             </div>
@@ -290,7 +298,7 @@ export default function Base64Tool({ context }: AppProps) {
               onChange={(e) => setUrlIn(e.target.value)}
               spellCheck={false}
               placeholder="输入 URL 或查询字符串…"
-              className="min-h-[70px] flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 outline-none"
+              className="min-h-17.5 flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 outline-none"
             />
             {urlErr && (
               <div className="flex items-center gap-1 text-xs text-arch-red">
@@ -301,16 +309,20 @@ export default function Base64Tool({ context }: AppProps) {
               value={urlOut}
               readOnly
               placeholder="结果…"
-              className="min-h-[70px] flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 text-arch-green outline-none"
+              className="min-h-17.5 flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 text-arch-green outline-none"
             />
-            {query.trim() !== '' && (
+            {query.trim() !== "" && (
               <div className="rounded border border-arch-border bg-black/30 p-2">
-                <div className="mb-1 text-[11px] text-arch-muted">查询参数表</div>
+                <div className="mb-1 text-[11px] text-arch-muted">
+                  查询参数表
+                </div>
                 <table className="w-full text-[12px]">
                   <tbody>
                     {parseQuery(query).map(([k, v], i) => (
                       <tr key={i} className="border-t border-arch-border/60">
-                        <td className="py-0.5 pr-2 font-mono text-arch-accent">{k}</td>
+                        <td className="py-0.5 pr-2 font-mono text-arch-accent">
+                          {k}
+                        </td>
                         <td className="py-0.5 font-mono text-arch-text">{v}</td>
                       </tr>
                     ))}
@@ -321,7 +333,7 @@ export default function Base64Tool({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'html' && (
+        {tab === "html" && (
           <div className="flex h-full flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -340,11 +352,11 @@ export default function Base64Tool({ context }: AppProps) {
               </button>
               <button
                 type="button"
-                onClick={() => copy(htmlOut, 'html')}
+                onClick={() => copy(htmlOut, "html")}
                 disabled={!htmlOut}
                 className="ml-auto flex items-center gap-1 rounded bg-arch-panel px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
               >
-                {copied === 'html' ? <Check size={13} /> : <Copy size={13} />}
+                {copied === "html" ? <Check size={13} /> : <Copy size={13} />}
                 复制
               </button>
             </div>
@@ -353,13 +365,13 @@ export default function Base64Tool({ context }: AppProps) {
               onChange={(e) => setHtmlIn(e.target.value)}
               spellCheck={false}
               placeholder="输入文本…"
-              className="min-h-[80px] flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 outline-none"
+              className="min-h-20 flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 outline-none"
             />
             <textarea
               value={htmlOut}
               readOnly
               placeholder="结果…"
-              className="min-h-[80px] flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 text-arch-green outline-none"
+              className="min-h-20 flex-1 resize-none rounded border border-arch-border bg-black/30 p-2 font-mono text-[12px] leading-5 text-arch-green outline-none"
             />
           </div>
         )}

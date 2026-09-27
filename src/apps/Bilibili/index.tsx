@@ -1,14 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Film,
-  MessageSquareText,
-  RefreshCw,
-  Search,
-  X,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import qrcode from 'qrcode-generator';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Film, MessageSquareText, RefreshCw, Search, X } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import qrcode from "qrcode-generator";
 
 /* ----------------------------- 类型 ----------------------------- */
 
@@ -62,12 +56,12 @@ interface UserProfile {
   face?: string;
 }
 
-const STORAGE_KEY = 'arch-web-bilibili-user';
+const STORAGE_KEY = "arch-web-bilibili-user";
 
 /* ----------------------------- 工具 ----------------------------- */
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { credentials: 'include', ...init });
+  const response = await fetch(path, { credentials: "include", ...init });
   if (!response.ok) {
     const text = await response.text();
     let message = text || `HTTP ${response.status}`;
@@ -82,34 +76,34 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function collapseText(text?: string): string {
-  return (text ?? '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+  return (text ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 function formatDuration(d?: number | string): string {
-  if (typeof d === 'string') return d || '--:--';
-  if (!d || d <= 0) return '--:--';
+  if (typeof d === "string") return d || "--:--";
+  if (!d || d <= 0) return "--:--";
   const m = Math.floor(d / 60);
   const s = Math.floor(d % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function formatCount(n?: number): string {
-  if (!n) return '0';
+  if (!n) return "0";
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
   return String(n);
 }
 
 function danmakuColor(color?: number): string {
-  if (!color) return '#ffffff';
-  return `#${color.toString(16).padStart(6, '0')}`;
+  if (!color) return "#ffffff";
+  return `#${color.toString(16).padStart(6, "0")}`;
 }
 
 /* ----------------------------- 主组件 ----------------------------- */
@@ -120,23 +114,25 @@ const DANMAKU_LIFETIME_MS = 6000;
 export default function BilibiliApp(_: AppProps) {
   /* 登录 */
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [qrUrl, setQrUrl] = useState('');
-  const [qrcodeKey, setQrcodeKey] = useState('');
-  const [loginState, setLoginState] = useState<'idle' | 'waiting' | 'scanned' | 'confirmed' | 'error'>('idle');
-  const [loginMessage, setLoginMessage] = useState('请使用二维码登录');
+  const [qrUrl, setQrUrl] = useState("");
+  const [qrcodeKey, setQrcodeKey] = useState("");
+  const [loginState, setLoginState] = useState<
+    "idle" | "waiting" | "scanned" | "confirmed" | "error"
+  >("idle");
+  const [loginMessage, setLoginMessage] = useState("请使用二维码登录");
 
   /* 内容 */
-  const [keyword, setKeyword] = useState('');
-  const [listTitle, setListTitle] = useState('热门');
+  const [keyword, setKeyword] = useState("");
+  const [listTitle, setListTitle] = useState("热门");
   const [cards, setCards] = useState<VideoCard[]>([]);
   const [listPage, setListPage] = useState(1);
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
-  const [selectedBvid, setSelectedBvid] = useState('');
+  const [selectedBvid, setSelectedBvid] = useState("");
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
-  const [videoUrl, setVideoUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState("");
   const [replies, setReplies] = useState<ReplyItem[]>([]);
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -156,7 +152,7 @@ export default function BilibiliApp(_: AppProps) {
 
   const loadUserInfo = useCallback(async () => {
     const nav = await fetchJson<{ code?: number; data?: UserProfile }>(
-      '/api/bilibili/x/web-interface/nav',
+      "/api/bilibili/x/web-interface/nav",
     );
     if (nav.code === 0 && nav.data?.uname) return nav.data as UserProfile;
     return null;
@@ -169,24 +165,26 @@ export default function BilibiliApp(_: AppProps) {
   };
 
   const generateQr = useCallback(async () => {
-    setLoginState('waiting');
-    setLoginMessage('正在生成二维码');
+    setLoginState("waiting");
+    setLoginMessage("正在生成二维码");
     try {
-      const result = await fetchJson<{ code?: number; data?: LoginResult; message?: string }>(
-        '/api/bilibili/passport/x/passport-login/web/qrcode/generate',
-      );
+      const result = await fetchJson<{
+        code?: number;
+        data?: LoginResult;
+        message?: string;
+      }>("/api/bilibili/passport/x/passport-login/web/qrcode/generate");
       if (result.code !== 0 || !result.data?.url || !result.data?.qrcode_key) {
-        throw new Error(result.message || '生成二维码失败');
+        throw new Error(result.message || "生成二维码失败");
       }
-      const qr = qrcode(0, 'M');
+      const qr = qrcode(0, "M");
       qr.addData(result.data.url);
       qr.make();
       setQrUrl(qr.createDataURL(8, 0));
       setQrcodeKey(result.data.qrcode_key);
-      setLoginMessage('用手机 B 站客户端扫码');
+      setLoginMessage("用手机 B 站客户端扫码");
     } catch (e) {
-      setLoginState('error');
-      setLoginMessage(e instanceof Error ? e.message : '生成二维码失败');
+      setLoginState("error");
+      setLoginMessage(e instanceof Error ? e.message : "生成二维码失败");
     }
   }, []);
 
@@ -196,12 +194,15 @@ export default function BilibiliApp(_: AppProps) {
 
   /* 轮询扫码状态：86101 未扫 86090 已扫待确认 0 成功 86038 过期 */
   useEffect(() => {
-    if (!qrcodeKey || loginState === 'confirmed' || loginState === 'error') return;
+    if (!qrcodeKey || loginState === "confirmed" || loginState === "error")
+      return;
 
     let alive = true;
     const poll = async () => {
       try {
-        const result = await fetchJson<{ data?: { code?: number; message?: string } }>(
+        const result = await fetchJson<{
+          data?: { code?: number; message?: string };
+        }>(
           `/api/bilibili/passport/x/passport-login/web/qrcode/poll?qrcode_key=${encodeURIComponent(qrcodeKey)}`,
         );
         if (!alive) return;
@@ -209,13 +210,13 @@ export default function BilibiliApp(_: AppProps) {
 
         if (state === 86101) return;
         if (state === 86090) {
-          setLoginState('scanned');
-          setLoginMessage('已扫码，等待确认');
+          setLoginState("scanned");
+          setLoginMessage("已扫码，等待确认");
           return;
         }
         if (state === 0) {
-          setLoginState('confirmed');
-          setLoginMessage('登录成功');
+          setLoginState("confirmed");
+          setLoginMessage("登录成功");
           try {
             const profile = await loadUserInfo();
             if (profile) saveUser(profile);
@@ -225,8 +226,8 @@ export default function BilibiliApp(_: AppProps) {
           return;
         }
         if (state === 86038) {
-          setLoginState('error');
-          setLoginMessage('二维码已过期，请刷新');
+          setLoginState("error");
+          setLoginMessage("二维码已过期，请刷新");
         }
       } catch {
         /* 网络抖动：下一轮继续 */
@@ -243,10 +244,10 @@ export default function BilibiliApp(_: AppProps) {
 
   const logout = () => {
     saveUser(null);
-    setQrUrl('');
-    setQrcodeKey('');
-    setLoginState('idle');
-    setLoginMessage('请使用二维码登录');
+    setQrUrl("");
+    setQrcodeKey("");
+    setLoginState("idle");
+    setLoginMessage("请使用二维码登录");
   };
 
   /* ----------------------- 内容：热门 / 搜索 ----------------------- */
@@ -255,17 +256,20 @@ export default function BilibiliApp(_: AppProps) {
     setListLoading(true);
     setListError(null);
     try {
-      const result = await fetchJson<{ code?: number; data?: { list?: VideoCard[] }; message?: string }>(
-        `/api/bilibili/x/web-interface/popular?ps=20&pn=${page}`,
-      );
-      if (result.code !== 0) throw new Error(result.message || '热门列表获取失败');
+      const result = await fetchJson<{
+        code?: number;
+        data?: { list?: VideoCard[] };
+        message?: string;
+      }>(`/api/bilibili/x/web-interface/popular?ps=20&pn=${page}`);
+      if (result.code !== 0)
+        throw new Error(result.message || "热门列表获取失败");
       const list = (result.data?.list ?? []).filter((v) => v.bvid);
       setCards((prev) => (replace ? list : [...prev, ...list]));
       setListPage(page);
       setHasMore(list.length >= 20);
-      if (replace) setListTitle('热门');
+      if (replace) setListTitle("热门");
     } catch (e) {
-      setListError(e instanceof Error ? e.message : '加载失败');
+      setListError(e instanceof Error ? e.message : "加载失败");
     } finally {
       setListLoading(false);
     }
@@ -277,18 +281,22 @@ export default function BilibiliApp(_: AppProps) {
     setListLoading(true);
     setListError(null);
     try {
-      const result = await fetchJson<{ code?: number; data?: { result?: VideoCard[] }; message?: string }>(
+      const result = await fetchJson<{
+        code?: number;
+        data?: { result?: VideoCard[] };
+        message?: string;
+      }>(
         `/api/bilibili/x/web-interface/search/type?search_type=video&keyword=${encodeURIComponent(kw)}&page=1&pagesize=20`,
       );
-      if (result.code !== 0) throw new Error(result.message || '搜索失败');
+      if (result.code !== 0) throw new Error(result.message || "搜索失败");
       const list = (result.data?.result ?? []).filter((v) => v.bvid);
       setCards(list);
       setListPage(1);
       setHasMore(false);
       setListTitle(`搜索：${kw}`);
-      if (list.length === 0) setListError('没有匹配的视频');
+      if (list.length === 0) setListError("没有匹配的视频");
     } catch (e) {
-      setListError(e instanceof Error ? e.message : '搜索失败');
+      setListError(e instanceof Error ? e.message : "搜索失败");
     } finally {
       setListLoading(false);
     }
@@ -326,20 +334,23 @@ export default function BilibiliApp(_: AppProps) {
     setVideoError(null);
     setVideoLoading(true);
     setPageInfo(null);
-    setVideoUrl('');
+    setVideoUrl("");
     setReplies([]);
     setDanmakuSource([]);
     setSpawns([]);
     lastTimeRef.current = 0;
 
     try {
-      const view = await fetchJson<{ code?: number; data?: PageInfo; message?: string }>(
-        `/api/bilibili/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
-      );
-      if (view.code !== 0 || !view.data) throw new Error(view.message || '获取视频信息失败');
+      const view = await fetchJson<{
+        code?: number;
+        data?: PageInfo;
+        message?: string;
+      }>(`/api/bilibili/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`);
+      if (view.code !== 0 || !view.data)
+        throw new Error(view.message || "获取视频信息失败");
       const info = view.data;
       const cid = info.cid ?? info.pages?.[0]?.cid ?? 0;
-      if (!cid) throw new Error('视频缺少 cid');
+      if (!cid) throw new Error("视频缺少 cid");
 
       // platform=html5 拿单文件 mp4（durl），浏览器 <video> 可直接播；
       // DASH（fnval=4048）是分离的音视频流，裸 <video> 播不了
@@ -350,9 +361,9 @@ export default function BilibiliApp(_: AppProps) {
       }>(
         `/api/bilibili/x/player/playurl?bvid=${encodeURIComponent(bvid)}&cid=${cid}&qn=80&platform=html5&high_quality=1`,
       );
-      if (play.code !== 0) throw new Error(play.message || '获取播放地址失败');
+      if (play.code !== 0) throw new Error(play.message || "获取播放地址失败");
       const raw = play.data?.durl?.[0]?.url;
-      if (!raw) throw new Error('接口未返回播放地址');
+      if (!raw) throw new Error("接口未返回播放地址");
 
       setPageInfo(info);
       setVideoUrl(`/api/bilibili/stream?url=${encodeURIComponent(raw)}`);
@@ -360,7 +371,10 @@ export default function BilibiliApp(_: AppProps) {
       // 评论：oid 是 aid 不是 cid
       if (info.aid) {
         try {
-          const reply = await fetchJson<{ code?: number; data?: { replies?: ReplyItem[] } }>(
+          const reply = await fetchJson<{
+            code?: number;
+            data?: { replies?: ReplyItem[] };
+          }>(
             `/api/bilibili/x/v2/reply?type=1&oid=${info.aid}&pn=1&ps=20&sort=1`,
           );
           if (reply.code === 0) setReplies(reply.data?.replies ?? []);
@@ -371,13 +385,15 @@ export default function BilibiliApp(_: AppProps) {
 
       // 弹幕
       try {
-        const dm = await fetchJson<{ items?: DanmakuSource[] }>(`/api/bilibili/dm?cid=${cid}`);
+        const dm = await fetchJson<{ items?: DanmakuSource[] }>(
+          `/api/bilibili/dm?cid=${cid}`,
+        );
         setDanmakuSource((dm.items ?? []).filter((d) => (d.type ?? 0) <= 3));
       } catch {
         /* 弹幕失败不阻塞播放 */
       }
     } catch (e) {
-      setVideoError(e instanceof Error ? e.message : '加载视频失败');
+      setVideoError(e instanceof Error ? e.message : "加载视频失败");
     } finally {
       setVideoLoading(false);
     }
@@ -410,8 +426,8 @@ export default function BilibiliApp(_: AppProps) {
   const info = useMemo(() => {
     if (!pageInfo) return null;
     return {
-      up: pageInfo.owner?.name ?? '',
-      title: pageInfo.title ?? '',
+      up: pageInfo.owner?.name ?? "",
+      title: pageInfo.title ?? "",
       desc: collapseText(pageInfo.desc),
     };
   }, [pageInfo]);
@@ -428,19 +444,27 @@ export default function BilibiliApp(_: AppProps) {
             </div>
             <div>
               <h1 className="text-sm font-medium">哔哩哔哩</h1>
-              <div className="text-[11px] text-arch-muted">扫码后使用搜索与播放</div>
+              <div className="text-[11px] text-arch-muted">
+                扫码后使用搜索与播放
+              </div>
             </div>
           </div>
 
           <div className="rounded-lg border border-arch-border bg-black/30 p-4">
             {qrUrl ? (
               <div className="flex flex-col items-center gap-3">
-                <img src={qrUrl} alt="登录二维码" className="h-44 w-44 rounded bg-white p-2" />
-                <div className="text-[11px] text-arch-muted">{loginMessage}</div>
+                <img
+                  src={qrUrl}
+                  alt="登录二维码"
+                  className="h-44 w-44 rounded bg-white p-2"
+                />
+                <div className="text-[11px] text-arch-muted">
+                  {loginMessage}
+                </div>
               </div>
             ) : (
               <div className="flex h-44 items-center justify-center text-[11px] text-arch-muted">
-                {loginState === 'error' ? loginMessage : '正在生成二维码'}
+                {loginState === "error" ? loginMessage : "正在生成二维码"}
               </div>
             )}
           </div>
@@ -456,8 +480,8 @@ export default function BilibiliApp(_: AppProps) {
             <button
               type="button"
               onClick={() => {
-                setLoginState('idle');
-                setLoginMessage('请使用二维码登录');
+                setLoginState("idle");
+                setLoginMessage("请使用二维码登录");
               }}
               className="rounded-lg border border-arch-border px-3 py-2 text-xs text-arch-muted hover:bg-white/5"
             >
@@ -500,11 +524,11 @@ export default function BilibiliApp(_: AppProps) {
           >
             <Search size={12} /> 搜索
           </button>
-          {listTitle !== '热门' && (
+          {listTitle !== "热门" && (
             <button
               type="button"
               onClick={() => {
-                setKeyword('');
+                setKeyword("");
                 void loadPopular(1, true);
               }}
               className="rounded-lg border border-arch-border px-2.5 py-1.5 text-xs text-arch-muted hover:bg-white/5"
@@ -517,7 +541,13 @@ export default function BilibiliApp(_: AppProps) {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 rounded-lg border border-arch-border px-2 py-1">
             <div className="h-5 w-5 overflow-hidden rounded-full bg-white/10">
-              {user?.face ? <img src={user.face} alt="" className="h-full w-full object-cover" /> : null}
+              {user?.face ? (
+                <img
+                  src={user.face}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : null}
             </div>
             <span className="max-w-24 truncate text-[11px]">{user?.uname}</span>
           </div>
@@ -535,7 +565,9 @@ export default function BilibiliApp(_: AppProps) {
         {/* 左：视频列表 */}
         <aside className="flex min-h-0 flex-col border-r border-arch-border">
           <div className="flex items-center justify-between border-b border-arch-border px-3 py-2 text-[11px] text-arch-muted">
-            <span className="truncate">{listTitle} · {cards.length}</span>
+            <span className="truncate">
+              {listTitle} · {cards.length}
+            </span>
             {listLoading && <span>加载中…</span>}
           </div>
 
@@ -546,33 +578,44 @@ export default function BilibiliApp(_: AppProps) {
                 key={item.bvid}
                 onClick={() => void loadVideo(item.bvid)}
                 className={cn(
-                  'flex w-full gap-2.5 border-b border-arch-border/40 p-2.5 text-left transition hover:bg-white/5',
-                  selectedBvid === item.bvid && 'bg-arch-accent/10',
+                  "flex w-full gap-2.5 border-b border-arch-border/40 p-2.5 text-left transition hover:bg-white/5",
+                  selectedBvid === item.bvid && "bg-arch-accent/10",
                 )}
               >
                 <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded bg-black/40">
                   {item.pic ? (
-                    <img src={item.pic} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    <img
+                      src={item.pic}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
                   ) : null}
                   <span className="absolute bottom-0.5 right-0.5 rounded bg-black/70 px-1 text-[9px] tabular-nums text-white">
                     {formatDuration(item.duration)}
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="line-clamp-2 text-[12px] leading-snug">{collapseText(item.title)}</div>
+                  <div className="line-clamp-2 text-[12px] leading-snug">
+                    {collapseText(item.title)}
+                  </div>
                   <div className="mt-1 flex items-center gap-2 text-[10px] text-arch-muted">
                     <span className="truncate">{item.owner?.name}</span>
-                    {item.play != null && <span>{formatCount(item.play)} 播放</span>}
+                    {item.play != null && (
+                      <span>{formatCount(item.play)} 播放</span>
+                    )}
                   </div>
                 </div>
               </button>
             ))}
 
             {listError && (
-              <div className="p-3 text-[11px] leading-relaxed text-arch-red">{listError}</div>
+              <div className="p-3 text-[11px] leading-relaxed text-arch-red">
+                {listError}
+              </div>
             )}
 
-            {cards.length > 0 && hasMore && listTitle === '热门' && (
+            {cards.length > 0 && hasMore && listTitle === "热门" && (
               <button
                 type="button"
                 onClick={() => void loadPopular(listPage + 1, false)}
@@ -597,12 +640,16 @@ export default function BilibiliApp(_: AppProps) {
                   controls
                   playsInline
                   className="aspect-video w-full bg-black"
-                  onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime)}
-                  onError={() => setVideoError('视频流加载失败，可能已被下架或稍后重试')}
+                  onTimeUpdate={(e) =>
+                    onTimeUpdate(e.currentTarget.currentTime)
+                  }
+                  onError={() =>
+                    setVideoError("视频流加载失败，可能已被下架或稍后重试")
+                  }
                 />
               ) : (
                 <div className="flex aspect-video items-center justify-center text-xs text-arch-muted">
-                  {videoLoading ? '加载中…' : videoError ?? '从左侧选择视频'}
+                  {videoLoading ? "加载中…" : (videoError ?? "从左侧选择视频")}
                 </div>
               )}
 
@@ -614,11 +661,11 @@ export default function BilibiliApp(_: AppProps) {
                       key={d.key}
                       className="absolute whitespace-nowrap text-[12px] font-medium"
                       style={{
-                        top: `${(d.lane * 14 + 4)}%`,
-                        left: '100%',
+                        top: `${d.lane * 14 + 4}%`,
+                        left: "100%",
                         animation: `bili-dm ${DANMAKU_LIFETIME_MS / 1000}s linear forwards`,
                         color: danmakuColor(d.color),
-                        textShadow: '0 0 3px rgba(0,0,0,0.8)',
+                        textShadow: "0 0 3px rgba(0,0,0,0.8)",
                       }}
                     >
                       {d.text}
@@ -638,27 +685,31 @@ export default function BilibiliApp(_: AppProps) {
             {/* 标题栏 */}
             <div className="mt-2.5 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{info?.title || '未选择视频'}</div>
+                <div className="truncate text-sm font-medium">
+                  {info?.title || "未选择视频"}
+                </div>
                 <div className="mt-0.5 text-[11px] text-arch-muted">
-                  {info?.up ? `UP 主：${info.up}` : ''}
+                  {info?.up ? `UP 主：${info.up}` : ""}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowDanmaku((v) => !v)}
                 className={cn(
-                  'shrink-0 rounded-lg border px-2.5 py-1 text-[11px] transition',
+                  "shrink-0 rounded-lg border px-2.5 py-1 text-[11px] transition",
                   showDanmaku
-                    ? 'border-arch-accent bg-arch-accent/15 text-arch-accent'
-                    : 'border-arch-border text-arch-muted hover:bg-white/5',
+                    ? "border-arch-accent bg-arch-accent/15 text-arch-accent"
+                    : "border-arch-border text-arch-muted hover:bg-white/5",
                 )}
               >
-                弹幕{showDanmaku ? '开' : '关'}
+                弹幕{showDanmaku ? "开" : "关"}
               </button>
             </div>
 
             {info?.desc && (
-              <p className="mt-2 line-clamp-3 text-[11px] leading-relaxed text-arch-muted">{info.desc}</p>
+              <p className="mt-2 line-clamp-3 text-[11px] leading-relaxed text-arch-muted">
+                {info.desc}
+              </p>
             )}
 
             {/* 评论 */}
@@ -669,20 +720,34 @@ export default function BilibiliApp(_: AppProps) {
               </div>
               {replies.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-arch-border p-4 text-center text-[11px] text-arch-muted">
-                  {pageInfo ? '暂无评论' : '选择视频后显示评论'}
+                  {pageInfo ? "暂无评论" : "选择视频后显示评论"}
                 </div>
               ) : (
                 <div className="space-y-2">
                   {replies.map((r) => (
-                    <div key={r.rpid} className="rounded-lg border border-arch-border/60 p-2.5">
+                    <div
+                      key={r.rpid}
+                      className="rounded-lg border border-arch-border/60 p-2.5"
+                    >
                       <div className="mb-1 flex items-center gap-2">
                         <div className="h-5 w-5 overflow-hidden rounded-full bg-white/10">
                           {r.member?.avatar ? (
-                            <img src={r.member.avatar} alt="" loading="lazy" className="h-full w-full object-cover" />
+                            <img
+                              src={r.member.avatar}
+                              alt=""
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                            />
                           ) : null}
                         </div>
-                        <span className="text-[11px] font-medium">{r.member?.uname || '用户'}</span>
-                        {r.like ? <span className="text-[10px] text-arch-muted">{r.like} 赞</span> : null}
+                        <span className="text-[11px] font-medium">
+                          {r.member?.uname || "用户"}
+                        </span>
+                        {r.like ? (
+                          <span className="text-[10px] text-arch-muted">
+                            {r.like} 赞
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-[12px] leading-relaxed text-arch-muted">
                         {collapseText(r.content?.message)}

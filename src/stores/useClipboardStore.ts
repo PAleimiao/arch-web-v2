@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 export interface ClipItem {
   id: string;
@@ -21,10 +21,10 @@ interface ClipboardState {
 }
 
 const MAX_ITEMS = 80;
-const KEY = 'arch-web-os:clipboard';
+const KEY = "arch-web-os:clipboard";
 
 function load(): ClipItem[] {
-  if (typeof localStorage === 'undefined') return [];
+  if (typeof localStorage === "undefined") return [];
   try {
     const raw = localStorage.getItem(KEY);
     return raw ? (JSON.parse(raw) as ClipItem[]) : [];
@@ -34,7 +34,7 @@ function load(): ClipItem[] {
 }
 
 function persist(items: ClipItem[]) {
-  if (typeof localStorage === 'undefined') return;
+  if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(KEY, JSON.stringify(items.slice(0, MAX_ITEMS)));
   } catch {
@@ -61,7 +61,9 @@ export const useClipboardStore = create<ClipboardState>((set) => ({
       };
       const merged = [item, ...s.items.filter((i) => i.text !== trimmed)];
       const pinned = merged.filter((i) => i.pinned);
-      const plain = merged.filter((i) => !i.pinned).slice(0, MAX_ITEMS - pinned.length);
+      const plain = merged
+        .filter((i) => !i.pinned)
+        .slice(0, MAX_ITEMS - pinned.length);
       const next = [...pinned, ...plain];
       persist(next);
       return { items: next };

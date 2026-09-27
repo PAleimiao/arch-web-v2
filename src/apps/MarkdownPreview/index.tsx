@@ -1,16 +1,9 @@
-import { useMemo, useState, useEffect, type ReactNode } from 'react';
-import {
-  Pencil,
-  Columns2,
-  Eye,
-  Copy,
-  Save,
-  FileText,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { vfs } from '@/services/filesystem';
-import { notify } from '@/stores/useNotifyStore';
+import { useMemo, useState, useEffect, type ReactNode } from "react";
+import { Pencil, Columns2, Eye, Copy, Save, FileText } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { vfs } from "@/services/filesystem";
+import { notify } from "@/stores/useNotifyStore";
 
 const SAMPLE = `# Markdown 预览
 
@@ -41,13 +34,13 @@ function hello(name: string) {
 分割线以上。请输入左侧文本，右侧实时更新。
 `;
 
-type Mode = 'edit' | 'split' | 'preview';
+type Mode = "edit" | "split" | "preview";
 
 /** 仅允许安全的链接协议，杜绝 javascript: 之类的注入 */
 function safeHref(url: string): string | null {
   const u = url.trim();
   if (/^(https?:\/\/|mailto:)/i.test(u)) return u;
-  if (u.startsWith('#') || u.startsWith('/')) return u;
+  if (u.startsWith("#") || u.startsWith("/")) return u;
   return null;
 }
 
@@ -103,7 +96,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
 /** 把 Markdown 解析成结构化块并渲染成 React 元素 */
 function renderMarkdown(src: string): ReactNode[] {
-  const lines = src.replace(/\r\n/g, '\n').split('\n');
+  const lines = src.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
   let key = 0;
@@ -126,23 +119,21 @@ function renderMarkdown(src: string): ReactNode[] {
           key={key++}
           className="my-2 overflow-x-auto rounded border border-arch-border bg-black/40 p-2 font-mono text-[12px] leading-5"
         >
-          <code>{buf.join('\n')}</code>
+          <code>{buf.join("\n")}</code>
         </pre>,
       );
       continue;
     }
 
     // 空行
-    if (line.trim() === '') {
+    if (line.trim() === "") {
       i++;
       continue;
     }
 
     // 分割线
     if (/^(-{3,}|\*{3,})\s*$/.test(line)) {
-      blocks.push(
-        <hr key={key++} className="my-3 border-arch-border" />,
-      );
+      blocks.push(<hr key={key++} className="my-3 border-arch-border" />);
       i++;
       continue;
     }
@@ -152,13 +143,9 @@ function renderMarkdown(src: string): ReactNode[] {
     if (h) {
       const level = h[1].length;
       const text = h[2];
-      const cls =
-        level <= 2 ? 'text-base font-bold' : 'text-sm font-semibold';
+      const cls = level <= 2 ? "text-base font-bold" : "text-sm font-semibold";
       blocks.push(
-        <div
-          key={key++}
-          className={cn('mt-3 mb-1 text-arch-text', cls)}
-        >
+        <div key={key++} className={cn("mt-3 mb-1 text-arch-text", cls)}>
           {renderInline(text, `h${key}`)}
         </div>,
       );
@@ -170,7 +157,7 @@ function renderMarkdown(src: string): ReactNode[] {
     if (/^>\s?/.test(line)) {
       const buf: string[] = [];
       while (i < lines.length && /^>\s?/.test(lines[i])) {
-        buf.push(lines[i].replace(/^>\s?/, ''));
+        buf.push(lines[i].replace(/^>\s?/, ""));
         i++;
       }
       blocks.push(
@@ -190,14 +177,11 @@ function renderMarkdown(src: string): ReactNode[] {
     if (/^[-*]\s+/.test(line)) {
       const items: string[] = [];
       while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^[-*]\s+/, ''));
+        items.push(lines[i].replace(/^[-*]\s+/, ""));
         i++;
       }
       blocks.push(
-        <ul
-          key={key++}
-          className="my-2 list-disc space-y-0.5 pl-5"
-        >
+        <ul key={key++} className="my-2 list-disc space-y-0.5 pl-5">
           {items.map((it, ii) => (
             <li key={ii}>{renderInline(it, `ul${key}-${ii}`)}</li>
           ))}
@@ -210,14 +194,11 @@ function renderMarkdown(src: string): ReactNode[] {
     if (/^\d+\.\s+/.test(line)) {
       const items: string[] = [];
       while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\d+\.\s+/, ''));
+        items.push(lines[i].replace(/^\d+\.\s+/, ""));
         i++;
       }
       blocks.push(
-        <ol
-          key={key++}
-          className="my-2 list-decimal space-y-0.5 pl-5"
-        >
+        <ol key={key++} className="my-2 list-decimal space-y-0.5 pl-5">
           {items.map((it, ii) => (
             <li key={ii}>{renderInline(it, `ol${key}-${ii}`)}</li>
           ))}
@@ -230,7 +211,7 @@ function renderMarkdown(src: string): ReactNode[] {
     const buf: string[] = [];
     while (
       i < lines.length &&
-      lines[i].trim() !== '' &&
+      lines[i].trim() !== "" &&
       !/^```/.test(lines[i]) &&
       !/^(#{1,6})\s+/.test(lines[i]) &&
       !/^>\s?/.test(lines[i]) &&
@@ -243,7 +224,7 @@ function renderMarkdown(src: string): ReactNode[] {
     }
     blocks.push(
       <p key={key++} className="my-2 leading-6">
-        {renderInline(buf.join(' '), `p${key}`)}
+        {renderInline(buf.join(" "), `p${key}`)}
       </p>,
     );
   }
@@ -254,30 +235,30 @@ function renderMarkdown(src: string): ReactNode[] {
 /** 提取渲染后的纯文本（用于复制） */
 function markdownToPlainText(src: string): string {
   return src
-    .replace(/```[\s\S]*?```/g, (b) => b.replace(/```\w*\n?/g, ''))
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^>\s?/gm, '')
-    .replace(/^[-*]\s+/gm, '- ')
-    .replace(/^\d+\.\s+/gm, '')
-    .replace(/^(-{3,}|\*{3,})\s*$/gm, '')
+    .replace(/```[\s\S]*?```/g, (b) => b.replace(/```\w*\n?/g, ""))
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^>\s?/gm, "")
+    .replace(/^[-*]\s+/gm, "- ")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/^(-{3,}|\*{3,})\s*$/gm, "")
     .trim();
 }
 
 export default function MarkdownPreview({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('Markdown 预览');
+    context.setTitle("Markdown 预览");
   }, [context]);
   const [md, setMd] = useState(SAMPLE);
-  const [mode, setMode] = useState<Mode>('split');
-  const [path, setPath] = useState('/home/arch/notes/preview.md');
+  const [mode, setMode] = useState<Mode>("split");
+  const [path, setPath] = useState("/home/arch/notes/preview.md");
   const [flash, setFlash] = useState<string | null>(null);
 
   const rendered = useMemo(() => renderMarkdown(md), [md]);
-  const lines = useMemo(() => md.split('\n').length, [md]);
+  const lines = useMemo(() => md.split("\n").length, [md]);
 
   const showFlash = (msg: string) => {
     setFlash(msg);
@@ -288,27 +269,27 @@ export default function MarkdownPreview({ context }: AppProps) {
     const text = markdownToPlainText(md);
     try {
       await navigator.clipboard.writeText(text);
-      showFlash('已复制纯文本');
+      showFlash("已复制纯文本");
     } catch {
-      showFlash('复制失败');
+      showFlash("复制失败");
     }
   };
 
   const save = async () => {
     try {
       await vfs.writeFile(path, md);
-      notify('已保存', path, 'success');
-      showFlash('已保存');
+      notify("已保存", path, "success");
+      showFlash("已保存");
     } catch (err) {
-      notify('保存失败', (err as Error).message, 'error');
-      showFlash('保存失败');
+      notify("保存失败", (err as Error).message, "error");
+      showFlash("保存失败");
     }
   };
 
   const modes: Array<[Mode, string, ReactNode]> = [
-    ['edit', '仅编辑', <Pencil key="edit" size={13} />],
-    ['split', '分栏', <Columns2 key="split" size={13} />],
-    ['preview', '仅预览', <Eye key="preview" size={13} />],
+    ["edit", "仅编辑", <Pencil key="edit" size={13} />],
+    ["split", "分栏", <Columns2 key="split" size={13} />],
+    ["preview", "仅预览", <Eye key="preview" size={13} />],
   ];
 
   return (
@@ -321,10 +302,10 @@ export default function MarkdownPreview({ context }: AppProps) {
               type="button"
               onClick={() => setMode(m)}
               className={cn(
-                'flex items-center gap-1 px-2 py-1 text-xs',
+                "flex items-center gap-1 px-2 py-1 text-xs",
                 mode === m
-                  ? 'bg-arch-accent text-white'
-                  : 'bg-arch-panel hover:bg-white/10',
+                  ? "bg-arch-accent text-white"
+                  : "bg-arch-panel hover:bg-white/10",
               )}
             >
               {icon}
@@ -348,8 +329,13 @@ export default function MarkdownPreview({ context }: AppProps) {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {(mode === 'edit' || mode === 'split') && (
-          <div className={cn('flex min-h-0 flex-col', mode === 'split' ? 'w-1/2 border-r border-arch-border' : 'flex-1')}>
+        {(mode === "edit" || mode === "split") && (
+          <div
+            className={cn(
+              "flex min-h-0 flex-col",
+              mode === "split" ? "w-1/2 border-r border-arch-border" : "flex-1",
+            )}
+          >
             <textarea
               value={md}
               onChange={(e) => setMd(e.target.value)}
@@ -372,7 +358,7 @@ export default function MarkdownPreview({ context }: AppProps) {
             </div>
           </div>
         )}
-        {(mode === 'split' || mode === 'preview') && (
+        {(mode === "split" || mode === "preview") && (
           <div className="min-h-0 flex-1 overflow-y-auto p-4 text-[13px]">
             {rendered.length > 0 ? (
               rendered

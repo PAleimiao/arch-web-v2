@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Delete } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { evalExpr, round10 } from '@/lib/expr';
+import { useState } from "react";
+import { Delete } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { evalExpr, round10 } from "@/lib/expr";
 
 /**
  * 一个够用就行的桌面计算器：
@@ -9,43 +9,43 @@ import { evalExpr, round10 } from '@/lib/expr';
  * - 显示当前表达式与最近一次结果
  * - 键盘：数字键、+ - * /、Enter、Backspace、Esc
  */
-const OPS = '+-*/';
+const OPS = "+-*/";
 
 export default function Calculator(_: AppProps) {
-  const [display, setDisplay] = useState('0');
-  const [expr, setExpr] = useState('');
+  const [display, setDisplay] = useState("0");
+  const [expr, setExpr] = useState("");
   const [reset, setReset] = useState(false);
 
   const input = (key: string) => {
-    if (key === 'C') {
-      setDisplay('0');
-      setExpr('');
+    if (key === "C") {
+      setDisplay("0");
+      setExpr("");
       setReset(false);
       return;
     }
-    if (key === '←') {
+    if (key === "←") {
       // 刚算完就退格 = 放弃结果重新开始，否则 display / expr 同步回退
       if (reset) {
-        setDisplay('0');
-        setExpr('');
+        setDisplay("0");
+        setExpr("");
         setReset(false);
         return;
       }
-      const next = display.length > 1 ? display.slice(0, -1) : '';
-      setDisplay(next || '0');
+      const next = display.length > 1 ? display.slice(0, -1) : "";
+      setDisplay(next || "0");
       setExpr(next);
       return;
     }
-    if (key === '=') {
+    if (key === "=") {
       const src = reset ? display : expr || display;
       try {
         const v = round10(evalExpr(src));
-        if (!Number.isFinite(v)) throw new Error('结果无效');
+        if (!Number.isFinite(v)) throw new Error("结果无效");
         setExpr(`${src}=${String(v)}`);
         setDisplay(String(v));
       } catch {
-        setDisplay('Error');
-        setExpr('');
+        setDisplay("Error");
+        setExpr("");
       }
       setReset(true);
       return;
@@ -64,7 +64,7 @@ export default function Calculator(_: AppProps) {
       return;
     }
     // 数字 / 小数点 / 括号
-    if (reset || display === '0') {
+    if (reset || display === "0") {
       setDisplay(key);
       setExpr(key);
       setReset(false);
@@ -75,26 +75,26 @@ export default function Calculator(_: AppProps) {
   };
 
   const keys: Array<[string, string?]> = [
-    ['C', 'clear'],
-    ['(', 'op'],
-    [')', 'op'],
-    ['←', 'fn'],
-    ['7'],
-    ['8'],
-    ['9'],
-    ['/', 'op'],
-    ['4'],
-    ['5'],
-    ['6'],
-    ['*', 'op'],
-    ['1'],
-    ['2'],
-    ['3'],
-    ['-', 'op'],
-    ['0'],
-    ['.'],
-    ['=', 'eq'],
-    ['+', 'op'],
+    ["C", "clear"],
+    ["(", "op"],
+    [")", "op"],
+    ["←", "fn"],
+    ["7"],
+    ["8"],
+    ["9"],
+    ["/", "op"],
+    ["4"],
+    ["5"],
+    ["6"],
+    ["*", "op"],
+    ["1"],
+    ["2"],
+    ["3"],
+    ["-", "op"],
+    ["0"],
+    ["."],
+    ["=", "eq"],
+    ["+", "op"],
   ];
 
   return (
@@ -105,15 +105,15 @@ export default function Calculator(_: AppProps) {
         if (/[0-9+\-*/.]/.test(k)) {
           e.preventDefault();
           input(k);
-        } else if (k === 'Enter' || k === '=') {
+        } else if (k === "Enter" || k === "=") {
           e.preventDefault();
-          input('=');
-        } else if (k === 'Backspace') {
+          input("=");
+        } else if (k === "Backspace") {
           e.preventDefault();
-          input('←');
-        } else if (k === 'Escape' || k === 'c' || k === 'C') {
+          input("←");
+        } else if (k === "Escape" || k === "c" || k === "C") {
           e.preventDefault();
-          input('C');
+          input("C");
         }
       }}
       tabIndex={0}
@@ -125,15 +125,15 @@ export default function Calculator(_: AppProps) {
       <div className="grid flex-1 grid-cols-4 gap-2">
         {keys.map(([k, kind]) => {
           const base =
-            'rounded font-mono text-base transition active:scale-95 flex items-center justify-center';
+            "rounded font-mono text-base transition active:scale-95 flex items-center justify-center";
           const tone =
-            kind === 'eq'
-              ? 'bg-arch-accent text-white hover:bg-arch-accent-dim'
-              : kind === 'op'
-                ? 'bg-arch-panel text-arch-accent hover:bg-arch-border'
-                : kind === 'fn' || kind === 'clear'
-                  ? 'bg-arch-panel text-arch-red hover:bg-arch-border'
-                  : 'bg-arch-panel hover:bg-arch-border';
+            kind === "eq"
+              ? "bg-arch-accent text-white hover:bg-arch-accent-dim"
+              : kind === "op"
+                ? "bg-arch-panel text-arch-accent hover:bg-arch-border"
+                : kind === "fn" || kind === "clear"
+                  ? "bg-arch-panel text-arch-red hover:bg-arch-border"
+                  : "bg-arch-panel hover:bg-arch-border";
           return (
             <button
               key={k}
@@ -142,7 +142,7 @@ export default function Calculator(_: AppProps) {
               className={`${base} ${tone}`}
               style={{ minHeight: 44 }}
             >
-              {k === '←' ? <Delete size={16} /> : k}
+              {k === "←" ? <Delete size={16} /> : k}
             </button>
           );
         })}

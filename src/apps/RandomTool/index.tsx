@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Dices,
   Copy,
@@ -8,11 +8,11 @@ import {
   Shuffle,
   RefreshCw,
   Layers,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
-import { rememberClip } from '@/stores/useClipboardStore';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
+import { rememberClip } from "@/stores/useClipboardStore";
 
 function randInt(n: number): number {
   return Math.floor(Math.random() * n);
@@ -22,9 +22,13 @@ async function copyText(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
     rememberClip(text);
-    notify('已复制', text.length > 40 ? `${text.slice(0, 40)}…` : text, 'success');
+    notify(
+      "已复制",
+      text.length > 40 ? `${text.slice(0, 40)}…` : text,
+      "success",
+    );
   } catch {
-    notify('复制失败', '浏览器拒绝了剪贴板访问', 'error');
+    notify("复制失败", "浏览器拒绝了剪贴板访问", "error");
   }
 }
 
@@ -39,32 +43,37 @@ function uuidv4(): string {
     c.getRandomValues(b);
     b[6] = (b[6] & 0x0f) | 0x40;
     b[8] = (b[8] & 0x3f) | 0x80;
-    const h = Array.from(b, (x) => x.toString(16).padStart(2, '0'));
-    return `${h.slice(0, 4).join('')}-${h.slice(4, 6).join('')}-${h
+    const h = Array.from(b, (x) => x.toString(16).padStart(2, "0"));
+    return `${h.slice(0, 4).join("")}-${h.slice(4, 6).join("")}-${h
       .slice(6, 8)
-      .join('')}-${h.slice(8, 10).join('')}-${h.slice(10, 16).join('')}`;
+      .join("")}-${h.slice(8, 10).join("")}-${h.slice(10, 16).join("")}`;
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
     const r = randInt(16);
-    const v = ch === 'x' ? r : (r & 0x3) | 0x8;
+    const v = ch === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
 
 function randHex(): string {
-  return '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+  return (
+    "#" +
+    Math.floor(Math.random() * 0xffffff)
+      .toString(16)
+      .padStart(6, "0")
+  );
 }
 
-type Tab = 'number' | 'password' | 'uuid' | 'draw' | 'color' | 'dice';
+type Tab = "number" | "password" | "uuid" | "draw" | "color" | "dice";
 
 const DICE = [4, 6, 8, 12, 20, 100];
 
 export default function RandomTool({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('随机与生成');
+    context.setTitle("随机与生成");
   }, [context]);
 
-  const [tab, setTab] = useState<Tab>('number');
+  const [tab, setTab] = useState<Tab>("number");
 
   // 随机数
   const [min, setMin] = useState(1);
@@ -80,7 +89,7 @@ export default function RandomTool({ context }: AppProps) {
     const span = hi - lo + 1;
     const n = Math.max(1, Math.min(count, 10000));
     if (!allowDup && n > span) {
-      notify('数量超过范围', '不重复模式下结果数不能大于区间大小', 'warn');
+      notify("数量超过范围", "不重复模式下结果数不能大于区间大小", "warn");
       return;
     }
     const out: number[] = [];
@@ -106,22 +115,26 @@ export default function RandomTool({ context }: AppProps) {
   const [useDigit, setUseDigit] = useState(true);
   const [useSymbol, setUseSymbol] = useState(true);
   const [excludeAmb, setExcludeAmb] = useState(true);
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState("");
   const [pwCopied, setPwCopied] = useState(false);
 
   const genPassword = () => {
-    let chars = '';
-    if (useUpper) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    if (useLower) chars += 'abcdefghijklmnopqrstuvwxyz';
-    if (useDigit) chars += '0123456789';
-    if (useSymbol) chars += '!@#$%^&*()-_=+[]{};:,.<>?';
-    if (excludeAmb) chars = chars.split('').filter((c) => !'0O1lI'.includes(c)).join('');
+    let chars = "";
+    if (useUpper) chars += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    if (useLower) chars += "abcdefghijklmnopqrstuvwxyz";
+    if (useDigit) chars += "0123456789";
+    if (useSymbol) chars += "!@#$%^&*()-_=+[]{};:,.<>?";
+    if (excludeAmb)
+      chars = chars
+        .split("")
+        .filter((c) => !"0O1lI".includes(c))
+        .join("");
     if (!chars) {
-      notify('字符集为空', '请至少开启一类字符', 'warn');
-      setPassword('');
+      notify("字符集为空", "请至少开启一类字符", "warn");
+      setPassword("");
       return;
     }
-    let out = '';
+    let out = "";
     for (let i = 0; i < pwLen; i++) out += chars[randInt(chars.length)];
     setPassword(out);
     setPwCopied(false);
@@ -136,9 +149,10 @@ export default function RandomTool({ context }: AppProps) {
     if (excludeAmb) s = Math.max(0, s - 4);
     return s;
   })();
-  const pwBits = pwCharsetSize > 1 ? Math.round(pwLen * Math.log2(pwCharsetSize)) : 0;
+  const pwBits =
+    pwCharsetSize > 1 ? Math.round(pwLen * Math.log2(pwCharsetSize)) : 0;
   const pwStrength =
-    pwBits >= 80 ? '极强' : pwBits >= 60 ? '强' : pwBits >= 40 ? '中' : '弱';
+    pwBits >= 80 ? "极强" : pwBits >= 60 ? "强" : pwBits >= 40 ? "中" : "弱";
 
   // UUID
   const [uuids, setUuids] = useState<string[]>([]);
@@ -149,18 +163,18 @@ export default function RandomTool({ context }: AppProps) {
   };
 
   // 抽取
-  const [candidates, setCandidates] = useState('苹果\n香蕉\n橙子\n西瓜\n葡萄');
+  const [candidates, setCandidates] = useState("苹果\n香蕉\n橙子\n西瓜\n葡萄");
   const [drawCount, setDrawCount] = useState(1);
   const [draws, setDraws] = useState<string[]>([]);
 
   const genDraw = () => {
     const list = candidates
-      .split('\n')
+      .split("\n")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     const n = Math.max(1, Math.min(drawCount, list.length || 1));
     if (list.length === 0) {
-      notify('候选为空', '请每行填写一个候选', 'warn');
+      notify("候选为空", "请每行填写一个候选", "warn");
       return;
     }
     const pool = [...list];
@@ -180,7 +194,7 @@ export default function RandomTool({ context }: AppProps) {
   };
 
   // 掷骰
-  const [diceResult, setDiceResult] = useState<string>('');
+  const [diceResult, setDiceResult] = useState<string>("");
   const [diceHistory, setDiceHistory] = useState<string[]>([]);
   const roll = (sides: number) => {
     const v = randInt(sides) + 1;
@@ -189,18 +203,18 @@ export default function RandomTool({ context }: AppProps) {
     setDiceHistory((prev) => [label, ...prev].slice(0, 12));
   };
   const flipCoin = () => {
-    const v = randInt(2) === 0 ? '正面' : '反面';
+    const v = randInt(2) === 0 ? "正面" : "反面";
     setDiceResult(`硬币 → ${v}`);
     setDiceHistory((prev) => [`硬币 → ${v}`, ...prev].slice(0, 12));
   };
 
   const tabs: Array<[Tab, string, typeof Dices]> = [
-    ['number', '随机数', Hash],
-    ['password', '密码', KeyRound],
-    ['uuid', 'UUID', Hash],
-    ['draw', '抽取', Shuffle],
-    ['color', '颜色', Layers],
-    ['dice', '掷骰', Dices],
+    ["number", "随机数", Hash],
+    ["password", "密码", KeyRound],
+    ["uuid", "UUID", Hash],
+    ["draw", "抽取", Shuffle],
+    ["color", "颜色", Layers],
+    ["dice", "掷骰", Dices],
   ];
 
   return (
@@ -212,8 +226,8 @@ export default function RandomTool({ context }: AppProps) {
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              'flex items-center gap-1 rounded px-2 py-1 text-xs',
-              tab === id ? 'bg-arch-accent text-white' : 'hover:bg-white/10',
+              "flex items-center gap-1 rounded px-2 py-1 text-xs",
+              tab === id ? "bg-arch-accent text-white" : "hover:bg-white/10",
             )}
           >
             <Icon size={13} /> {label}
@@ -222,7 +236,7 @@ export default function RandomTool({ context }: AppProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 text-[12px]">
-        {tab === 'number' && (
+        {tab === "number" && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-end gap-3">
               <label className="flex flex-col gap-1">
@@ -248,7 +262,9 @@ export default function RandomTool({ context }: AppProps) {
                 <input
                   type="number"
                   value={count}
-                  onChange={(e) => setCount(Math.max(1, Number(e.target.value)))}
+                  onChange={(e) =>
+                    setCount(Math.max(1, Number(e.target.value)))
+                  }
                   className="w-20 rounded border border-arch-border bg-black/30 px-2 py-1 font-mono"
                 />
               </label>
@@ -277,13 +293,14 @@ export default function RandomTool({ context }: AppProps) {
                   <button
                     type="button"
                     onClick={async () => {
-                      await copyText(numbers.join('\n'));
+                      await copyText(numbers.join("\n"));
                       setNumCopied(true);
                       window.setTimeout(() => setNumCopied(false), 1000);
                     }}
                     className="flex items-center gap-1 text-arch-accent hover:underline"
                   >
-                    {numCopied ? <Check size={12} /> : <Copy size={12} />} 复制全部
+                    {numCopied ? <Check size={12} /> : <Copy size={12} />}{" "}
+                    复制全部
                   </button>
                 </div>
                 <div className="max-h-48 overflow-y-auto p-2 font-mono">
@@ -298,11 +315,13 @@ export default function RandomTool({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'password' && (
+        {tab === "password" && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-arch-muted">长度 {pwLen}</span>
+                <span className="text-[11px] text-arch-muted">
+                  长度 {pwLen}
+                </span>
                 <input
                   type="range"
                   min={4}
@@ -316,21 +335,21 @@ export default function RandomTool({ context }: AppProps) {
             <div className="flex flex-wrap gap-3 text-[11px]">
               {(
                 [
-                  ['useUpper', '大写', setUseUpper],
-                  ['useLower', '小写', setUseLower],
-                  ['useDigit', '数字', setUseDigit],
-                  ['useSymbol', '符号', setUseSymbol],
-                  ['excludeAmb', '排除易混淆(0O1lI)', setExcludeAmb],
+                  ["useUpper", "大写", setUseUpper],
+                  ["useLower", "小写", setUseLower],
+                  ["useDigit", "数字", setUseDigit],
+                  ["useSymbol", "符号", setUseSymbol],
+                  ["excludeAmb", "排除易混淆(0O1lI)", setExcludeAmb],
                 ] as Array<[string, string, (v: boolean) => void]>
               ).map(([key, label, setter]) => {
                 const on =
-                  key === 'useUpper'
+                  key === "useUpper"
                     ? useUpper
-                    : key === 'useLower'
+                    : key === "useLower"
                       ? useLower
-                      : key === 'useDigit'
+                      : key === "useDigit"
                         ? useDigit
-                        : key === 'useSymbol'
+                        : key === "useSymbol"
                           ? useSymbol
                           : excludeAmb;
                 return (
@@ -355,7 +374,9 @@ export default function RandomTool({ context }: AppProps) {
             {password && (
               <div className="rounded border border-arch-border bg-arch-panel/40 p-2">
                 <div className="flex items-center justify-between gap-2">
-                  <code className="break-all font-mono text-[13px]">{password}</code>
+                  <code className="break-all font-mono text-[13px]">
+                    {password}
+                  </code>
                   <button
                     type="button"
                     onClick={async () => {
@@ -372,12 +393,12 @@ export default function RandomTool({ context }: AppProps) {
                   <span>熵值约 {pwBits} bit</span>
                   <span
                     className={cn(
-                      'rounded px-1.5 py-0.5',
-                      pwStrength === '弱'
-                        ? 'bg-arch-red/20 text-arch-red'
-                        : pwStrength === '中'
-                          ? 'bg-arch-accent/20 text-arch-accent'
-                          : 'bg-arch-green/20 text-arch-green',
+                      "rounded px-1.5 py-0.5",
+                      pwStrength === "弱"
+                        ? "bg-arch-red/20 text-arch-red"
+                        : pwStrength === "中"
+                          ? "bg-arch-accent/20 text-arch-accent"
+                          : "bg-arch-green/20 text-arch-green",
                     )}
                   >
                     强度：{pwStrength}
@@ -388,7 +409,7 @@ export default function RandomTool({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'uuid' && (
+        {tab === "uuid" && (
           <div className="space-y-3">
             <div className="flex items-end gap-3">
               <label className="flex flex-col gap-1">
@@ -396,7 +417,9 @@ export default function RandomTool({ context }: AppProps) {
                 <input
                   type="number"
                   value={uuidCount}
-                  onChange={(e) => setUuidCount(Math.max(1, Number(e.target.value)))}
+                  onChange={(e) =>
+                    setUuidCount(Math.max(1, Number(e.target.value)))
+                  }
                   className="w-20 rounded border border-arch-border bg-black/30 px-2 py-1 font-mono"
                 />
               </label>
@@ -430,10 +453,12 @@ export default function RandomTool({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'draw' && (
+        {tab === "draw" && (
           <div className="space-y-3">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-arch-muted">候选（每行一个）</span>
+              <span className="text-[11px] text-arch-muted">
+                候选（每行一个）
+              </span>
               <textarea
                 value={candidates}
                 onChange={(e) => setCandidates(e.target.value)}
@@ -447,7 +472,9 @@ export default function RandomTool({ context }: AppProps) {
                 <input
                   type="number"
                   value={drawCount}
-                  onChange={(e) => setDrawCount(Math.max(1, Number(e.target.value)))}
+                  onChange={(e) =>
+                    setDrawCount(Math.max(1, Number(e.target.value)))
+                  }
                   className="w-16 rounded border border-arch-border bg-black/30 px-2 py-1 font-mono"
                 />
               </label>
@@ -474,7 +501,7 @@ export default function RandomTool({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'color' && (
+        {tab === "color" && (
           <div className="space-y-3">
             <div className="flex items-end gap-3">
               <label className="flex flex-col gap-1">
@@ -482,7 +509,9 @@ export default function RandomTool({ context }: AppProps) {
                 <input
                   type="number"
                   value={colorCount}
-                  onChange={(e) => setColorCount(Math.max(1, Number(e.target.value)))}
+                  onChange={(e) =>
+                    setColorCount(Math.max(1, Number(e.target.value)))
+                  }
                   className="w-20 rounded border border-arch-border bg-black/30 px-2 py-1 font-mono"
                 />
               </label>
@@ -502,9 +531,9 @@ export default function RandomTool({ context }: AppProps) {
                     type="button"
                     onClick={() => copyText(c)}
                     className="flex h-14 flex-col items-center justify-center rounded border border-arch-border font-mono text-[11px]"
-                    style={{ background: c, color: '#fff' }}
+                    style={{ background: c, color: "#fff" }}
                   >
-                    <span className="truncate px-1" style={{ color: '#fff' }}>
+                    <span className="truncate px-1" style={{ color: "#fff" }}>
                       {c}
                     </span>
                   </button>
@@ -514,7 +543,7 @@ export default function RandomTool({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'dice' && (
+        {tab === "dice" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
               {DICE.map((s) => (

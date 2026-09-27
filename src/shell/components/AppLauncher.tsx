@@ -1,24 +1,24 @@
-import { useState } from 'react';
-import { CATEGORIES, APPS } from '@/apps/registry';
-import { useWindowStore } from '@/stores/useWindowStore';
-import { useOSStore } from '@/stores/useOSStore';
-import { usePackageStore } from '@/stores/usePackageStore';
-import { cn } from '@/lib/cn';
+import { useState } from "react";
+import { CATEGORIES, APPS } from "@/apps/registry";
+import { useWindowStore } from "@/stores/useWindowStore";
+import { useOSStore } from "@/stores/useOSStore";
+import { usePackageStore } from "@/stores/usePackageStore";
+import { cn } from "@/lib/cn";
 
 export default function AppLauncher() {
   const launcherOpen = useOSStore((s) => s.launcherOpen);
   const toggleLauncher = useOSStore((s) => s.toggleLauncher);
   const open = useWindowStore((s) => s.open);
   const disabled = usePackageStore((s) => s.disabled);
-  const [category, setCategory] = useState<string>('全部');
-  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<string>("全部");
+  const [query, setQuery] = useState("");
 
   if (!launcherOpen) return null;
 
   const apps = APPS.filter((a) => {
     // 被 pacman 卸载掉的应用不在启动器里出现
     if (disabled.includes(a.id)) return false;
-    const okCat = category === '全部' || a.category === category;
+    const okCat = category === "全部" || a.category === category;
     const okQuery =
       !query ||
       a.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -30,12 +30,12 @@ export default function AppLauncher() {
   const launch = (id: string, name: string, singleton?: boolean) => {
     open({ appId: id, title: name, singleton });
     toggleLauncher(false);
-    setQuery('');
+    setQuery("");
   };
 
   return (
     <div
-      className="fixed inset-0 z-[8000] flex items-start justify-center bg-black/50 pt-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-8000 flex items-start justify-center bg-black/50 pt-[12vh] backdrop-blur-sm"
       onClick={() => toggleLauncher(false)}
     >
       <div
@@ -59,10 +59,10 @@ export default function AppLauncher() {
               type="button"
               onClick={() => setCategory(c)}
               className={cn(
-                'rounded px-2 py-0.5 text-[11px] transition',
+                "rounded px-2 py-0.5 text-[11px] transition",
                 category === c
-                  ? 'bg-arch-accent/25 text-white'
-                  : 'text-arch-muted hover:bg-white/5 hover:text-arch-text',
+                  ? "bg-arch-accent/25 text-white"
+                  : "text-arch-muted hover:bg-white/5 hover:text-arch-text",
               )}
             >
               {c}
@@ -82,9 +82,9 @@ export default function AppLauncher() {
               >
                 <div
                   className="flex h-11 w-11 items-center justify-center rounded-xl transition group-hover:scale-105"
-                  style={{ background: `${app.accent ?? '#1793d1'}22` }}
+                  style={{ background: `${app.accent ?? "#1793d1"}22` }}
                 >
-                  <Icon size={20} style={{ color: app.accent ?? '#1793d1' }} />
+                  <Icon size={20} style={{ color: app.accent ?? "#1793d1" }} />
                 </div>
                 <span className="w-full truncate text-center text-[11px] text-arch-text/90">
                   {app.name}

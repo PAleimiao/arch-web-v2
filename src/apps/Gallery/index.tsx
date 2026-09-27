@@ -1,14 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Plus, Trash2, X } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
+import { useEffect, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
 import {
   countBlobs,
   deleteBlob,
   listBlobs,
   putBlobs,
   type BlobRecord,
-} from '@/services/mediaStore';
-import { cn } from '@/lib/cn';
+} from "@/services/mediaStore";
+import { cn } from "@/lib/cn";
 
 /* ---------------------------- 启动期预置示例图 ---------------------------- */
 
@@ -16,12 +23,12 @@ import { cn } from '@/lib/cn';
  * 6 张几何风格 SVG 示例（不依赖网络资源）。
  * 写入 IndexedDB 的 key 加 ns 前缀，避免和用户上传冲突。
  */
-const SEED_KEY = 'seed:welcome';
-const USER_PREFIX = 'img:';
+const SEED_KEY = "seed:welcome";
+const USER_PREFIX = "img:";
 
 const SEED_SVGS = [
   {
-    name: '几何蓝',
+    name: "几何蓝",
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320">
       <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#06b6d4"/>
@@ -33,7 +40,7 @@ const SEED_SVGS = [
     </svg>`,
   },
   {
-    name: '日夜交替',
+    name: "日夜交替",
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320">
       <defs><linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="#1e1b4b"/><stop offset="100%" stop-color="#f59e0b"/>
@@ -48,12 +55,12 @@ const SEED_SVGS = [
     </svg>`,
   },
   {
-    name: '极简网格',
+    name: "极简网格",
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320">
       <rect width="480" height="320" fill="#0f172a"/>
       <g stroke="#334155" stroke-width="1">
-        ${Array.from({ length: 16 }, (_, i) => `<line x1="${i * 32}" y1="0" x2="${i * 32}" y2="320"/>`).join('')}
-        ${Array.from({ length: 11 }, (_, i) => `<line x1="0" y1="${i * 32}" x2="480" y2="${i * 32}"/>`).join('')}
+        ${Array.from({ length: 16 }, (_, i) => `<line x1="${i * 32}" y1="0" x2="${i * 32}" y2="320"/>`).join("")}
+        ${Array.from({ length: 11 }, (_, i) => `<line x1="0" y1="${i * 32}" x2="480" y2="${i * 32}"/>`).join("")}
       </g>
       <circle cx="240" cy="160" r="60" fill="#22d3ee" opacity="0.9"/>
       <circle cx="240" cy="160" r="40" fill="#a78bfa" opacity="0.9"/>
@@ -61,7 +68,7 @@ const SEED_SVGS = [
     </svg>`,
   },
   {
-    name: '雪花',
+    name: "雪花",
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320">
       <rect width="480" height="320" fill="#0c4a6e"/>
       <g stroke="#bae6fd" stroke-width="2" stroke-linecap="round">
@@ -77,12 +84,12 @@ const SEED_SVGS = [
               <line x1="-${r * 0.7}" y1="${r * 0.7}" x2="${r * 0.7}" y2="-${r * 0.7}"/>
             </g>`;
           })
-          .join('')}
+          .join("")}
       </g>
     </svg>`,
   },
   {
-    name: '波浪',
+    name: "波浪",
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320">
       <defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="0">
         <stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#ec4899"/>
@@ -93,7 +100,7 @@ const SEED_SVGS = [
     </svg>`,
   },
   {
-    name: '樱花粉',
+    name: "樱花粉",
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320">
       <defs><radialGradient id="g4" cx="0.5" cy="0.5" r="0.7">
         <stop offset="0%" stop-color="#fda4af"/><stop offset="100%" stop-color="#9f1239"/>
@@ -110,7 +117,7 @@ const SEED_SVGS = [
               <circle r="1.4" fill="#fbcfe8"/>
             </g>`;
           })
-          .join('')}
+          .join("")}
       </g>
     </svg>`,
   },
@@ -121,7 +128,7 @@ async function ensureSeed(): Promise<void> {
   const records: BlobRecord[] = SEED_SVGS.map((it, i) => ({
     key: `${SEED_KEY}-${i}`,
     name: it.name,
-    blob: new Blob([it.svg], { type: 'image/svg+xml' }),
+    blob: new Blob([it.svg], { type: "image/svg+xml" }),
     addedAt: Date.now() - (SEED_SVGS.length - i) * 10_000, // 倒序展示
   }));
   await putBlobs(records);
@@ -157,7 +164,7 @@ export default function Gallery(_: AppProps) {
         setPhotos(
           records.map((r) => ({
             key: r.key,
-            name: r.name ?? '未命名',
+            name: r.name ?? "未命名",
             url: URL.createObjectURL(r.blob),
             addedAt: r.addedAt ?? 0,
           })),
@@ -186,7 +193,7 @@ export default function Gallery(_: AppProps) {
     setPhotos(
       records.map((r) => ({
         key: r.key,
-        name: r.name ?? '未命名',
+        name: r.name ?? "未命名",
         url: URL.createObjectURL(r.blob),
         addedAt: r.addedAt ?? 0,
       })),
@@ -198,7 +205,7 @@ export default function Gallery(_: AppProps) {
     const records: BlobRecord[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      if (!f.type.startsWith('image/')) continue;
+      if (!f.type.startsWith("image/")) continue;
       records.push({
         key: `${USER_PREFIX}${crypto.randomUUID()}`,
         name: f.name,
@@ -231,17 +238,19 @@ export default function Gallery(_: AppProps) {
   const next = () =>
     setActiveIdx((i) => (i === null ? null : (i + 1) % photos.length));
   const prev = () =>
-    setActiveIdx((i) => (i === null ? null : (i - 1 + photos.length) % photos.length));
+    setActiveIdx((i) =>
+      i === null ? null : (i - 1 + photos.length) % photos.length,
+    );
 
   useEffect(() => {
     if (activeIdx === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeLightbox();
-      else if (e.key === 'ArrowRight') next();
-      else if (e.key === 'ArrowLeft') prev();
+      if (e.key === "Escape") closeLightbox();
+      else if (e.key === "ArrowRight") next();
+      else if (e.key === "ArrowLeft") prev();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIdx, photos.length]);
 
@@ -255,7 +264,7 @@ export default function Gallery(_: AppProps) {
         className="hidden"
         onChange={(e) => {
           onPick(e.target.files);
-          e.target.value = '';
+          e.target.value = "";
         }}
       />
 
@@ -293,9 +302,9 @@ export default function Gallery(_: AppProps) {
               <div
                 key={p.key}
                 className={cn(
-                  'group relative overflow-hidden rounded-lg bg-zinc-900 ring-1 ring-white/5',
-                  'cursor-zoom-in transition hover:ring-emerald-500/60',
-                  activeIdx === i && 'ring-2 ring-emerald-500',
+                  "group relative overflow-hidden rounded-lg bg-zinc-900 ring-1 ring-white/5",
+                  "cursor-zoom-in transition hover:ring-emerald-500/60",
+                  activeIdx === i && "ring-2 ring-emerald-500",
                 )}
                 onClick={() => openLightbox(i)}
               >
@@ -315,7 +324,7 @@ export default function Gallery(_: AppProps) {
                 >
                   <Trash2 size={12} />
                 </button>
-                <div className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1 text-[10px] text-zinc-200">
+                <div className="absolute inset-x-0 bottom-0 truncate bg-linear-to-t from-black/80 to-transparent px-2 py-1 text-[10px] text-zinc-200">
                   {p.name}
                 </div>
               </div>

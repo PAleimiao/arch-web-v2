@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
-import type { AppProps } from '@/shell/types';
-import { AbyssGame } from './game';
-import { VIEW_H, VIEW_W } from './data';
+import { useEffect, useRef } from "react";
+import type { AppProps } from "@/shell/types";
+import { AbyssGame } from "./game";
+import { VIEW_H, VIEW_W } from "./data";
 
 /**
  * 《深渊回响》— 像素动作 RPG
@@ -12,7 +12,7 @@ export default function AbyssEchoApp({ context }: AppProps) {
   const gameRef = useRef<AbyssGame | null>(null);
 
   useEffect(() => {
-    context.setTitle('深渊回响');
+    context.setTitle("深渊回响");
   }, [context]);
 
   useEffect(() => {
@@ -29,10 +29,10 @@ export default function AbyssEchoApp({ context }: AppProps) {
       // 窗口失焦自动暂停并清空按键，防止回来时角色狂奔
       game.suspend();
     };
-    window.addEventListener('blur', onBlur);
+    window.addEventListener("blur", onBlur);
 
     return () => {
-      window.removeEventListener('blur', onBlur);
+      window.removeEventListener("blur", onBlur);
       game.stop();
       gameRef.current = null;
     };
@@ -43,7 +43,7 @@ export default function AbyssEchoApp({ context }: AppProps) {
       <canvas
         ref={canvasRef}
         className="h-full w-full object-contain"
-        style={{ imageRendering: 'pixelated' }}
+        style={{ imageRendering: "pixelated" }}
       />
     </div>
   );

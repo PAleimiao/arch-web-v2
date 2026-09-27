@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { ArrowLeft, ArrowRight, RotateCw, Home, Lock } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, RotateCw, Home, Lock } from "lucide-react";
+import type { AppProps } from "@/shell/types";
 
 /**
  * 浏览器：把任何 URL 渲染到沙箱 iframe 里。
@@ -8,7 +8,7 @@ import type { AppProps } from '@/shell/types';
  * - 遇到 X-Frame-Options / CSP frame-ancestors 限制的站点会显示空内容
  * - 这是一个**安全、可演示**的内嵌浏览器，不是一个真浏览器
  */
-const HOME = 'https://duckduckgo.com';
+const HOME = "https://duckduckgo.com";
 
 export default function Browser(_: AppProps) {
   const [url, setUrl] = useState(HOME);
@@ -46,8 +46,10 @@ export default function Browser(_: AppProps) {
   const reload = () => {
     // 先剥掉上一轮的 t= 再追加，否则连点几次 URL 会堆一串时间戳
     setCurrent((c) => {
-      const stripped = c.replace(/([?&])t=\d+&?/, '$1').replace(/[?&]$/, '');
-      return stripped + (stripped.includes('?') ? '&' : '?') + `t=${Date.now()}`;
+      const stripped = c.replace(/([?&])t=\d+&?/, "$1").replace(/[?&]$/, "");
+      return (
+        stripped + (stripped.includes("?") ? "&" : "?") + `t=${Date.now()}`
+      );
     });
   };
 
@@ -100,9 +102,7 @@ export default function Browser(_: AppProps) {
         </form>
         <button
           type="button"
-          onClick={() =>
-            window.open(current, '_blank', 'noopener,noreferrer')
-          }
+          onClick={() => window.open(current, "_blank", "noopener,noreferrer")}
           title="在新标签页打开"
           className="rounded p-1 hover:bg-white/10"
         >

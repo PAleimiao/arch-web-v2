@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   File as FileIcon,
@@ -6,15 +6,15 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-} from 'lucide-react';
-import { bus, vfs } from '@/services/filesystem';
-import type { AppProps, FsNode } from '@/shell/types';
+} from "lucide-react";
+import { bus, vfs } from "@/services/filesystem";
+import type { AppProps, FsNode } from "@/shell/types";
 
 export default function FileManager({ context }: AppProps) {
-  const [cwd, setCwd] = useState('/home/arch');
+  const [cwd, setCwd] = useState("/home/arch");
   const [nodes, setNodes] = useState<FsNode[]>([]);
   const [selected, setSelected] = useState<FsNode | null>(null);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [dirty, setDirty] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -24,18 +24,18 @@ export default function FileManager({ context }: AppProps) {
   useEffect(() => {
     void refresh();
     setSelected(null);
-    setDraft('');
+    setDraft("");
     setDirty(false);
   }, [cwd, refresh]);
 
-  useEffect(() => bus.on('fs:change', () => void refresh()), [refresh]);
+  useEffect(() => bus.on("fs:change", () => void refresh()), [refresh]);
 
   const openNode = async (node: FsNode) => {
-    if (node.type === 'dir') {
+    if (node.type === "dir") {
       setCwd(node.path);
       return;
     }
-    const content = (await vfs.readFile(node.path)) ?? '';
+    const content = (await vfs.readFile(node.path)) ?? "";
     setSelected(node);
     setDraft(content);
     setDirty(false);
@@ -50,9 +50,9 @@ export default function FileManager({ context }: AppProps) {
   };
 
   const createFile = async () => {
-    const name = window.prompt('新文件名', 'untitled.txt');
+    const name = window.prompt("新文件名", "untitled.txt");
     if (!name) return;
-    await vfs.writeFile(`${cwd}/${name}`, '');
+    await vfs.writeFile(`${cwd}/${name}`, "");
     await refresh();
   };
 
@@ -61,7 +61,7 @@ export default function FileManager({ context }: AppProps) {
     await vfs.remove(node.path);
     if (selected?.path === node.path) {
       setSelected(null);
-      setDraft('');
+      setDraft("");
     }
     await refresh();
   };
@@ -73,7 +73,7 @@ export default function FileManager({ context }: AppProps) {
         <button
           type="button"
           onClick={() => setCwd(vfs.parentOf(cwd))}
-          disabled={cwd === '/'}
+          disabled={cwd === "/"}
           className="rounded p-1 transition hover:bg-white/10 disabled:opacity-30"
           title="上一级"
         >
@@ -126,7 +126,7 @@ export default function FileManager({ context }: AppProps) {
                 onClick={() => void openNode(node)}
                 className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
               >
-                {node.type === 'dir' ? (
+                {node.type === "dir" ? (
                   <Folder size={13} className="shrink-0 text-arch-accent" />
                 ) : (
                   <FileIcon size={13} className="shrink-0 text-arch-muted" />

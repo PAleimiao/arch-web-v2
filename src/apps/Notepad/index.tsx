@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { vfs } from '@/services/filesystem';
-import { Save, FileText, FilePlus } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
+import { useEffect, useRef, useState } from "react";
+import { vfs } from "@/services/filesystem";
+import { Save, FileText, FilePlus } from "lucide-react";
+import type { AppProps } from "@/shell/types";
 
-const DEFAULT_PATH = '/home/arch/notes/welcome.txt';
+const DEFAULT_PATH = "/home/arch/notes/welcome.txt";
 
 export default function Notepad({ context }: AppProps) {
   const [path, setPath] = useState(DEFAULT_PATH);
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -18,11 +18,11 @@ export default function Notepad({ context }: AppProps) {
       try {
         const text = await vfs.readFile(path);
         if (!cancelled) {
-          setContent(text ?? '');
+          setContent(text ?? "");
           setDirty(false);
         }
       } catch {
-        if (!cancelled) setContent('');
+        if (!cancelled) setContent("");
       }
     })();
     return () => {
@@ -32,7 +32,7 @@ export default function Notepad({ context }: AppProps) {
 
   // 标题栏显示当前路径 + 修改标记
   useEffect(() => {
-    context.setTitle(`记事本 — ${path}${dirty ? ' *' : ''}`);
+    context.setTitle(`记事本 — ${path}${dirty ? " *" : ""}`);
   }, [path, dirty, context]);
 
   const flash = (msg: string) => {
@@ -44,23 +44,26 @@ export default function Notepad({ context }: AppProps) {
     try {
       await vfs.writeFile(path, content);
       setDirty(false);
-      flash('已保存');
+      flash("已保存");
     } catch (err) {
       flash(`保存失败：${(err as Error).message}`);
     }
   };
 
   const newFile = async () => {
-    const name = window.prompt('新文件名（相对路径或绝对路径）', 'untitled.txt');
+    const name = window.prompt(
+      "新文件名（相对路径或绝对路径）",
+      "untitled.txt",
+    );
     if (!name) return;
-    const abs = name.startsWith('/') ? name : `/home/arch/notes/${name}`;
+    const abs = name.startsWith("/") ? name : `/home/arch/notes/${name}`;
     try {
       // VFS 是扁平键值存储，目录由路径推导，无需 mkdir
-      await vfs.writeFile(abs, '');
+      await vfs.writeFile(abs, "");
       setPath(abs);
-      setContent('');
+      setContent("");
       setDirty(false);
-      flash('已新建');
+      flash("已新建");
     } catch (err) {
       flash(`创建失败：${(err as Error).message}`);
     }
@@ -88,9 +91,7 @@ export default function Notepad({ context }: AppProps) {
           onChange={(e) => setPath(e.target.value)}
           className="flex-1 rounded border border-arch-border bg-black/30 px-2 py-1 text-xs font-mono"
         />
-        {message && (
-          <span className="text-xs text-arch-green">{message}</span>
-        )}
+        {message && <span className="text-xs text-arch-green">{message}</span>}
       </div>
       <textarea
         ref={taRef}
@@ -106,7 +107,7 @@ export default function Notepad({ context }: AppProps) {
         <span className="flex items-center gap-1.5">
           <FileText size={12} /> {content.length} 字符
         </span>
-        <span>{dirty ? '未保存的修改' : '已保存'}</span>
+        <span>{dirty ? "未保存的修改" : "已保存"}</span>
       </div>
     </div>
   );

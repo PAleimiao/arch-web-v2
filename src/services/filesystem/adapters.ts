@@ -5,7 +5,7 @@
  */
 
 export interface FsAdapter {
-  readonly name: 'opfs' | 'idb';
+  readonly name: "opfs" | "idb";
   /** 所有已存在的文件路径 */
   keys(): Promise<string[]>;
   read(path: string): Promise<string | null>;
@@ -13,12 +13,12 @@ export interface FsAdapter {
   remove(path: string): Promise<void>;
 }
 
-const normalize = (p: string) => (p.startsWith('/') ? p : `/${p}`);
+const normalize = (p: string) => (p.startsWith("/") ? p : `/${p}`);
 
 /* ---------------------------------- OPFS ---------------------------------- */
 
 async function opfsRoot(): Promise<FileSystemDirectoryHandle | null> {
-  if (typeof navigator === 'undefined') return null;
+  if (typeof navigator === "undefined") return null;
   const nav = navigator as Navigator & {
     storage?: { getDirectory?: () => Promise<FileSystemDirectoryHandle> };
   };
@@ -42,11 +42,11 @@ const decodeName = (name: string) => {
 
 export function createOpfsAdapter(root: FileSystemDirectoryHandle): FsAdapter {
   return {
-    name: 'opfs',
+    name: "opfs",
     async keys() {
       const out: string[] = [];
       for await (const handle of root.values()) {
-        if (handle.kind !== 'file') continue;
+        if (handle.kind !== "file") continue;
         const path = decodeName(handle.name);
         if (path) out.push(path);
       }
@@ -92,8 +92,8 @@ export async function tryOpfsAdapter(): Promise<FsAdapter | null> {
 
 /* ------------------------------- IndexedDB -------------------------------- */
 
-const DB_NAME = 'arch-web-os';
-const STORE = 'files';
+const DB_NAME = "arch-web-os";
+const STORE = "files";
 
 function openIdb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -101,7 +101,7 @@ function openIdb(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'path' });
+        db.createObjectStore(STORE, { keyPath: "path" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -125,25 +125,24 @@ export function createIdbAdapter(): FsAdapter {
   };
 
   return {
-    name: 'idb',
+    name: "idb",
     async keys() {
-      const all = await tx<{ path: string }[]>('readonly', (s) => s.getAll());
+      const all = await tx<{ path: string }[]>("readonly", (s) => s.getAll());
       return all.map((r) => r.path);
     },
     async read(path) {
-      const rec = await tx<{ content: string } | undefined>(
-        'readonly',
-        (s) => s.get(normalize(path)),
+      const rec = await tx<{ content: string } | undefined>("readonly", (s) =>
+        s.get(normalize(path)),
       );
       return rec?.content ?? null;
     },
     async write(path, content) {
-      await tx('readwrite', (s) =>
+      await tx("readwrite", (s) =>
         s.put({ path: normalize(path), content, updatedAt: Date.now() }),
       );
     },
     async remove(path) {
-      await tx('readwrite', (s) => s.delete(normalize(path)));
+      await tx("readwrite", (s) => s.delete(normalize(path)));
     },
   };
 }

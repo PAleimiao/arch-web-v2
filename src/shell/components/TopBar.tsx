@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -8,11 +8,11 @@ import {
   RefreshCw,
   Lock,
   Wifi,
-} from 'lucide-react';
-import { useOSStore } from '@/stores/useOSStore';
-import { cn } from '@/lib/cn';
-import { NotifyBell } from './NotificationCenter';
-import QuickSettings from './QuickSettings';
+} from "lucide-react";
+import { useOSStore } from "@/stores/useOSStore";
+import { cn } from "@/lib/cn";
+import { NotifyBell } from "./NotificationCenter";
+import QuickSettings from "./QuickSettings";
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -24,20 +24,29 @@ function useClock() {
 }
 
 function CalendarPopover({ now, onClose }: { now: Date; onClose: () => void }) {
-  const [view, setView] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
+  const [view, setView] = useState(
+    () => new Date(now.getFullYear(), now.getMonth(), 1),
+  );
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) onClose();
     };
-    window.addEventListener('mousedown', onDown);
-    return () => window.removeEventListener('mousedown', onDown);
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, [onClose]);
 
-  const monthLabel = view.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
+  const monthLabel = view.toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "long",
+  });
   const firstWeekday = (view.getDay() + 6) % 7; // Mon=0
-  const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const daysInMonth = new Date(
+    view.getFullYear(),
+    view.getMonth() + 1,
+    0,
+  ).getDate();
 
   const cells = useMemo(() => {
     const arr: (number | null)[] = [];
@@ -50,7 +59,9 @@ function CalendarPopover({ now, onClose }: { now: Date; onClose: () => void }) {
   // getMonth() 是 0 基的，直接拼会少一个月
   const todayStr = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
   const isToday = (d: number) =>
-    d === now.getDate() && view.getFullYear() === now.getFullYear() && view.getMonth() === now.getMonth();
+    d === now.getDate() &&
+    view.getFullYear() === now.getFullYear() &&
+    view.getMonth() === now.getMonth();
 
   const move = (delta: number) => {
     setView((v) => new Date(v.getFullYear(), v.getMonth() + delta, 1));
@@ -75,7 +86,9 @@ function CalendarPopover({ now, onClose }: { now: Date; onClose: () => void }) {
             <ChevronLeft size={12} />
           </button>
           <button
-            onClick={() => setView(new Date(now.getFullYear(), now.getMonth(), 1))}
+            onClick={() =>
+              setView(new Date(now.getFullYear(), now.getMonth(), 1))
+            }
             className="rounded px-1.5 py-0.5 text-[10px] text-arch-muted hover:bg-white/10 hover:text-arch-text"
           >
             今天
@@ -91,7 +104,7 @@ function CalendarPopover({ now, onClose }: { now: Date; onClose: () => void }) {
       </div>
 
       <div className="grid grid-cols-7 gap-0.5 px-2 pb-1 text-center text-[10px] text-arch-muted">
-        {['一', '二', '三', '四', '五', '六', '日'].map((d) => (
+        {["一", "二", "三", "四", "五", "六", "日"].map((d) => (
           <div key={d} className="py-1">
             {d}
           </div>
@@ -104,10 +117,10 @@ function CalendarPopover({ now, onClose }: { now: Date; onClose: () => void }) {
             {d !== null && (
               <div
                 className={cn(
-                  'flex h-full w-full items-center justify-center rounded transition',
+                  "flex h-full w-full items-center justify-center rounded transition",
                   isToday(d)
-                    ? 'bg-arch-accent text-white shadow-lg'
-                    : 'text-arch-text hover:bg-white/10',
+                    ? "bg-arch-accent text-white shadow-lg"
+                    : "text-arch-text hover:bg-white/10",
                 )}
               >
                 {d}
@@ -118,7 +131,7 @@ function CalendarPopover({ now, onClose }: { now: Date; onClose: () => void }) {
       </div>
 
       <div className="border-t border-arch-border bg-black/20 px-3 py-1.5 text-[10px] text-arch-muted tabular-nums">
-        ISO {todayStr} · {now.toLocaleTimeString('zh-CN', { hour12: false })}
+        ISO {todayStr} · {now.toLocaleTimeString("zh-CN", { hour12: false })}
       </div>
     </div>
   );
@@ -144,21 +157,19 @@ export default function TopBar() {
     const onDown = (e: MouseEvent) => {
       if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
     };
-    window.addEventListener('mousedown', onDown);
-    return () => window.removeEventListener('mousedown', onDown);
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
 
   return (
-    <header className="relative z-[9000] flex h-7 shrink-0 items-center justify-between border-b border-white/5 bg-black/45 px-2 text-[11px] text-arch-text backdrop-blur-md">
+    <header className="relative z-9000 flex h-7 shrink-0 items-center justify-between border-b border-white/5 bg-black/45 px-2 text-[11px] text-arch-text backdrop-blur-md">
       <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={() => toggleLauncher()}
           className={cn(
-            'flex items-center gap-1.5 rounded px-2 py-0.5 transition',
-            launcherOpen
-              ? 'bg-arch-accent/25 text-white'
-              : 'hover:bg-white/10',
+            "flex items-center gap-1.5 rounded px-2 py-0.5 transition",
+            launcherOpen ? "bg-arch-accent/25 text-white" : "hover:bg-white/10",
           )}
         >
           <LayoutGrid size={12} />
@@ -174,28 +185,30 @@ export default function TopBar() {
         <button
           onClick={() => setCalOpen((v) => !v)}
           className={cn(
-            'flex items-center gap-2 rounded px-2 py-0.5 transition',
-            calOpen ? 'bg-white/15' : 'hover:bg-white/10',
+            "flex items-center gap-2 rounded px-2 py-0.5 transition",
+            calOpen ? "bg-white/15" : "hover:bg-white/10",
           )}
         >
           <span>
             {clockSeconds
-              ? now.toLocaleTimeString('zh-CN', { hour12 })
-              : now.toLocaleTimeString('zh-CN', {
+              ? now.toLocaleTimeString("zh-CN", { hour12 })
+              : now.toLocaleTimeString("zh-CN", {
                   hour12,
-                  hour: '2-digit',
-                  minute: '2-digit',
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
           </span>
           <span className="text-arch-muted">
-            {now.toLocaleDateString('zh-CN', {
-              month: '2-digit',
-              day: '2-digit',
-              weekday: 'short',
+            {now.toLocaleDateString("zh-CN", {
+              month: "2-digit",
+              day: "2-digit",
+              weekday: "short",
             })}
           </span>
         </button>
-        {calOpen && <CalendarPopover now={now} onClose={() => setCalOpen(false)} />}
+        {calOpen && (
+          <CalendarPopover now={now} onClose={() => setCalOpen(false)} />
+        )}
       </div>
 
       <div className="relative flex items-center gap-2 pr-1" ref={menuRef}>
@@ -248,10 +261,10 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition',
+        "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition",
         danger
-          ? 'text-arch-red hover:bg-arch-red/15'
-          : 'text-arch-text hover:bg-white/10',
+          ? "text-arch-red hover:bg-arch-red/15"
+          : "text-arch-text hover:bg-white/10",
       )}
     >
       {icon}

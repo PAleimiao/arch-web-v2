@@ -20,12 +20,12 @@ export function clamp(n: number, min: number, max: number): number {
 }
 
 export function hexToRgb(hex: string): Rgb {
-  let h = hex.trim().replace(/^#/, '');
+  let h = hex.trim().replace(/^#/, "");
   if (h.length === 3) {
     h = h
-      .split('')
+      .split("")
       .map((c) => c + c)
-      .join('');
+      .join("");
   }
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return { r: 0, g: 0, b: 0 };
   return {
@@ -36,7 +36,8 @@ export function hexToRgb(hex: string): Rgb {
 }
 
 export function rgbToHex({ r, g, b }: Rgb): string {
-  const to = (n: number) => clamp(Math.round(n), 0, 255).toString(16).padStart(2, '0');
+  const to = (n: number) =>
+    clamp(Math.round(n), 0, 255).toString(16).padStart(2, "0");
   return `#${to(r)}${to(g)}${to(b)}`;
 }
 
@@ -64,7 +65,7 @@ export function hslToRgb({ h, s, l }: Hsl): Rgb {
   const sn = clamp(s, 0, 100) / 100;
   const ln = clamp(l, 0, 100) / 100;
   const c = (1 - Math.abs(2 * ln - 1)) * sn;
-  const hp = ((h % 360) + 360) % 360 / 60;
+  const hp = (((h % 360) + 360) % 360) / 60;
   const x = c * (1 - Math.abs((hp % 2) - 1));
   let r = 0;
   let g = 0;
@@ -101,7 +102,7 @@ export function luminance(hex: string): number {
 }
 
 export function readableText(hex: string): string {
-  return luminance(hex) > 0.45 ? '#0b0e14' : '#ffffff';
+  return luminance(hex) > 0.45 ? "#0b0e14" : "#ffffff";
 }
 
 /** 生成一组配色：类似色 / 互补色 / 明暗阶梯 */

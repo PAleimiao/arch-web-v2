@@ -10,6 +10,6 @@
   "main": "worker/index.ts",
   "assets": {
     "directory": "dist-cf",
-    "binding": "ASSETS"
-  }
+    "binding": "ASSETS",
+  },
 }

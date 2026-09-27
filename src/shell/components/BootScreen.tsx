@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { useOSStore } from '@/stores/useOSStore';
+import { useEffect, useRef, useState } from "react";
+import { useOSStore } from "@/stores/useOSStore";
 
 const LINES: Array<[string, string]> = [
-  ['  OK  ', '已加载 Arch Web OS v2.0（浏览器环境）'],
-  ['  OK  ', '已挂载虚拟文件系统'],
-  ['  OK  ', '窗口管理器已启动'],
-  ['  OK  ', '应用注册表已启动'],
-  ['  OK  ', 'Dock 与顶栏已启动'],
-  ['  OK  ', '已到达目标：图形界面'],
+  ["  OK  ", "已加载 Arch Web OS v2.0（浏览器环境）"],
+  ["  OK  ", "已挂载虚拟文件系统"],
+  ["  OK  ", "窗口管理器已启动"],
+  ["  OK  ", "应用注册表已启动"],
+  ["  OK  ", "Dock 与顶栏已启动"],
+  ["  OK  ", "已到达目标：图形界面"],
 ];
 
 const LOGO = `    _             _      __        __   ____   _____

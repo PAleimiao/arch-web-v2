@@ -1,8 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
-import { Clock, Timer, Bell, Coffee, Play, Pause, RotateCcw } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
+import { useEffect, useRef, useState } from "react";
+import {
+  Clock,
+  Timer,
+  Bell,
+  Coffee,
+  Play,
+  Pause,
+  RotateCcw,
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
 
 /** 短促提示音：用 Web Audio 现场合成，不引外部文件 */
 function beep(): void {
@@ -17,7 +25,7 @@ function beep(): void {
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.type = 'sine';
+    osc.type = "sine";
     osc.frequency.value = 880;
     gain.gain.setValueAtTime(0.0001, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.01);
@@ -31,7 +39,7 @@ function beep(): void {
 }
 
 function pad(n: number, w = 2): string {
-  return String(n).padStart(w, '0');
+  return String(n).padStart(w, "0");
 }
 
 /** 毫秒 → MM:SS.mmm（满一小时显示 HH:MM:SS.mmm） */
@@ -56,56 +64,56 @@ function fmtCountdown(sec: number): string {
 }
 
 const TZ: Array<[string, string]> = [
-  ['本地', ''],
-  ['UTC', 'UTC'],
-  ['北京', 'Asia/Shanghai'],
-  ['东京', 'Asia/Tokyo'],
-  ['纽约', 'America/New_York'],
-  ['伦敦', 'Europe/London'],
+  ["本地", ""],
+  ["UTC", "UTC"],
+  ["北京", "Asia/Shanghai"],
+  ["东京", "Asia/Tokyo"],
+  ["纽约", "America/New_York"],
+  ["伦敦", "Europe/London"],
 ];
 
 function tzTime(tz: string, now: Date): string {
   try {
-    return now.toLocaleTimeString('zh-CN', {
+    return now.toLocaleTimeString("zh-CN", {
       timeZone: tz || undefined,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
       hour12: false,
     });
   } catch {
-    return now.toLocaleTimeString('zh-CN', { hour12: false });
+    return now.toLocaleTimeString("zh-CN", { hour12: false });
   }
 }
 
 function tzDate(tz: string, now: Date): string {
   try {
-    return now.toLocaleDateString('zh-CN', {
+    return now.toLocaleDateString("zh-CN", {
       timeZone: tz || undefined,
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
     });
   } catch {
-    return now.toLocaleDateString('zh-CN', { weekday: 'long' });
+    return now.toLocaleDateString("zh-CN", { weekday: "long" });
   }
 }
 
-type Tab = 'clock' | 'stopwatch' | 'timer' | 'pomodoro';
+type Tab = "clock" | "stopwatch" | "timer" | "pomodoro";
 
 export default function ClockApp({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('时钟');
+    context.setTitle("时钟");
   }, [context]);
 
-  const [tab, setTab] = useState<Tab>('clock');
+  const [tab, setTab] = useState<Tab>("clock");
   const [now, setNow] = useState(() => new Date());
-  const [tz, setTz] = useState('Asia/Shanghai');
+  const [tz, setTz] = useState("Asia/Shanghai");
 
   // ---- 时钟：每秒刷新 ----
   useEffect(() => {
-    if (tab !== 'clock') return;
+    if (tab !== "clock") return;
     const id = window.setInterval(() => setNow(new Date()), 500);
     return () => window.clearInterval(id);
   }, [tab]);
@@ -118,7 +126,7 @@ export default function ClockApp({ context }: AppProps) {
   const [laps, setLaps] = useState<number[]>([]);
 
   useEffect(() => {
-    if (tab !== 'stopwatch' || !swRunning) return;
+    if (tab !== "stopwatch" || !swRunning) return;
     const id = window.setInterval(() => {
       setSwElapsed(swAccum.current + (performance.now() - swStart.current));
     }, 50);
@@ -167,20 +175,24 @@ export default function ClockApp({ context }: AppProps) {
     setTimerRunning(false);
     setTimerRemain(timerTotalMs());
   };
-  const changeTimer = (k: 'h' | 'm' | 's', v: number) => {
-    const next = { ...timerDur, [k]: Math.max(0, Math.min(k === 'h' ? 23 : 59, v)) };
+  const changeTimer = (k: "h" | "m" | "s", v: number) => {
+    const next = {
+      ...timerDur,
+      [k]: Math.max(0, Math.min(k === "h" ? 23 : 59, v)),
+    };
     setTimerDur(next);
-    if (!timerRunning) setTimerRemain((next.h * 3600 + next.m * 60 + next.s) * 1000);
+    if (!timerRunning)
+      setTimerRemain((next.h * 3600 + next.m * 60 + next.s) * 1000);
   };
 
   useEffect(() => {
-    if (tab !== 'timer' || !timerRunning) return;
+    if (tab !== "timer" || !timerRunning) return;
     const id = window.setInterval(() => {
       const rem = timerEnd.current - Date.now();
       if (rem <= 0) {
         setTimerRemain(0);
         setTimerRunning(false);
-        notify('计时结束', '时间到！', 'success');
+        notify("计时结束", "时间到！", "success");
         beep();
       } else {
         setTimerRemain(rem);
@@ -192,13 +204,14 @@ export default function ClockApp({ context }: AppProps) {
   // ---- 番茄钟 ----
   const [pomoWork, setPomoWork] = useState(25);
   const [pomoBreak, setPomoBreak] = useState(5);
-  const [pomoMode, setPomoMode] = useState<'work' | 'break'>('work');
+  const [pomoMode, setPomoMode] = useState<"work" | "break">("work");
   const [pomoRemain, setPomoRemain] = useState(25 * 60 * 1000);
   const [pomoRunning, setPomoRunning] = useState(false);
   const [pomoCount, setPomoCount] = useState(0);
   const pomoEnd = useRef(0);
 
-  const pomoTotalMs = () => (pomoMode === 'work' ? pomoWork : pomoBreak) * 60 * 1000;
+  const pomoTotalMs = () =>
+    (pomoMode === "work" ? pomoWork : pomoBreak) * 60 * 1000;
 
   const startPomo = () => {
     pomoEnd.current = Date.now() + pomoRemain;
@@ -212,29 +225,29 @@ export default function ClockApp({ context }: AppProps) {
     setPomoRunning(false);
     setPomoRemain(pomoTotalMs());
   };
-  const changePomo = (k: 'work' | 'break', v: number) => {
+  const changePomo = (k: "work" | "break", v: number) => {
     const val = Math.max(1, Math.min(120, v));
-    if (k === 'work') setPomoWork(val);
+    if (k === "work") setPomoWork(val);
     else setPomoBreak(val);
     if (!pomoRunning) setPomoRemain(pomoTotalMs());
   };
 
   useEffect(() => {
-    if (tab !== 'pomodoro' || !pomoRunning) return;
+    if (tab !== "pomodoro" || !pomoRunning) return;
     const id = window.setInterval(() => {
       const rem = pomoEnd.current - Date.now();
       if (rem <= 0) {
-        if (pomoMode === 'work') {
+        if (pomoMode === "work") {
           setPomoCount((c) => c + 1);
-          setPomoMode('break');
+          setPomoMode("break");
           setPomoRemain(pomoBreak * 60 * 1000);
           pomoEnd.current = Date.now() + pomoBreak * 60 * 1000;
-          notify('工作完成', '休息一下吧', 'success');
+          notify("工作完成", "休息一下吧", "success");
         } else {
-          setPomoMode('work');
+          setPomoMode("work");
           setPomoRemain(pomoWork * 60 * 1000);
           pomoEnd.current = Date.now() + pomoWork * 60 * 1000;
-          notify('休息结束', '继续专注工作', 'success');
+          notify("休息结束", "继续专注工作", "success");
         }
         beep();
       } else {
@@ -245,10 +258,10 @@ export default function ClockApp({ context }: AppProps) {
   }, [tab, pomoRunning, pomoMode, pomoWork, pomoBreak]);
 
   const tabs: Array<[Tab, string, typeof Clock]> = [
-    ['clock', '时钟', Clock],
-    ['stopwatch', '秒表', Timer],
-    ['timer', '计时器', Bell],
-    ['pomodoro', '番茄钟', Coffee],
+    ["clock", "时钟", Clock],
+    ["stopwatch", "秒表", Timer],
+    ["timer", "计时器", Bell],
+    ["pomodoro", "番茄钟", Coffee],
   ];
 
   return (
@@ -260,8 +273,8 @@ export default function ClockApp({ context }: AppProps) {
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              'flex items-center gap-1 rounded px-2 py-1 text-xs',
-              tab === id ? 'bg-arch-accent text-white' : 'hover:bg-white/10',
+              "flex items-center gap-1 rounded px-2 py-1 text-xs",
+              tab === id ? "bg-arch-accent text-white" : "hover:bg-white/10",
             )}
           >
             <Icon size={13} /> {label}
@@ -270,7 +283,7 @@ export default function ClockApp({ context }: AppProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {tab === 'clock' && (
+        {tab === "clock" && (
           <div className="space-y-4">
             <div className="rounded border border-arch-border bg-arch-panel/40 p-4 text-center">
               <div className="font-mono text-5xl tracking-wider">
@@ -287,7 +300,7 @@ export default function ClockApp({ context }: AppProps) {
                   className="rounded border border-arch-border bg-black/30 px-2 py-1 text-xs"
                 >
                   {TZ.map(([label, value]) => (
-                    <option key={value || 'local'} value={value}>
+                    <option key={value || "local"} value={value}>
                       {label}
                     </option>
                   ))}
@@ -299,7 +312,7 @@ export default function ClockApp({ context }: AppProps) {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {TZ.map(([label, value]) => (
                   <div
-                    key={value || 'local'}
+                    key={value || "local"}
                     className="rounded border border-arch-border bg-arch-panel/40 p-2 text-center"
                   >
                     <div className="text-[11px] text-arch-muted">{label}</div>
@@ -313,7 +326,7 @@ export default function ClockApp({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'stopwatch' && (
+        {tab === "stopwatch" && (
           <div className="space-y-3">
             <div className="rounded border border-arch-border bg-arch-panel/40 p-4 text-center">
               <div className="font-mono text-5xl tracking-wider">
@@ -369,7 +382,9 @@ export default function ClockApp({ context }: AppProps) {
                   >
                     <span className="text-arch-muted">第 {i + 1} 次</span>
                     <span>分段 {fmtStopwatch(cur - prev)}</span>
-                    <span className="text-arch-accent">总计 {fmtStopwatch(cur)}</span>
+                    <span className="text-arch-accent">
+                      总计 {fmtStopwatch(cur)}
+                    </span>
                   </div>
                 );
               })}
@@ -377,7 +392,7 @@ export default function ClockApp({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'timer' && (
+        {tab === "timer" && (
           <div className="space-y-3">
             <div className="rounded border border-arch-border bg-arch-panel/40 p-4 text-center">
               <div className="font-mono text-5xl tracking-wider">
@@ -385,15 +400,15 @@ export default function ClockApp({ context }: AppProps) {
               </div>
             </div>
             <div className="flex items-center justify-center gap-2">
-              {(['h', 'm', 's'] as const).map((k) => (
+              {(["h", "m", "s"] as const).map((k) => (
                 <label key={k} className="flex flex-col items-center gap-1">
                   <span className="text-[11px] text-arch-muted">
-                    {k === 'h' ? '时' : k === 'm' ? '分' : '秒'}
+                    {k === "h" ? "时" : k === "m" ? "分" : "秒"}
                   </span>
                   <input
                     type="number"
                     min={0}
-                    max={k === 'h' ? 23 : 59}
+                    max={k === "h" ? 23 : 59}
                     value={timerDur[k]}
                     disabled={timerRunning}
                     onChange={(e) => changeTimer(k, Number(e.target.value))}
@@ -431,18 +446,19 @@ export default function ClockApp({ context }: AppProps) {
           </div>
         )}
 
-        {tab === 'pomodoro' && (
+        {tab === "pomodoro" && (
           <div className="space-y-3">
             <div
               className={cn(
-                'rounded border p-4 text-center',
-                pomoMode === 'work'
-                  ? 'border-arch-accent bg-arch-accent/10'
-                  : 'border-arch-green bg-arch-green/10',
+                "rounded border p-4 text-center",
+                pomoMode === "work"
+                  ? "border-arch-accent bg-arch-accent/10"
+                  : "border-arch-green bg-arch-green/10",
               )}
             >
               <div className="text-[11px] text-arch-muted">
-                {pomoMode === 'work' ? '工作时段' : '休息时段'} · 已完成 {pomoCount} 轮
+                {pomoMode === "work" ? "工作时段" : "休息时段"} · 已完成{" "}
+                {pomoCount} 轮
               </div>
               <div className="font-mono text-5xl tracking-wider">
                 {fmtCountdown(pomoRemain / 1000)}
@@ -457,7 +473,7 @@ export default function ClockApp({ context }: AppProps) {
                   max={120}
                   value={pomoWork}
                   disabled={pomoRunning}
-                  onChange={(e) => changePomo('work', Number(e.target.value))}
+                  onChange={(e) => changePomo("work", Number(e.target.value))}
                   className="w-14 rounded border border-arch-border bg-black/30 py-1 text-center font-mono"
                 />
               </label>
@@ -469,7 +485,7 @@ export default function ClockApp({ context }: AppProps) {
                   max={120}
                   value={pomoBreak}
                   disabled={pomoRunning}
-                  onChange={(e) => changePomo('break', Number(e.target.value))}
+                  onChange={(e) => changePomo("break", Number(e.target.value))}
                   className="w-14 rounded border border-arch-border bg-black/30 py-1 text-center font-mono"
                 />
               </label>

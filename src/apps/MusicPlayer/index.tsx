@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   Ban,
   Music,
@@ -13,10 +13,10 @@ import {
   Volume2,
   VolumeX,
   ListMusic,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { useMediaStore } from '@/stores/useMediaStore';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { useMediaStore } from "@/stores/useMediaStore";
 
 /**
  * 本地音频播放器
@@ -42,23 +42,31 @@ interface Track {
   duration: number;
 }
 
-type LoopMode = 'off' | 'all' | 'one';
+type LoopMode = "off" | "all" | "one";
 
-const META_PATH = '/home/arch/Music/playlist.json';
-const LOOP_NEXT: Record<LoopMode, LoopMode> = { off: 'all', all: 'one', one: 'off' };
+const META_PATH = "/home/arch/Music/playlist.json";
+const LOOP_NEXT: Record<LoopMode, LoopMode> = {
+  off: "all",
+  all: "one",
+  one: "off",
+};
 // off 用带斜线的 Ban 表示「不循环」，之前也画 Repeat 会让人以为循环开着
-const LOOP_ICON: Record<LoopMode, typeof Repeat> = { off: Ban, all: Repeat, one: Repeat1 };
+const LOOP_ICON: Record<LoopMode, typeof Repeat> = {
+  off: Ban,
+  all: Repeat,
+  one: Repeat1,
+};
 const LOOP_LABEL: Record<LoopMode, string> = {
-  off: '循环关闭',
-  all: '列表循环',
-  one: '单曲循环',
+  off: "循环关闭",
+  all: "列表循环",
+  one: "单曲循环",
 };
 
 const fmtTime = (sec: number) => {
-  if (!isFinite(sec) || sec < 0) return '0:00';
+  if (!isFinite(sec) || sec < 0) return "0:00";
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
 };
 
 const fmtSize = (bytes: number) => {
@@ -67,7 +75,7 @@ const fmtSize = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
-const stripExt = (name: string) => name.replace(/\.[^/.]+$/, '');
+const stripExt = (name: string) => name.replace(/\.[^/.]+$/, "");
 
 interface PlaylistMeta {
   /** 上次保存的队列（不含 blob URL） */
@@ -85,17 +93,18 @@ export default function MusicPlayer(_: AppProps) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
-  const [loop, setLoop] = useState<LoopMode>('off');
+  const [loop, setLoop] = useState<LoopMode>("off");
   const [loadingMeta, setLoadingMeta] = useState(true);
 
-  const current = currentIdx >= 0 && currentIdx < tracks.length ? tracks[currentIdx] : null;
+  const current =
+    currentIdx >= 0 && currentIdx < tracks.length ? tracks[currentIdx] : null;
 
   /* --------------------------- 启动期：尝试恢复队列 --------------------------- */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { vfs } = await import('@/services/filesystem');
+        const { vfs } = await import("@/services/filesystem");
         const raw = await vfs.readFile(META_PATH);
         if (raw && !cancelled) {
           const meta = JSON.parse(raw) as PlaylistMeta;
@@ -106,7 +115,7 @@ export default function MusicPlayer(_: AppProps) {
               name: it.name,
               fileName: it.fileName,
               size: it.size,
-              url: '',
+              url: "",
               duration: 0,
             })),
           );
@@ -178,7 +187,7 @@ export default function MusicPlayer(_: AppProps) {
         a.load();
       }
     } else {
-      a.removeAttribute('src');
+      a.removeAttribute("src");
     }
   }, [current?.id, current?.url]);
 
@@ -213,7 +222,7 @@ export default function MusicPlayer(_: AppProps) {
           useMediaStore.setState({
             current: {
               name: title,
-              url: current?.url ?? '',
+              url: current?.url ?? "",
               size: current?.size,
               duration: current?.duration,
             },
@@ -234,14 +243,26 @@ export default function MusicPlayer(_: AppProps) {
     const id = setInterval(tick, 250);
     tick();
     return () => clearInterval(id);
-  }, [playing, duration, current?.name, current?.url, current?.size, current?.duration]);
+  }, [
+    playing,
+    duration,
+    current?.name,
+    current?.url,
+    current?.size,
+    current?.duration,
+  ]);
 
   /* ----------------------------- 操作方法 ----------------------------- */
   const persistMeta = async (next: Track[]) => {
     try {
-      const { vfs } = await import('@/services/filesystem');
+      const { vfs } = await import("@/services/filesystem");
       const meta: PlaylistMeta = {
-        items: next.map(({ id, fileName, name, size }) => ({ id, fileName, name, size })),
+        items: next.map(({ id, fileName, name, size }) => ({
+          id,
+          fileName,
+          name,
+          size,
+        })),
       };
       await vfs.writeFile(META_PATH, JSON.stringify(meta, null, 2));
     } catch {
@@ -270,7 +291,7 @@ export default function MusicPlayer(_: AppProps) {
 
   const gotoNext = () => {
     if (tracks.length === 0) return;
-    if (loop === 'one') {
+    if (loop === "one") {
       // 单曲循环：重新播放
       const a = audioRef.current;
       if (a) a.currentTime = 0;
@@ -279,7 +300,7 @@ export default function MusicPlayer(_: AppProps) {
     }
     const next = currentIdx + 1;
     if (next >= tracks.length) {
-      if (loop === 'all') {
+      if (loop === "all") {
         playAt(0);
       } else {
         // 必须把 audio 也归零，否则再点播放会从结尾续上、立刻又触发 ended
@@ -315,12 +336,12 @@ export default function MusicPlayer(_: AppProps) {
     const additions: Track[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      if (!f.type.startsWith('audio/')) continue;
+      if (!f.type.startsWith("audio/")) continue;
       const url = URL.createObjectURL(f);
       // 探测时长
       const dur = await new Promise<number>((resolve) => {
-        const a = document.createElement('audio');
-        a.preload = 'metadata';
+        const a = document.createElement("audio");
+        a.preload = "metadata";
         a.src = url;
         a.onloadedmetadata = () => {
           resolve(a.duration || 0);
@@ -373,7 +394,9 @@ export default function MusicPlayer(_: AppProps) {
     } else if (removedIdx === currentIdx) {
       // 删的就是正在播的那首 → 停播，指针夹到合法范围
       setPlaying(false);
-      setCurrentIdx(next.length === 0 ? -1 : Math.min(currentIdx, next.length - 1));
+      setCurrentIdx(
+        next.length === 0 ? -1 : Math.min(currentIdx, next.length - 1),
+      );
     }
   };
 
@@ -390,7 +413,10 @@ export default function MusicPlayer(_: AppProps) {
     const bar = seekBarRef.current;
     if (!bar) return;
     const rect = bar.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const ratio = Math.max(
+      0,
+      Math.min(1, (e.clientX - rect.left) / rect.width),
+    );
     seekTo(ratio * duration);
     const move = (ev: PointerEvent) => {
       const r = bar.getBoundingClientRect();
@@ -398,11 +424,11 @@ export default function MusicPlayer(_: AppProps) {
       seekTo((x / r.width) * duration);
     };
     const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   };
 
   /* ------------------------------- 渲染 ------------------------------- */
@@ -417,7 +443,7 @@ export default function MusicPlayer(_: AppProps) {
         multiple
         onChange={(e) => {
           pickFiles(e.target.files);
-          e.target.value = '';
+          e.target.value = "";
         }}
         className="hidden"
       />
@@ -462,7 +488,9 @@ export default function MusicPlayer(_: AppProps) {
 
         <div className="flex-1 overflow-y-auto py-1">
           {loadingMeta && (
-            <div className="px-3 py-2 text-xs text-zinc-500">读取保存的列表...</div>
+            <div className="px-3 py-2 text-xs text-zinc-500">
+              读取保存的列表...
+            </div>
           )}
           {!loadingMeta && tracks.length === 0 && (
             <div className="px-4 py-8 text-center text-xs text-zinc-500">
@@ -481,8 +509,8 @@ export default function MusicPlayer(_: AppProps) {
               key={t.id}
               onDoubleClick={() => playAt(i)}
               className={cn(
-                'flex cursor-pointer items-center justify-between gap-2 px-3 py-2 hover:bg-zinc-900',
-                i === currentIdx && 'bg-indigo-600/10',
+                "flex cursor-pointer items-center justify-between gap-2 px-3 py-2 hover:bg-zinc-900",
+                i === currentIdx && "bg-indigo-600/10",
               )}
             >
               <div className="flex min-w-0 items-center gap-2">
@@ -494,7 +522,9 @@ export default function MusicPlayer(_: AppProps) {
                 <div className="min-w-0">
                   <div className="truncate text-sm">{t.name}</div>
                   {!t.url && (
-                    <div className="text-[10px] text-amber-400">文件已丢失，点击重选</div>
+                    <div className="text-[10px] text-amber-400">
+                      文件已丢失，点击重选
+                    </div>
                   )}
                 </div>
               </div>
@@ -595,12 +625,12 @@ function NowPlaying(props: {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       {/* 封面占位 */}
-      <div className="relative aspect-square w-56 overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 via-fuchsia-600 to-emerald-500 shadow-2xl shadow-indigo-900/40">
+      <div className="relative aspect-square w-56 overflow-hidden rounded-xl bg-linear-to-br from-indigo-600 via-fuchsia-600 to-emerald-500 shadow-2xl shadow-indigo-900/40">
         <div className="absolute inset-0 flex items-center justify-center text-white/90">
           <Music size={80} />
         </div>
         {playing && (
-          <div className="absolute inset-x-0 bottom-0 flex items-end justify-center gap-1 bg-gradient-to-t from-black/40 to-transparent p-3">
+          <div className="absolute inset-x-0 bottom-0 flex items-end justify-center gap-1 bg-linear-to-t from-black/40 to-transparent p-3">
             <PlayingBars large />
           </div>
         )}
@@ -643,8 +673,8 @@ function NowPlaying(props: {
         <button
           onClick={onCycleLoop}
           className={cn(
-            'rounded p-2 hover:bg-zinc-800',
-            loop !== 'off' && 'text-indigo-400',
+            "rounded p-2 hover:bg-zinc-800",
+            loop !== "off" && "text-indigo-400",
           )}
           title={LOOP_LABEL[loop]}
         >
@@ -660,9 +690,13 @@ function NowPlaying(props: {
         <button
           onClick={onPlay}
           className="flex size-12 items-center justify-center rounded-full bg-white text-black hover:scale-105 active:scale-95"
-          title={playing ? '暂停' : '播放'}
+          title={playing ? "暂停" : "播放"}
         >
-          {playing ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="ml-0.5" />}
+          {playing ? (
+            <Pause size={22} fill="currentColor" />
+          ) : (
+            <Play size={22} fill="currentColor" className="ml-0.5" />
+          )}
         </button>
         <button
           onClick={onNext}
@@ -676,9 +710,13 @@ function NowPlaying(props: {
           <button
             onClick={onToggleMute}
             className="rounded p-2 hover:bg-zinc-800"
-            title={muted ? '取消静音' : '静音'}
+            title={muted ? "取消静音" : "静音"}
           >
-            {muted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            {muted || volume === 0 ? (
+              <VolumeX size={18} />
+            ) : (
+              <Volume2 size={18} />
+            )}
           </button>
           <input
             type="range"
@@ -716,12 +754,12 @@ function EmptyPlayer({ onAdd }: { onAdd: () => void }) {
 }
 
 function PlayingBars({ large = false }: { large?: boolean }) {
-  const cls = large ? 'h-8 w-1.5' : 'h-4 w-0.5';
+  const cls = large ? "h-8 w-1.5" : "h-4 w-0.5";
   return (
     <span className="inline-flex items-end gap-0.5 text-indigo-400">
-      <span className={cn(cls, 'animate-eq-1')} />
-      <span className={cn(cls, 'animate-eq-2')} />
-      <span className={cn(cls, 'animate-eq-3')} />
+      <span className={cn(cls, "animate-eq-1")} />
+      <span className={cn(cls, "animate-eq-2")} />
+      <span className={cn(cls, "animate-eq-3")} />
     </span>
   );
 }

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
-import { Bot, Cpu, RotateCcw, Undo2, User } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { notify } from '@/stores/useNotifyStore';
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import { Bot, Cpu, RotateCcw, Undo2, User } from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { notify } from "@/stores/useNotifyStore";
 
 const N = 15;
 const CELL = 30;
@@ -13,8 +13,12 @@ const SIZE = PAD * 2 + (N - 1) * CELL;
 type Stone = 0 | 1 | 2;
 type Board = Stone[][];
 
-type Difficulty = 'easy' | 'medium' | 'hard';
-const DIFF_LABEL: Record<Difficulty, string> = { easy: '简单', medium: '中等', hard: '困难' };
+type Difficulty = "easy" | "medium" | "hard";
+const DIFF_LABEL: Record<Difficulty, string> = {
+  easy: "简单",
+  medium: "中等",
+  hard: "困难",
+};
 
 const DIRS: Array<[number, number]> = [
   [0, 1],
@@ -125,14 +129,14 @@ function chooseAIMove(
     const offense = evalCell(b, r, c, aiColor);
     const defense = evalCell(b, r, c, humanColor);
     let score = offense + defense * 0.9;
-    if (diff === 'hard') {
+    if (diff === "hard") {
       // 一层预判：落子后对手的最佳回应价值（越大越危险），予以减分
       b[r][c] = aiColor;
       const oppReply = bestOffense(b, humanColor);
       b[r][c] = 0;
       score -= oppReply * 0.4;
     }
-    if (diff === 'easy') {
+    if (diff === "easy") {
       score += Math.random() * 6;
     }
     if (score > bestScore) {
@@ -141,7 +145,7 @@ function chooseAIMove(
     }
   }
 
-  if (diff === 'easy' && Math.random() < 0.25) {
+  if (diff === "easy" && Math.random() < 0.25) {
     const pick = empties[Math.floor(Math.random() * empties.length)];
     if (pick) return pick;
   }
@@ -149,7 +153,12 @@ function chooseAIMove(
 }
 
 /** 检查 (r,c) 落 color 后是否成五连，返回获胜的五子坐标 */
-function checkWin(b: Board, r: number, c: number, color: Stone): Array<[number, number]> | null {
+function checkWin(
+  b: Board,
+  r: number,
+  c: number,
+  color: Stone,
+): Array<[number, number]> | null {
   for (const [dx, dy] of DIRS) {
     const line: Array<[number, number]> = [[r, c]];
     let x = r + dx;
@@ -178,8 +187,8 @@ export default function Gomoku({ context }: AppProps) {
   const [over, setOver] = useState(false);
   const [winLine, setWinLine] = useState<Array<[number, number]>>([]);
   const [moves, setMoves] = useState<Array<[number, number, Stone]>>([]);
-  const [diff, setDiff] = useState<Difficulty>('medium');
-  const [first, setFirst] = useState<'human' | 'ai'>('human');
+  const [diff, setDiff] = useState<Difficulty>("medium");
+  const [first, setFirst] = useState<"human" | "ai">("human");
 
   const humanColor: Stone = 1;
   const aiColor: Stone = 2;
@@ -196,11 +205,11 @@ export default function Gomoku({ context }: AppProps) {
   const draw = useCallback(() => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const ctx = cv.getContext('2d');
+    const ctx = cv.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = '#131722';
+    ctx.fillStyle = "#131722";
     ctx.fillRect(0, 0, cv.width, cv.height);
-    ctx.strokeStyle = '#232838';
+    ctx.strokeStyle = "#232838";
     ctx.lineWidth = 1;
     for (let i = 0; i < N; i++) {
       const p = PAD + i * CELL;
@@ -224,10 +233,10 @@ export default function Gomoku({ context }: AppProps) {
         const cy = PAD + r * CELL;
         ctx.beginPath();
         ctx.arc(cx, cy, CELL * 0.42, 0, Math.PI * 2);
-        ctx.fillStyle = v === 1 ? '#0b0e14' : '#e6e9ef';
+        ctx.fillStyle = v === 1 ? "#0b0e14" : "#e6e9ef";
         ctx.fill();
         ctx.lineWidth = 1;
-        ctx.strokeStyle = v === 1 ? '#3a3f4d' : '#9aa3b5';
+        ctx.strokeStyle = v === 1 ? "#3a3f4d" : "#9aa3b5";
         ctx.stroke();
       }
     }
@@ -238,7 +247,7 @@ export default function Gomoku({ context }: AppProps) {
       ctx.beginPath();
       ctx.arc(cx, cy, CELL * 0.5, 0, Math.PI * 2);
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#e06c75';
+      ctx.strokeStyle = "#e06c75";
       ctx.stroke();
     }
     // 最近一手标记
@@ -248,7 +257,7 @@ export default function Gomoku({ context }: AppProps) {
       const cy = PAD + last[0] * CELL;
       ctx.beginPath();
       ctx.arc(cx, cy, CELL * 0.18, 0, Math.PI * 2);
-      ctx.fillStyle = '#e06c75';
+      ctx.fillStyle = "#e06c75";
       ctx.fill();
     }
   }, [winLine, moves]);
@@ -258,7 +267,7 @@ export default function Gomoku({ context }: AppProps) {
   }, [draw]);
 
   useEffect(() => {
-    context.setTitle('五子棋');
+    context.setTitle("五子棋");
   }, [context]);
 
   const doAIMove = useCallback(() => {
@@ -267,7 +276,7 @@ export default function Gomoku({ context }: AppProps) {
     const [ar, ac] = chooseAIMove(b, diff, aiColor, humanColor);
     if (ar < 0 || ac < 0) {
       setOver(true);
-      notify('五子棋', '平局', 'info');
+      notify("五子棋", "平局", "info");
       return;
     }
     const nb = b.map((row) => row.slice()) as Board;
@@ -279,12 +288,12 @@ export default function Gomoku({ context }: AppProps) {
       setWinner(aiColor);
       setWinLine(line);
       setOver(true);
-      notify('五子棋', '电脑获胜', 'error');
+      notify("五子棋", "电脑获胜", "error");
       return;
     }
     if (isFull(nb)) {
       setOver(true);
-      notify('五子棋', '平局', 'info');
+      notify("五子棋", "平局", "info");
       return;
     }
     setCurrent(humanColor);
@@ -311,12 +320,12 @@ export default function Gomoku({ context }: AppProps) {
         setWinner(humanColor);
         setWinLine(line);
         setOver(true);
-        notify('五子棋', '你赢了！', 'success');
+        notify("五子棋", "你赢了！", "success");
         return;
       }
       if (isFull(nb)) {
         setOver(true);
-        notify('五子棋', '平局', 'info');
+        notify("五子棋", "平局", "info");
         return;
       }
       setCurrent(aiColor);
@@ -346,7 +355,7 @@ export default function Gomoku({ context }: AppProps) {
     setWinner(0);
     setWinLine([]);
     setOver(false);
-    const start: Stone = first === 'human' ? humanColor : aiColor;
+    const start: Stone = first === "human" ? humanColor : aiColor;
     setCurrent(start);
     if (start === aiColor) scheduleAI();
   }, [first, humanColor, aiColor, scheduleAI]);
@@ -379,16 +388,15 @@ export default function Gomoku({ context }: AppProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const turnText =
-    over
-      ? winner === humanColor
-        ? '你获胜'
-        : winner === aiColor
-          ? '电脑获胜'
-          : '平局'
-      : current === humanColor
-        ? '轮到你'
-        : '电脑思考中';
+  const turnText = over
+    ? winner === humanColor
+      ? "你获胜"
+      : winner === aiColor
+        ? "电脑获胜"
+        : "平局"
+    : current === humanColor
+      ? "轮到你"
+      : "电脑思考中";
 
   return (
     <div className="flex h-full flex-col bg-arch-bg text-arch-text">
@@ -399,13 +407,15 @@ export default function Gomoku({ context }: AppProps) {
         </div>
         <div className="flex items-center gap-2 text-xs text-arch-muted">
           <span>难度</span>
-          {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+          {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
             <button
               key={d}
               onClick={() => setDiff(d)}
               className={cn(
-                'rounded px-2 py-1 transition',
-                diff === d ? 'bg-arch-accent text-white' : 'bg-arch-panel text-arch-muted hover:text-arch-text',
+                "rounded px-2 py-1 transition",
+                diff === d
+                  ? "bg-arch-accent text-white"
+                  : "bg-arch-panel text-arch-muted hover:text-arch-text",
               )}
             >
               {DIFF_LABEL[d]}
@@ -413,19 +423,23 @@ export default function Gomoku({ context }: AppProps) {
           ))}
           <span className="ml-2">先后手</span>
           <button
-            onClick={() => setFirst('human')}
+            onClick={() => setFirst("human")}
             className={cn(
-              'flex items-center gap-1 rounded px-2 py-1 transition',
-              first === 'human' ? 'bg-arch-green/20 text-arch-green' : 'bg-arch-panel text-arch-muted hover:text-arch-text',
+              "flex items-center gap-1 rounded px-2 py-1 transition",
+              first === "human"
+                ? "bg-arch-green/20 text-arch-green"
+                : "bg-arch-panel text-arch-muted hover:text-arch-text",
             )}
           >
             <User size={12} /> 先手
           </button>
           <button
-            onClick={() => setFirst('ai')}
+            onClick={() => setFirst("ai")}
             className={cn(
-              'flex items-center gap-1 rounded px-2 py-1 transition',
-              first === 'ai' ? 'bg-arch-red/20 text-arch-red' : 'bg-arch-panel text-arch-muted hover:text-arch-text',
+              "flex items-center gap-1 rounded px-2 py-1 transition",
+              first === "ai"
+                ? "bg-arch-red/20 text-arch-red"
+                : "bg-arch-panel text-arch-muted hover:text-arch-text",
             )}
           >
             <Bot size={12} /> 后手
@@ -440,15 +454,19 @@ export default function Gomoku({ context }: AppProps) {
           height={SIZE}
           onClick={onClick}
           className="cursor-pointer rounded-md border border-arch-border shadow-inner"
-          style={{ width: SIZE, height: SIZE, maxWidth: '100%' }}
+          style={{ width: SIZE, height: SIZE, maxWidth: "100%" }}
         />
         <aside className="flex w-36 flex-col gap-3 text-xs">
           <div className="rounded-md bg-arch-panel p-3 text-center">
             <div className="text-arch-muted">当前</div>
             <div
               className={cn(
-                'mt-1 text-base font-semibold',
-                over ? 'text-arch-muted' : current === humanColor ? 'text-arch-green' : 'text-arch-red',
+                "mt-1 text-base font-semibold",
+                over
+                  ? "text-arch-muted"
+                  : current === humanColor
+                    ? "text-arch-green"
+                    : "text-arch-red",
               )}
             >
               {turnText}
@@ -456,7 +474,9 @@ export default function Gomoku({ context }: AppProps) {
           </div>
           <div className="rounded-md bg-arch-panel p-3 text-center">
             <div className="text-arch-muted">步数</div>
-            <div className="mt-1 text-base font-semibold text-arch-text tabular-nums">{moves.length}</div>
+            <div className="mt-1 text-base font-semibold text-arch-text tabular-nums">
+              {moves.length}
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <button

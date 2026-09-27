@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import type { PowerState } from '@/shell/types';
+import { create } from "zustand";
+import type { PowerState } from "@/shell/types";
 
 export interface DesktopSettings {
   wallpaper: string;
@@ -55,7 +55,7 @@ interface OSState {
   updateSettings: (patch: Partial<DesktopSettings>) => void;
 }
 
-const SETTINGS_KEY = 'arch-web-os:settings';
+const SETTINGS_KEY = "arch-web-os:settings";
 
 function loadSettings(): DesktopSettings {
   const fallback: DesktopSettings = {
@@ -64,7 +64,7 @@ function loadSettings(): DesktopSettings {
     darkMode: true,
     dockSize: 56,
     autoLockMinutes: 5,
-    accentColor: '#1793d1',
+    accentColor: "#1793d1",
     animations: true,
     clockSeconds: false,
     desktopAllApps: false,
@@ -75,7 +75,7 @@ function loadSettings(): DesktopSettings {
     hour12: false,
     dockAutoHide: false,
   };
-  if (typeof localStorage === 'undefined') return fallback;
+  if (typeof localStorage === "undefined") return fallback;
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
@@ -85,7 +85,7 @@ function loadSettings(): DesktopSettings {
 }
 
 function persist(settings: DesktopSettings) {
-  if (typeof localStorage === 'undefined') return;
+  if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch {
@@ -94,27 +94,28 @@ function persist(settings: DesktopSettings) {
 }
 
 export const useOSStore = create<OSState>((set, get) => ({
-  power: 'booting',
+  power: "booting",
   bootKey: 0,
   settings: loadSettings(),
   launcherOpen: false,
   paletteOpen: false,
 
-  bootComplete: () => set({ power: 'locked' }),
-  unlock: () => set({ power: 'running' }),
-  lock: () => set({ power: 'locked', launcherOpen: false, paletteOpen: false }),
+  bootComplete: () => set({ power: "locked" }),
+  unlock: () => set({ power: "running" }),
+  lock: () => set({ power: "locked", launcherOpen: false, paletteOpen: false }),
   shutdown: () =>
-    set({ power: 'shutting-down', launcherOpen: false, paletteOpen: false }),
+    set({ power: "shutting-down", launcherOpen: false, paletteOpen: false }),
   restart: () =>
-    set({ power: 'restarting', launcherOpen: false, paletteOpen: false }),
+    set({ power: "restarting", launcherOpen: false, paletteOpen: false }),
   toggleLauncher: (open) =>
     set((s) => ({ launcherOpen: open ?? !s.launcherOpen })),
-  togglePalette: (open) => set((s) => ({ paletteOpen: open ?? !s.paletteOpen })),
+  togglePalette: (open) =>
+    set((s) => ({ paletteOpen: open ?? !s.paletteOpen })),
 
-  powerOffComplete: () => set({ power: 'off' }),
+  powerOffComplete: () => set({ power: "off" }),
   restartComplete: () =>
-    set((s) => ({ power: 'booting', bootKey: s.bootKey + 1 })),
-  powerOn: () => set((s) => ({ power: 'booting', bootKey: s.bootKey + 1 })),
+    set((s) => ({ power: "booting", bootKey: s.bootKey + 1 })),
+  powerOn: () => set((s) => ({ power: "booting", bootKey: s.bootKey + 1 })),
 
   updateSettings: (patch) => {
     const next = { ...get().settings, ...patch };

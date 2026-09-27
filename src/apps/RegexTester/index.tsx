@@ -1,7 +1,14 @@
-import { useMemo, useState, useEffect } from 'react';
-import { Regex, Replace, Copy, Check, AlertTriangle, Clock } from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
+import { useMemo, useState, useEffect } from "react";
+import {
+  Regex,
+  Replace,
+  Copy,
+  Check,
+  AlertTriangle,
+  Clock,
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
 
 const MAX_TEXT = 200_000;
 
@@ -19,29 +26,25 @@ interface ComputeResult {
 }
 
 const FLAG_DEFS: Array<[string, string]> = [
-  ['g', '全局'],
-  ['i', '忽略大小写'],
-  ['m', '多行'],
-  ['s', '点匹配换行'],
-  ['u', 'Unicode'],
-  ['y', '粘连'],
+  ["g", "全局"],
+  ["i", "忽略大小写"],
+  ["m", "多行"],
+  ["s", "点匹配换行"],
+  ["u", "Unicode"],
+  ["y", "粘连"],
 ];
 
 const PRESETS: Array<[string, string]> = [
-  ['邮箱', '[\\w.+-]+@[\\w-]+\\.[\\w.-]+'],
-  ['手机号', '1[3-9]\\d{9}'],
-  ['URL', 'https?://[\\w.-]+(?:/[\\w./?%&=#-]*)?'],
-  ['IPv4', '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b'],
-  ['日期', '\\d{4}-\\d{2}-\\d{2}'],
-  ['十六进制颜色', '#[0-9a-fA-F]{6}'],
+  ["邮箱", "[\\w.+-]+@[\\w-]+\\.[\\w.-]+"],
+  ["手机号", "1[3-9]\\d{9}"],
+  ["URL", "https?://[\\w.-]+(?:/[\\w./?%&=#-]*)?"],
+  ["IPv4", "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b"],
+  ["日期", "\\d{4}-\\d{2}-\\d{2}"],
+  ["十六进制颜色", "#[0-9a-fA-F]{6}"],
 ];
 
-function compute(
-  pattern: string,
-  flags: string,
-  text: string,
-): ComputeResult {
-  if (pattern === '') {
+function compute(pattern: string, flags: string, text: string): ComputeResult {
+  if (pattern === "") {
     return {
       matches: [],
       segments: text ? [{ text, hit: false, key: 0 }] : [],
@@ -51,12 +54,12 @@ function compute(
   }
   let re: RegExp;
   try {
-    re = new RegExp(pattern, flags.includes('g') ? flags : flags + 'g');
+    re = new RegExp(pattern, flags.includes("g") ? flags : flags + "g");
   } catch (err) {
     return {
       matches: [],
       segments: [],
-      error: err instanceof Error ? err.message : '无效的正则表达式',
+      error: err instanceof Error ? err.message : "无效的正则表达式",
       ms: 0,
     };
   }
@@ -79,7 +82,7 @@ function compute(
       matches.push({
         index: idx,
         value,
-        groups: m.slice(1).map((g) => g ?? ''),
+        groups: m.slice(1).map((g) => g ?? ""),
       });
       last = idx + (value.length || 1);
       if (++guard > 10000) break; // 安全上限
@@ -91,7 +94,7 @@ function compute(
     return {
       matches: [],
       segments: [],
-      error: err instanceof Error ? err.message : '匹配出错',
+      error: err instanceof Error ? err.message : "匹配出错",
       ms: 0,
     };
   }
@@ -101,14 +104,14 @@ function compute(
 
 export default function RegexTester({ context }: AppProps) {
   useEffect(() => {
-    context.setTitle('正则测试');
+    context.setTitle("正则测试");
   }, [context]);
-  const [pattern, setPattern] = useState('\\d{4}-\\d{2}-\\d{2}');
-  const [flags, setFlags] = useState('g');
+  const [pattern, setPattern] = useState("\\d{4}-\\d{2}-\\d{2}");
+  const [flags, setFlags] = useState("g");
   const [text, setText] = useState(
-    '订单 2024-01-15 已发货，订单 2024-02-03 已签收，预约 2025-12-31。',
+    "订单 2024-01-15 已发货，订单 2024-02-03 已签收，预约 2025-12-31。",
   );
-  const [replace, setReplace] = useState('[$1]');
+  const [replace, setReplace] = useState("[$1]");
   const [copied, setCopied] = useState(false);
 
   const truncated = text.length > MAX_TEXT;
@@ -120,17 +123,17 @@ export default function RegexTester({ context }: AppProps) {
   );
 
   const replaceResult = useMemo(() => {
-    if (pattern === '') return '';
+    if (pattern === "") return "";
     try {
       const re = new RegExp(pattern, flags);
       return workText.replace(re, replace);
     } catch {
-      return '';
+      return "";
     }
   }, [pattern, flags, replace, workText]);
 
   const toggleFlag = (f: string) => {
-    setFlags((prev) => (prev.includes(f) ? prev.replace(f, '') : prev + f));
+    setFlags((prev) => (prev.includes(f) ? prev.replace(f, "") : prev + f));
   };
 
   const copyReplace = async () => {
@@ -160,10 +163,10 @@ export default function RegexTester({ context }: AppProps) {
             <label
               key={f}
               className={cn(
-                'flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]',
+                "flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]",
                 flags.includes(f)
-                  ? 'border-arch-accent text-arch-accent'
-                  : 'border-arch-border text-arch-muted',
+                  ? "border-arch-accent text-arch-accent"
+                  : "border-arch-border text-arch-muted",
               )}
             >
               <input
@@ -201,7 +204,7 @@ export default function RegexTester({ context }: AppProps) {
                 <AlertTriangle size={13} /> {result.error}
               </div>
             ) : (
-              <span className="whitespace-pre-wrap break-words">
+              <span className="whitespace-pre-wrap wrap-break-word">
                 {result.segments.map((seg) =>
                   seg.hit ? (
                     <mark
@@ -275,7 +278,7 @@ export default function RegexTester({ context }: AppProps) {
               </button>
             </div>
             <pre className="mt-1 max-h-24 overflow-y-auto rounded bg-black/30 p-2 font-mono text-[12px] text-arch-green">
-              {replaceResult || '（无）'}
+              {replaceResult || "（无）"}
             </pre>
           </div>
         </div>

@@ -1,21 +1,10 @@
-import type { LucideIcon } from 'lucide-react';
+import type { LucideIcon } from "lucide-react";
 
 /** 电源状态机：开机 → 锁屏 → 运行 → 关机/重启 */
 export type PowerState =
-  | 'booting'
-  | 'running'
-  | 'locked'
-  | 'shutting-down'
-  | 'restarting'
-  | 'off';
+  "booting" | "running" | "locked" | "shutting-down" | "restarting" | "off";
 
-export type AppCategory =
-  | '系统'
-  | '工具'
-  | '开发'
-  | '网络'
-  | '影音'
-  | '游戏';
+export type AppCategory = "系统" | "工具" | "开发" | "网络" | "影音" | "游戏";
 
 /** 窗口运行时状态 */
 export interface WindowState {
@@ -66,7 +55,7 @@ export interface AppProps {
 export interface FsNode {
   path: string;
   name: string;
-  type: 'file' | 'dir';
+  type: "file" | "dir";
   size: number;
   updatedAt: number;
   content?: string;

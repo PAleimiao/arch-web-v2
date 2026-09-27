@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import {
   Copy,
   Download,
@@ -8,11 +15,11 @@ import {
   Search,
   Trash2,
   Upload,
-} from 'lucide-react';
-import type { AppProps } from '@/shell/types';
-import { cn } from '@/lib/cn';
-import { vfs } from '@/services/filesystem';
-import { notify } from '@/stores/useNotifyStore';
+} from "lucide-react";
+import type { AppProps } from "@/shell/types";
+import { cn } from "@/lib/cn";
+import { vfs } from "@/services/filesystem";
+import { notify } from "@/stores/useNotifyStore";
 
 interface FileEntry {
   path: string;
@@ -29,17 +36,17 @@ function fmtBytes(n: number): string {
 }
 
 function dirOf(path: string): string {
-  const i = path.lastIndexOf('/');
-  return i <= 0 ? '/' : path.slice(0, i);
+  const i = path.lastIndexOf("/");
+  return i <= 0 ? "/" : path.slice(0, i);
 }
 
 export default function DiskUsage(_: AppProps) {
   const [files, setFiles] = useState<FileEntry[] | null>(null);
-  const [backend, setBackend] = useState<string>('');
+  const [backend, setBackend] = useState<string>("");
   const [quota, setQuota] = useState<{ usage: number; quota: number } | null>(
     null,
   );
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<number | null>(null);
   const [restored, setRestored] = useState(0);
@@ -48,11 +55,9 @@ export default function DiskUsage(_: AppProps) {
   const load = useCallback(async () => {
     try {
       const all = await vfs.listAll();
-      setFiles(
-        all.map((f) => ({ path: f.path, name: f.name, size: f.size })),
-      );
+      setFiles(all.map((f) => ({ path: f.path, name: f.name, size: f.size })));
     } catch (e) {
-      notify('读取失败', String(e), 'error');
+      notify("读取失败", String(e), "error");
       setFiles([]);
     }
   }, []);
@@ -106,9 +111,7 @@ export default function DiskUsage(_: AppProps) {
     const list = q
       ? files.filter((f) => f.path.toLowerCase().includes(q))
       : files;
-    return [...list]
-      .sort((a, b) => b.size - a.size)
-      .slice(0, BACKUP_TOP_N);
+    return [...list].sort((a, b) => b.size - a.size).slice(0, BACKUP_TOP_N);
   }, [files, query]);
 
   const totalBytes = files ? files.reduce((s, f) => s + f.size, 0) : 0;
@@ -118,23 +121,23 @@ export default function DiskUsage(_: AppProps) {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(path);
-        notify('已复制路径', path, 'success');
+        notify("已复制路径", path, "success");
         return;
       }
-      throw new Error('无 clipboard API');
+      throw new Error("无 clipboard API");
     } catch (e) {
-      notify('复制失败', String(e), 'error');
+      notify("复制失败", String(e), "error");
     }
   };
 
   const delFile = async (path: string) => {
     try {
       await vfs.remove(path);
-      notify('已删除', path, 'info');
+      notify("已删除", path, "info");
       if (selected === path) setSelected(null);
       await load();
     } catch (e) {
-      notify('删除失败', String(e), 'error');
+      notify("删除失败", String(e), "error");
     }
   };
 
@@ -143,7 +146,7 @@ export default function DiskUsage(_: AppProps) {
       const all = files ?? (await vfs.listAll());
       const out: Array<{ path: string; content: string }> = [];
       for (const f of all) {
-        const content = (await vfs.readFile(f.path)) ?? '';
+        const content = (await vfs.readFile(f.path)) ?? "";
         out.push({ path: f.path, content });
       }
       const payload = JSON.stringify(
@@ -151,19 +154,19 @@ export default function DiskUsage(_: AppProps) {
         null,
         2,
       );
-      const blob = new Blob([payload], { type: 'application/json' });
+      const blob = new Blob([payload], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
       a.href = url;
       a.download = `arch-web-backup-${stamp}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      notify('已导出备份', `共 ${out.length} 个文件`, 'success');
+      notify("已导出备份", `共 ${out.length} 个文件`, "success");
     } catch (e) {
-      notify('导出失败', String(e), 'error');
+      notify("导出失败", String(e), "error");
     }
   };
 
@@ -178,7 +181,7 @@ export default function DiskUsage(_: AppProps) {
       };
       const items = parsed.files ?? [];
       if (!Array.isArray(items) || items.length === 0) {
-        notify('无效备份', '未找到文件列表', 'error');
+        notify("无效备份", "未找到文件列表", "error");
         return;
       }
       const ok = window.confirm(
@@ -189,21 +192,21 @@ export default function DiskUsage(_: AppProps) {
       setRestoring(items.length);
       for (let i = 0; i < items.length; i++) {
         const it = items[i]!;
-        const p = typeof it.path === 'string' ? it.path : '';
-        const c = typeof it.content === 'string' ? it.content : '';
+        const p = typeof it.path === "string" ? it.path : "";
+        const c = typeof it.content === "string" ? it.content : "";
         if (p) {
           await vfs.writeFile(p, c);
           setRestored(i + 1);
         }
       }
-      notify('恢复完成', `已写入 ${items.length} 个文件`, 'success');
+      notify("恢复完成", `已写入 ${items.length} 个文件`, "success");
       setRestoring(null);
       await load();
     } catch (err) {
-      notify('恢复失败', String(err), 'error');
+      notify("恢复失败", String(err), "error");
       setRestoring(null);
     }
-    if (input) input.value = '';
+    if (input) input.value = "";
   };
 
   return (
@@ -213,10 +216,15 @@ export default function DiskUsage(_: AppProps) {
         <span className="flex items-center gap-1 text-arch-muted">
           <HardDrive size={13} />
           后端：
-          <span className="font-mono text-arch-accent">{backend || '读取中…'}</span>
+          <span className="font-mono text-arch-accent">
+            {backend || "读取中…"}
+          </span>
         </span>
         <span className="font-mono text-arch-muted">
-          配额 {quota ? `${fmtBytes(quota.usage)} / ${fmtBytes(quota.quota)}` : '未知'}
+          配额{" "}
+          {quota
+            ? `${fmtBytes(quota.usage)} / ${fmtBytes(quota.quota)}`
+            : "未知"}
         </span>
         <span className="font-mono text-arch-muted">
           总文件 {files ? files.length : 0} · {fmtBytes(totalBytes)}
@@ -255,7 +263,8 @@ export default function DiskUsage(_: AppProps) {
             <div
               className="h-full bg-arch-accent"
               style={{
-                width: restoring > 0 ? `${(restored / restoring) * 100}%` : '0%',
+                width:
+                  restoring > 0 ? `${(restored / restoring) * 100}%` : "0%",
               }}
             />
           </div>
@@ -289,7 +298,9 @@ export default function DiskUsage(_: AppProps) {
                   <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-arch-border">
                     <div
                       className="h-full bg-arch-accent"
-                      style={{ width: `${maxDir > 0 ? (d.bytes / maxDir) * 100 : 0}%` }}
+                      style={{
+                        width: `${maxDir > 0 ? (d.bytes / maxDir) * 100 : 0}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -312,7 +323,7 @@ export default function DiskUsage(_: AppProps) {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {largest.length === 0 ? (
-              <Empty text={query ? '没有匹配的文件' : 'VFS 中还没有任何文件'} />
+              <Empty text={query ? "没有匹配的文件" : "VFS 中还没有任何文件"} />
             ) : (
               largest.map((f) => (
                 <button
@@ -320,8 +331,8 @@ export default function DiskUsage(_: AppProps) {
                   type="button"
                   onClick={() => setSelected(f.path)}
                   className={cn(
-                    'flex w-full items-center justify-between border-b border-arch-border/60 px-3 py-1 text-left hover:bg-arch-panel',
-                    selected === f.path && 'bg-arch-accent/10',
+                    "flex w-full items-center justify-between border-b border-arch-border/60 px-3 py-1 text-left hover:bg-arch-panel",
+                    selected === f.path && "bg-arch-accent/10",
                   )}
                 >
                   <span className="flex items-center gap-1 truncate font-mono">

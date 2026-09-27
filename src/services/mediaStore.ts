@@ -7,15 +7,15 @@
  * - 上限：浏览器分配，常见 50MB-2GB
  */
 
-const DB_NAME = 'arch-web-media';
+const DB_NAME = "arch-web-media";
 const DB_VERSION = 1;
-const STORE = 'blobs';
+const STORE = "blobs";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb(): Promise<IDBDatabase> {
-  if (typeof indexedDB === 'undefined') {
-    return Promise.reject(new Error('IndexedDB 不可用'));
+  if (typeof indexedDB === "undefined") {
+    return Promise.reject(new Error("IndexedDB 不可用"));
   }
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
@@ -23,7 +23,7 @@ function openDb(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'key' });
+        db.createObjectStore(STORE, { keyPath: "key" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -45,7 +45,7 @@ async function tx(mode: IDBTransactionMode) {
 }
 
 export async function putBlob(record: BlobRecord): Promise<void> {
-  const store = await tx('readwrite');
+  const store = await tx("readwrite");
   return new Promise((resolve, reject) => {
     const r = store.put(record);
     r.onsuccess = () => resolve();
@@ -55,7 +55,7 @@ export async function putBlob(record: BlobRecord): Promise<void> {
 
 export async function putBlobs(records: BlobRecord[]): Promise<void> {
   if (records.length === 0) return;
-  const store = await tx('readwrite');
+  const store = await tx("readwrite");
   return new Promise((resolve, reject) => {
     records.forEach((r) => store.put(r));
     store.transaction.oncomplete = () => resolve();
@@ -64,7 +64,7 @@ export async function putBlobs(records: BlobRecord[]): Promise<void> {
 }
 
 export async function getBlob(key: string): Promise<BlobRecord | null> {
-  const store = await tx('readonly');
+  const store = await tx("readonly");
   return new Promise((resolve, reject) => {
     const r = store.get(key);
     r.onsuccess = () => resolve((r.result as BlobRecord) ?? null);
@@ -73,7 +73,7 @@ export async function getBlob(key: string): Promise<BlobRecord | null> {
 }
 
 export async function listBlobs(): Promise<BlobRecord[]> {
-  const store = await tx('readonly');
+  const store = await tx("readonly");
   return new Promise((resolve, reject) => {
     const out: BlobRecord[] = [];
     const r = store.openCursor();
@@ -91,7 +91,7 @@ export async function listBlobs(): Promise<BlobRecord[]> {
 }
 
 export async function deleteBlob(key: string): Promise<void> {
-  const store = await tx('readwrite');
+  const store = await tx("readwrite");
   return new Promise((resolve, reject) => {
     const r = store.delete(key);
     r.onsuccess = () => resolve();
@@ -100,7 +100,7 @@ export async function deleteBlob(key: string): Promise<void> {
 }
 
 export async function countBlobs(): Promise<number> {
-  const store = await tx('readonly');
+  const store = await tx("readonly");
   return new Promise((resolve, reject) => {
     const r = store.count();
     r.onsuccess = () => resolve(r.result);
