@@ -259,15 +259,15 @@ export const APPS: AppMeta[] = [
   },
   {
     id: "netease",
-    name: "在线音乐",
+    name: "网易云音乐",
     icon: Disc3,
     category: "影音",
-    description: "搜索 / 播放 网易 / QQ / 酷我等音源",
-    defaultWidth: 880,
-    defaultHeight: 600,
-    minWidth: 720,
-    minHeight: 500,
-    accent: "#e84393",
+    description: "网易云音乐 · 歌单 / 搜索 / 播放，支持亮色与暗色",
+    defaultWidth: 1080,
+    defaultHeight: 680,
+    minWidth: 860,
+    minHeight: 560,
+    accent: "#ec4141",
   },
 
   /* ============================ 开发 ============================ */
