@@ -44,6 +44,7 @@ import {
   ThumbsUp,
   X,
 } from 'lucide-react';
+import qrcode from 'qrcode-generator';
 import type { AppProps } from '@/shell/types';
 import { useOSStore } from '@/stores/useOSStore';
 
@@ -111,6 +112,40 @@ interface CommentPayload {
   comments?: SongComment[];
   more?: boolean;
   error?: string;
+}
+
+/* ---- 官方扫码登录（凭证只留在 Worker 侧） ---- */
+interface NcmProfile {
+  userId: number;
+  nickname: string;
+  avatarUrl: string;
+  vipType: number;
+}
+interface QrKeyResponse {
+  unikey?: string;
+  url?: string;
+  error?: string;
+}
+interface QrCheckResponse {
+  code?: number;
+  message?: string;
+  nickname?: string;
+  loggedIn?: boolean;
+  profile?: NcmProfile | null;
+  error?: string;
+}
+interface LoginStatusResponse {
+  loggedIn?: boolean;
+  profile?: NcmProfile | null;
+  expired?: boolean;
+  error?: string;
+}
+interface UserPlaylist {
+  id: string;
+  name: string;
+  cover: string;
+  count: number;
+  creator: string;
 }
 
 type View = 'home' | 'playlist' | 'search' | 'channel';
@@ -287,6 +322,34 @@ async function fetchSongComments(id: string, offset = 0, limit = 20): Promise<Co
 /** 官方头像常写成 http://，https 页面下会被混合内容拦截 */
 function safeAvatar(url?: string): string {
   return url ? url.replace(/^http:\/\//, 'https://') : '';
+}
+
+/* ---- 官方扫码登录接口（同源 Worker，凭证由服务端保管） ---- */
+const LOGIN_ENDPOINT = '/api/netease/login';
+
+type NcmResult<T> = T & { error?: string };
+
+async function ncmApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(`${LOGIN_ENDPOINT}${path}`, {
+    credentials: 'same-origin',
+    ...init,
+  });
+  const data = (await r.json().catch(() => ({}))) as NcmResult<T>;
+  if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+/** 用登录态读歌单详情（我的歌单 / 私人歌单），失败时上层回退公共网关 */
+async function fetchOfficialPlaylist(id: string): Promise<PlaylistData> {
+  const data = await ncmApi<{ playlist: PlaylistData }>(`/playlist?id=${encodeURIComponent(id)}`);
+  return data.playlist;
+}
+
+function makeQrDataUrl(text: string): string {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(8, 0);
 }
 
 /* ---- GD Studio 公共网关 ---- */
@@ -803,11 +866,12 @@ interface CommentDrawerProps {
   onMore: () => void;
   onRetry: () => void;
   onLogin: () => void;
+  loggedIn: boolean;
 }
 
 function CommentDrawer({
   track, tab, hot, latest, total, loading, error, more,
-  onTab, onClose, onMore, onRetry, onLogin,
+  onTab, onClose, onMore, onRetry, onLogin, loggedIn,
 }: CommentDrawerProps) {
   const list = tab === 'hot' ? hot : latest;
   return (
@@ -907,24 +971,26 @@ function CommentDrawer({
         )}
       </div>
 
-      {/* 未登录时不放假输入框骗提交，明确指向登录 */}
+      {/* 当前版本只开放评论浏览，不做写操作，避免误发到你的账号 */}
       <div style={{ borderTop: '1px solid var(--nm-border)', padding: 12 }}>
         <div className="flex gap-2">
           <input
             disabled
-            placeholder="登录后才能发表评论"
+            placeholder={loggedIn ? '评论发布暂未开放（避免误发到你的账号）' : '登录后才能发表评论'}
             style={{ flex: 1, minWidth: 0, height: 32, borderRadius: 16, border: '1px solid var(--nm-border)', background: 'var(--nm-panel)', color: 'var(--nm-text)', fontSize: 11, padding: '0 12px' }}
           />
-          <button
-            type="button"
-            onClick={onLogin}
-            style={{ height: 32, padding: '0 14px', borderRadius: 16, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 11, cursor: 'pointer' }}
-          >
-            登录
-          </button>
+          {!loggedIn && (
+            <button
+              type="button"
+              onClick={onLogin}
+              style={{ height: 32, padding: '0 14px', borderRadius: 16, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 11, cursor: 'pointer' }}
+            >
+              登录
+            </button>
+          )}
         </div>
         <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 8, lineHeight: 1.6 }}>
-          评论读取自网易云官方公开接口，本应用只展示，不上传任何账号信息。
+          评论读取自网易云官方公开接口；发布 / 点赞等写操作未接入，避免误发到你的账号。
         </div>
       </div>
     </div>
@@ -1052,6 +1118,18 @@ export default function NeteaseMusic(_: AppProps) {
   const [commentMore, setCommentMore] = useState(false);
   /** 切歌时丢弃上一次的异步评论结果 */
   const commentTokenRef = useRef(0);
+  /* ---- 官方扫码登录状态 ---- */
+  const [profile, setProfile] = useState<NcmProfile | null>(null);
+  const [userPlaylists, setUserPlaylists] = useState<UserPlaylist[]>([]);
+  const [loginPhase, setLoginPhase] = useState<
+    'idle' | 'loading' | 'qr' | 'scanned' | 'expired' | 'success' | 'error' | 'account'
+  >('idle');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [qrKey, setQrKey] = useState('');
+  const [loginMsg, setLoginMsg] = useState('');
+  const [loginErr, setLoginErr] = useState<string | null>(null);
+  const loginPollRef = useRef<number | null>(null);
+  const loginAliveRef = useRef(false);
   const [playlist, setPlaylist] = useState<PlaylistData | null>(null);
   const [results, setResults] = useState<Track[]>([]);
   const [searchKw, setSearchKw] = useState('');
@@ -1332,6 +1410,172 @@ export default function NeteaseMusic(_: AppProps) {
     a.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
   };
 
+  /* ---------------------- 官方扫码登录 ---------------------- */
+  const stopLoginPoll = useCallback(() => {
+    loginAliveRef.current = false;
+    if (loginPollRef.current !== null) {
+      window.clearInterval(loginPollRef.current);
+      loginPollRef.current = null;
+    }
+  }, []);
+
+  const loadUserPlaylists = useCallback(async () => {
+    try {
+      const data = await ncmApi<{ playlists?: UserPlaylist[] }>('/playlists');
+      setUserPlaylists(data.playlists ?? []);
+    } catch {
+      setUserPlaylists([]);
+    }
+  }, []);
+
+  const startLoginQr = useCallback(async () => {
+    stopLoginPoll();
+    setLoginPhase('loading');
+    setLoginErr(null);
+    setQrDataUrl('');
+    setQrKey('');
+    setLoginMsg('正在向网易云申请登录二维码…');
+    try {
+      const data = await ncmApi<QrKeyResponse>('/qr/key');
+      if (!data.url) throw new Error('接口没返回扫码链接');
+      setQrDataUrl(makeQrDataUrl(data.url));
+      setQrKey(data.unikey ?? '');
+      setLoginPhase('qr');
+      setLoginMsg('请用网易云音乐 App 扫码');
+    } catch (e) {
+      setLoginErr(String((e as Error)?.message ?? e));
+      setLoginPhase('error');
+      setLoginMsg('二维码获取失败');
+    }
+  }, [stopLoginPoll]);
+
+  const openLogin = useCallback(async () => {
+    setShowLogin(true);
+    setLoginErr(null);
+    setLoginPhase('idle');
+    try {
+      const st = await ncmApi<LoginStatusResponse>('/status');
+      if (st.loggedIn && st.profile) {
+        setProfile(st.profile);
+        setLoginPhase('account');
+        setLoginMsg('');
+        void loadUserPlaylists();
+      } else {
+        setProfile(null);
+        void startLoginQr();
+      }
+    } catch {
+      setProfile(null);
+      void startLoginQr();
+    }
+  }, [startLoginQr, loadUserPlaylists]);
+
+  const doLogout = useCallback(async () => {
+    stopLoginPoll();
+    try {
+      await ncmApi('/logout', { method: 'POST' });
+    } catch {
+      /* 本地仍按未登录处理 */
+    }
+    setProfile(null);
+    setUserPlaylists([]);
+    setQrDataUrl('');
+    setQrKey('');
+    setLoginPhase('idle');
+    setLoginErr(null);
+    setShowLogin(false);
+  }, [stopLoginPoll]);
+
+  /* 打开应用时静默恢复登录态（凭证在 Worker 侧，前端只拿到 profile） */
+  useEffect(() => {
+    void (async () => {
+      try {
+        const st = await ncmApi<LoginStatusResponse>('/status');
+        if (st.loggedIn && st.profile) {
+          setProfile(st.profile);
+          void loadUserPlaylists();
+        }
+      } catch {
+        /* 未登录，保持游客态 */
+      }
+    })();
+  }, [loadUserPlaylists]);
+
+  /* 扫码轮询：801 继续等 / 802 待确认 / 803 成功 / 800 过期 */
+  useEffect(() => {
+    if (!showLogin || profile || !qrKey) return;
+    loginAliveRef.current = true;
+    const tick = async () => {
+      if (!loginAliveRef.current) return;
+      try {
+        const data = await ncmApi<QrCheckResponse>(`/qr/check?key=${encodeURIComponent(qrKey)}`);
+        if (!loginAliveRef.current) return;
+        if (data.code === 803 || data.loggedIn) {
+          stopLoginPoll();
+          setProfile(data.profile ?? null);
+          setLoginPhase('success');
+          setLoginMsg(`登录成功${data.profile?.nickname ? `：${data.profile.nickname}` : ''}`);
+          void loadUserPlaylists();
+          return;
+        }
+        if (data.code === 800) {
+          stopLoginPoll();
+          setLoginPhase('expired');
+          setLoginMsg('二维码已失效，点「刷新二维码」重新生成');
+          return;
+        }
+        if (data.code === 802) {
+          setLoginPhase('scanned');
+          setLoginMsg(
+            data.nickname
+              ? `${data.nickname} 已扫码，请在手机上确认`
+              : '扫描成功，请在手机上确认登录',
+          );
+          setLoginErr(null);
+          return;
+        }
+        if (data.code === 801) {
+          setLoginPhase('qr');
+          setLoginMsg('等待扫码…');
+          setLoginErr(null);
+        }
+      } catch (e) {
+        if (loginAliveRef.current) {
+          setLoginErr(`轮询失败：${String((e as Error)?.message ?? e)}`);
+        }
+      }
+    };
+    void tick();
+    loginPollRef.current = window.setInterval(() => void tick(), 2200);
+    return () => stopLoginPoll();
+  }, [showLogin, profile, qrKey, stopLoginPoll, loadUserPlaylists]);
+
+  /** 登录后用官方接口读歌单（我的歌单 / 私人歌单），失败回退公共网关 */
+  const loadOfficialPlaylist = useCallback(
+    async (id: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchOfficialPlaylist(id);
+        if (!mountedRef.current) return;
+        setPlaylist(data);
+        setActiveTracks(data.tracks);
+        setTrackIndex((prev) => {
+          const next = { ...prev };
+          for (const t of data.tracks) next[t.id] = t;
+          return next;
+        });
+        setView('playlist');
+        setShowPlayer(false);
+        setLoading(false);
+        if (data.tracks.length === 0) setError('这个歌单暂时没有可展示的歌曲。');
+      } catch {
+        void loadPlaylist(id);
+      }
+    },
+    [loadPlaylist],
+  );
+
   /** 打开某首歌的评论区：读官方公开热评 + 最新评论 */
   const openComments = useCallback(async (track: Track) => {
     if (!track?.id) return;
@@ -1556,38 +1800,66 @@ export default function NeteaseMusic(_: AppProps) {
           <IconButton title="API 设置" onClick={() => setShowSettings((v) => !v)} active={showSettings}>
             <SettingsIcon size={15} />
           </IconButton>
-          {/* 未登录态：默认头像 + 昵称 + 可点的登录按钮 */}
-          <button
-            type="button"
-            onClick={() => setShowLogin(true)}
-            title="未登录 · 点击查看登录说明"
-            className="flex items-center gap-2"
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
-          >
-            <span
-              className="flex items-center justify-center"
-              style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--nm-red-soft)', color: 'var(--nm-red)' }}
+          {/* 账号区：已登录显示真实头像 / 昵称，未登录给扫码登录入口 */}
+          {profile ? (
+            <button
+              type="button"
+              onClick={() => void openLogin()}
+              title="查看我的账号"
+              className="flex items-center gap-2"
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
             >
-              <UserRound size={14} />
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--nm-sub)' }}>未登录</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowLogin(true)}
-            style={{
-              height: 28,
-              padding: '0 14px',
-              borderRadius: 14,
-              border: 'none',
-              background: 'var(--nm-red)',
-              color: '#fff',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            登录
-          </button>
+              <span
+                className="flex items-center justify-center"
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  background: profile.avatarUrl
+                    ? `url(${profile.avatarUrl}) center / cover no-repeat, var(--nm-red-soft)`
+                    : 'var(--nm-red-soft)',
+                  color: 'var(--nm-red)',
+                  border: '1px solid var(--nm-border)',
+                }}
+              >
+                {!profile.avatarUrl && <UserRound size={14} />}
+              </span>
+              <span className="truncate" style={{ fontSize: 11, color: 'var(--nm-sub)', maxWidth: 90 }}>
+                {profile.nickname}
+              </span>
+              {profile.vipType > 0 && (
+                <span style={{ fontSize: 9, color: 'var(--nm-red)', border: '1px solid var(--nm-red)', borderRadius: 3, padding: '0 3px' }}>
+                  VIP
+                </span>
+              )}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => void openLogin()}
+                title="未登录 · 点击扫码登录"
+                className="flex items-center gap-2"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+              >
+                <span
+                  className="flex items-center justify-center"
+                  style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--nm-red-soft)', color: 'var(--nm-red)' }}
+                >
+                  <UserRound size={14} />
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--nm-sub)' }}>未登录</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void openLogin()}
+                style={{ height: 28, padding: '0 14px', borderRadius: 14, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 11, cursor: 'pointer' }}
+              >
+                登录
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -1632,6 +1904,28 @@ export default function NeteaseMusic(_: AppProps) {
               ),
             )}
           </div>
+
+          {profile && (
+            <>
+              <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>
+                我的歌单 {userPlaylists.length > 0 ? `(${userPlaylists.length})` : ''}
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {userPlaylists.length === 0 ? (
+                  <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '0 10px' }}>
+                    正在读取你的歌单…
+                  </div>
+                ) : (
+                  userPlaylists.slice(0, 8).map((p) =>
+                    navItem(p.name, <ListMusic size={14} />, activeNav === `mine-${p.id}`, () => {
+                      setActiveNav(`mine-${p.id}`);
+                      void loadOfficialPlaylist(p.id);
+                    }),
+                  )
+                )}
+              </div>
+            </>
+          )}
 
           <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>热门榜单</div>
           <div className="flex flex-col gap-0.5">
@@ -1899,7 +2193,7 @@ export default function NeteaseMusic(_: AppProps) {
                       <span className="flex-1">未登录：个性化推荐暂不可用，下面这些是可以立即收听的公共歌单。</span>
                       <button
                         type="button"
-                        onClick={() => setShowLogin(true)}
+                        onClick={() => void openLogin()}
                         style={{ height: 24, padding: '0 12px', borderRadius: 12, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 11, cursor: 'pointer' }}
                       >
                         登录
@@ -2228,7 +2522,8 @@ export default function NeteaseMusic(_: AppProps) {
           }}
           onMore={() => void loadMoreComments()}
           onRetry={() => void openComments(commentTrack)}
-          onLogin={() => setShowLogin(true)}
+          onLogin={() => void openLogin()}
+          loggedIn={!!profile}
         />
       )}
 
@@ -2317,10 +2612,13 @@ export default function NeteaseMusic(_: AppProps) {
         </div>
       )}
 
-      {/* ---------------------------- 登录面板 ---------------------------- */}
+      {/* ---------------------------- 官方扫码登录面板 ---------------------------- */}
       {showLogin && (
         <div
-          onClick={() => setShowLogin(false)}
+          onClick={() => {
+            stopLoginPoll();
+            setShowLogin(false);
+          }}
           style={{
             position: 'absolute',
             inset: 0,
@@ -2351,57 +2649,156 @@ export default function NeteaseMusic(_: AppProps) {
               >
                 <Music2 size={13} />
               </span>
-              登录网易云音乐
+              {profile ? '我的账号' : '扫码登录网易云音乐'}
               <button
                 type="button"
-                onClick={() => setShowLogin(false)}
+                onClick={() => {
+                  stopLoginPoll();
+                  setShowLogin(false);
+                }}
                 style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--nm-muted)', cursor: 'pointer' }}
               >
                 <X size={15} />
               </button>
             </div>
 
-            <div
-              className="mt-4 flex flex-col items-center justify-center"
-              style={{ height: 132, borderRadius: 10, border: '1px dashed var(--nm-border)', background: 'var(--nm-panel)', textAlign: 'center', padding: 12 }}
-            >
-              <UserRound size={26} style={{ color: 'var(--nm-muted)' }} />
-              <div style={{ fontSize: 12, color: 'var(--nm-sub)', marginTop: 10 }}>应用内扫码登录：待接入</div>
-              <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 6, lineHeight: 1.6 }}>
-                官方 weapi 需要服务端 AES/RSA 加密代理与 Cookie 保管，
-                目前只做未登录态，不会放一个假二维码骗你扫。
+            {profile ? (
+              <div className="mt-4">
+                <div className="flex items-center gap-3">
+                  <span
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      background: profile.avatarUrl
+                        ? `url(${profile.avatarUrl}) center / cover no-repeat, var(--nm-panel)`
+                        : 'var(--nm-panel)',
+                      border: '1px solid var(--nm-border)',
+                    }}
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>
+                      {profile.nickname}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--nm-muted)', marginTop: 4 }}>
+                      UID {profile.userId}
+                      {profile.vipType > 0 ? ' · 黑胶 VIP' : ' · 普通账号'}
+                    </div>
+                  </div>
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--nm-sub)', lineHeight: 1.7, margin: '14px 0 0' }}>
+                  已读取 {userPlaylists.length} 张你的歌单，左侧「我的歌单」可直接点开（走官方接口，失败自动回退公共网关）。
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void doLogout()}
+                    style={{ flex: 1, height: 34, borderRadius: 17, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    退出登录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopLoginPoll();
+                      setShowLogin(false);
+                    }}
+                    style={{ flex: 1, height: 34, borderRadius: 17, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    完成
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-4">
+                <div
+                  className="flex flex-col items-center justify-center"
+                  style={{
+                    minHeight: 190,
+                    borderRadius: 10,
+                    border: '1px solid var(--nm-border)',
+                    background: 'var(--nm-panel)',
+                    padding: 12,
+                    position: 'relative',
+                  }}
+                >
+                  {qrDataUrl ? (
+                    <img
+                      src={qrDataUrl}
+                      alt="网易云音乐扫码登录二维码"
+                      style={{
+                        width: 168,
+                        height: 168,
+                        imageRendering: 'pixelated',
+                        opacity: loginPhase === 'expired' ? 0.25 : 1,
+                      }}
+                    />
+                  ) : loginPhase === 'error' ? (
+                    <button
+                      type="button"
+                      onClick={() => void startLoginQr()}
+                      style={{ height: 32, padding: '0 16px', borderRadius: 16, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 12, cursor: 'pointer' }}
+                    >
+                      重新获取
+                    </button>
+                  ) : (
+                    <Loader2 size={26} className="animate-spin" style={{ color: 'var(--nm-muted)' }} />
+                  )}
+                  {loginPhase === 'expired' && (
+                    <button
+                      type="button"
+                      onClick={() => void startLoginQr()}
+                      style={{ position: 'absolute', padding: '8px 16px', borderRadius: 16, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 12, cursor: 'pointer' }}
+                    >
+                      刷新二维码
+                    </button>
+                  )}
+                </div>
 
-            <p style={{ fontSize: 11, color: 'var(--nm-muted)', lineHeight: 1.7, margin: '14px 0 0' }}>
-              登录后可用：每日推荐 / 私人漫游 / 私人雷达 / 关注动态 / 我的歌单。
-              现在这些入口展示的是公共歌单，并已明确标注「未登录」。
-            </p>
-            <p style={{ fontSize: 11, color: 'var(--nm-muted)', lineHeight: 1.7, margin: '8px 0 0' }}>
-              安全说明：本应用不会读取、保存或上传你的网易云 Cookie，登录态也绝不会发给任何第三方公共网关。
-            </p>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    fontSize: 12,
+                    color: loginPhase === 'scanned' ? 'var(--nm-red)' : 'var(--nm-sub)',
+                    marginTop: 12,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {loginMsg || '正在准备二维码…'}
+                </div>
+                {loginErr && (
+                  <div style={{ fontSize: 11, color: 'var(--nm-red)', marginTop: 8, lineHeight: 1.6, textAlign: 'center' }}>
+                    {loginErr}
+                  </div>
+                )}
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => void startLoginQr()}
+                    style={{ height: 28, padding: '0 14px', borderRadius: 14, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 11, cursor: 'pointer' }}
+                  >
+                    重新生成二维码
+                  </button>
+                </div>
+                <p style={{ fontSize: 10, color: 'var(--nm-muted)', lineHeight: 1.7, margin: '12px 0 0' }}>
+                  二维码来自网易云官方接口，几分钟后失效。扫码后请在手机上点「确认登录」。
+                </p>
+              </div>
+            )}
 
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  window.open(
-                    'https://music.163.com/#/login?targetUrl=https%3A%2F%2Fmusic.163.com%2Fst%2Fwebplayer',
-                    '_blank',
-                    'noopener,noreferrer',
-                  )
-                }
-                style={{ flex: 1, height: 34, borderRadius: 17, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 12, cursor: 'pointer' }}
-              >
-                前往官方网页登录
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowLogin(false)}
-                style={{ height: 34, padding: '0 16px', borderRadius: 17, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 12, cursor: 'pointer' }}
-              >
-                关闭
-              </button>
+            <div
+              style={{
+                borderTop: '1px solid var(--nm-border)',
+                marginTop: 16,
+                paddingTop: 12,
+                fontSize: 10,
+                color: 'var(--nm-muted)',
+                lineHeight: 1.7,
+              }}
+            >
+              安全说明：MUSIC_U / __csrf 只保存在本站 Worker 服务端，浏览器只持有匿名会话 ID；
+              登录凭证绝不下发前端、绝不写进日志，也绝不会发给任何第三方公共网关。
             </div>
           </div>
         </div>

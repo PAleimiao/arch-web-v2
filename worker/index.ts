@@ -542,6 +542,361 @@ async function handleNeteaseComment(request: Request): Promise<Response> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// 网易云官方扫码登录（weapi 加密 + 服务端 Cookie jar）
+//
+// 安全边界：MUSIC_U / __csrf 只存在 Worker 侧的 Cache API 里，
+// 浏览器只拿到一个无意义的 ncm_sid，登录凭证绝不下发、绝不写进日志，
+// 也绝不会发给 GD Studio 等任何第三方网关。
+// ---------------------------------------------------------------------------
+
+const NCM_LOGIN_PREFIX = "/api/netease/login";
+const NCM_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+const NCM_PRESET_KEY = new TextEncoder().encode("0CoJUm6Qyw8W8jud");
+const NCM_IV = new TextEncoder().encode("0102030405060708");
+const NCM_BASE62 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const NCM_PUB_KEY = 0x10001n;
+const NCM_MODULUS = BigInt(
+  "0x00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7",
+);
+const NCM_JAR_TTL = 60 * 60 * 24 * 30;
+
+interface NcmSession {
+  musicU: string;
+  csrf: string;
+  savedAt: number;
+}
+
+interface NcmProfile {
+  userId: number;
+  nickname: string;
+  avatarUrl: string;
+  vipType: number;
+}
+
+interface NcmApiResult {
+  json: Record<string, unknown> & { code?: number; message?: string };
+  setCookies: string[];
+}
+
+function ncmBase64(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+
+async function ncmAesCbc(data: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
+  // Web Crypto 的 BufferSource 要求 ArrayBuffer，显式拷贝规避
+  // Uint8Array<ArrayBufferLike> 的泛型不兼容（TS 5.7+）
+  const toBuffer = (u: Uint8Array): ArrayBuffer => {
+    const b = new ArrayBuffer(u.byteLength);
+    new Uint8Array(b).set(u);
+    return b;
+  };
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    toBuffer(key),
+    { name: "AES-CBC" },
+    false,
+    ["encrypt"],
+  );
+  const buf = await crypto.subtle.encrypt(
+    { name: "AES-CBC", iv: toBuffer(NCM_IV) },
+    cryptoKey,
+    toBuffer(data),
+  );
+  return new Uint8Array(buf);
+}
+
+/** 无填充 RSA：m^e mod n，密钥只有 16 字节，BigInt 直接算即可 */
+function ncmModPow(base: bigint, exp: bigint, mod: bigint): bigint {
+  let result = 1n;
+  let b = base % mod;
+  let e = exp;
+  while (e > 0n) {
+    if (e & 1n) result = (result * b) % mod;
+    b = (b * b) % mod;
+    e >>= 1n;
+  }
+  return result;
+}
+
+function ncmRsaHex(reversedKey: Uint8Array): string {
+  let hex = "";
+  for (const b of reversedKey) hex += b.toString(16).padStart(2, "0");
+  return ncmModPow(BigInt("0x" + hex), NCM_PUB_KEY, NCM_MODULUS)
+    .toString(16)
+    .padStart(256, "0");
+}
+
+/** 生成 weapi 的 params / encSecKey（与官方网页端一致） */
+async function ncmWeapi(
+  payload: Record<string, unknown>,
+  csrf = "",
+): Promise<{ params: string; encSecKey: string }> {
+  const text = JSON.stringify({ ...payload, csrf_token: csrf });
+  const secret = new Uint8Array(16);
+  const rand = crypto.getRandomValues(new Uint8Array(16));
+  for (let i = 0; i < 16; i++) secret[i] = NCM_BASE62.charCodeAt(rand[i] % 62);
+  const first = ncmBase64(
+    await ncmAesCbc(new TextEncoder().encode(text), NCM_PRESET_KEY),
+  );
+  const params = ncmBase64(
+    await ncmAesCbc(new TextEncoder().encode(first), secret),
+  );
+  const encSecKey = ncmRsaHex(secret.slice().reverse());
+  return { params, encSecKey };
+}
+
+async function ncmWeapiRequest(
+  path: string,
+  payload: Record<string, unknown>,
+  session: NcmSession | null,
+): Promise<NcmApiResult> {
+  const csrf = session?.csrf ?? "";
+  const { params, encSecKey } = await ncmWeapi(payload, csrf);
+  // os=pc / appver 必须带，否则官方返回 -462「网络环境存在风险」
+  const cookie = session?.musicU
+    ? `os=pc; appver=2.10.13; MUSIC_U=${session.musicU}; __csrf=${csrf}`
+    : "os=pc; appver=2.10.13; MUSIC_U=; __csrf=";
+  const res = await fetch(
+    `${NETEASE_ORIGIN}/weapi${path}?csrf_token=${encodeURIComponent(csrf)}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: `${NETEASE_ORIGIN}/`,
+        Origin: NETEASE_ORIGIN,
+        "User-Agent": NCM_UA,
+        Cookie: cookie,
+      },
+      body: new URLSearchParams({ params, encSecKey }).toString(),
+      credentials: "omit",
+    },
+  );
+  const text = await res.text();
+  let json: NcmApiResult["json"];
+  try {
+    json = JSON.parse(text) as NcmApiResult["json"];
+  } catch {
+    json = { code: -1, message: `上游返回非 JSON (HTTP ${res.status})` };
+  }
+  const headers = res.headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies =
+    typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
+  return { json, setCookies };
+}
+
+function pickLoginCookies(lines: string[]): { musicU: string; csrf: string } | null {
+  const picked: Record<string, string> = {};
+  for (const line of lines) {
+    const m = /^(MUSIC_U|__csrf)=([^;]*)/.exec(line.trim());
+    if (m && m[2]) picked[m[1]] = m[2];
+  }
+  if (!picked.MUSIC_U) return null;
+  return { musicU: picked.MUSIC_U, csrf: picked.__csrf ?? "" };
+}
+
+/* ---- 登录态 jar：按 ncm_sid 分桶，凭证只留在服务端 ---- */
+
+function ncmJarKey(sid: string): URL {
+  return new URL(`https://jar.internal/ncm/${encodeURIComponent(sid)}`);
+}
+
+async function readNcmJar(sid: string): Promise<NcmSession | null> {
+  if (!sid) return null;
+  try {
+    const hit = await jarCache.match(ncmJarKey(sid));
+    if (!hit) return null;
+    const data = (await hit.json()) as NcmSession | null;
+    return data?.musicU ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeNcmJar(sid: string, session: NcmSession): Promise<void> {
+  await jarCache.put(
+    ncmJarKey(sid),
+    new Response(JSON.stringify(session), {
+      headers: {
+        "content-type": "application/json",
+        "cache-control": `public, max-age=${NCM_JAR_TTL}`,
+      },
+    }),
+  );
+}
+
+async function clearNcmJar(sid: string): Promise<void> {
+  try {
+    await jarCache.delete(ncmJarKey(sid));
+  } catch {
+    /* 已经不存在 */
+  }
+}
+
+function getOrCreateNcmSid(request: Request): { sid: string; isNew: boolean } {
+  const raw = request.headers.get("cookie") ?? "";
+  const m = /(?:^|;\s*)ncm_sid=([a-f0-9]{32})/.exec(raw);
+  if (m) return { sid: m[1], isNew: false };
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  let sid = "";
+  for (const b of bytes) sid += b.toString(16).padStart(2, "0");
+  return { sid, isNew: true };
+}
+
+async function ncmFetchProfile(session: NcmSession): Promise<NcmProfile | null> {
+  const { json } = await ncmWeapiRequest("/w/nuser/account/get", {}, session);
+  const profile = json.profile as Record<string, unknown> | null | undefined;
+  const account = json.account as Record<string, unknown> | null | undefined;
+  if (!profile?.userId) return null;
+  return {
+    userId: Number(profile.userId),
+    nickname: String(profile.nickname ?? "云村村民"),
+    avatarUrl: String(profile.avatarUrl ?? "").replace(/^http:\/\//, "https://"),
+    vipType: Number(account?.vipType ?? profile.vipType ?? 0),
+  };
+}
+
+async function handleNeteaseLogin(request: Request, sid: string): Promise<Response> {
+  const url = new URL(request.url);
+  const path = url.pathname.slice(NCM_LOGIN_PREFIX.length);
+  const jsonOk = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...JSON_HEADERS, "cache-control": "no-store" },
+    });
+
+  try {
+    if (path === "/qr/key") {
+      const { json } = await ncmWeapiRequest("/login/qrcode/unikey", { type: 1 }, null);
+      const unikey = typeof json.unikey === "string" ? json.unikey : "";
+      if (json.code !== 200 || !unikey) {
+        return jsonOk(
+          { error: `获取登录二维码失败：code ${json.code ?? "?"} ${json.message ?? ""}` },
+          502,
+        );
+      }
+      return jsonOk({ unikey, url: `${NETEASE_ORIGIN}/login?codekey=${unikey}` });
+    }
+
+    if (path === "/qr/check") {
+      const key = (url.searchParams.get("key") ?? "").trim();
+      if (!key) return jsonOk({ error: "缺少 key" }, 400);
+      const { json, setCookies } = await ncmWeapiRequest(
+        "/login/qrcode/client/login",
+        { key, type: 1 },
+        null,
+      );
+      const code = Number(json.code ?? -1);
+      if (code === 803) {
+        const picked = pickLoginCookies(setCookies);
+        if (!picked) {
+          return jsonOk({ error: "登录成功但未拿到 MUSIC_U，请重新扫码" }, 502);
+        }
+        const session: NcmSession = { ...picked, savedAt: Date.now() };
+        await writeNcmJar(sid, session);
+        const profile = await ncmFetchProfile(session);
+        return jsonOk({ code: 803, loggedIn: true, profile });
+      }
+      return jsonOk({
+        code,
+        message: String(json.message ?? ""),
+        nickname: typeof json.nickname === "string" ? json.nickname : undefined,
+      });
+    }
+
+    if (path === "/status") {
+      const session = await readNcmJar(sid);
+      if (!session) return jsonOk({ loggedIn: false, profile: null });
+      const profile = await ncmFetchProfile(session);
+      if (!profile) {
+        await clearNcmJar(sid);
+        return jsonOk({ loggedIn: false, profile: null, expired: true });
+      }
+      return jsonOk({ loggedIn: true, profile });
+    }
+
+    if (path === "/logout") {
+      await clearNcmJar(sid);
+      return jsonOk({ loggedIn: false });
+    }
+
+    if (path === "/playlists") {
+      const session = await readNcmJar(sid);
+      if (!session) return jsonOk({ error: "未登录" }, 401);
+      const profile = await ncmFetchProfile(session);
+      if (!profile) return jsonOk({ error: "登录态已失效" }, 401);
+      const { json } = await ncmWeapiRequest(
+        "/user/playlist",
+        { uid: profile.userId, limit: 100, offset: 0, includeVideo: false },
+        session,
+      );
+      const raw = Array.isArray(json.playlist) ? json.playlist : [];
+      const playlists = raw.map((entry) => {
+        const p = entry as Record<string, unknown>;
+        const creator = p.creator as Record<string, unknown> | undefined;
+        return {
+          id: String(p.id ?? ""),
+          name: String(p.name ?? "未命名歌单"),
+          cover: String(p.coverImgUrl ?? "").replace(/^http:\/\//, "https://"),
+          count: Number(p.trackCount ?? 0),
+          creator: String(creator?.nickname ?? ""),
+        };
+      });
+      return jsonOk({ playlists });
+    }
+
+    if (path === "/playlist") {
+      const id = (url.searchParams.get("id") ?? "").trim();
+      if (!/^\d{1,20}$/.test(id)) return jsonOk({ error: "缺少合法的歌单 ID" }, 400);
+      const session = await readNcmJar(sid);
+      if (!session) return jsonOk({ error: "未登录" }, 401);
+      const { json } = await ncmWeapiRequest(
+        "/v3/playlist/detail",
+        { id, n: 1000, s: 8 },
+        session,
+      );
+      const p = json.playlist as Record<string, unknown> | null | undefined;
+      if (!p) return jsonOk({ error: "歌单不存在或当前账号无权访问" }, 404);
+      const raw = Array.isArray(p.tracks) ? p.tracks : [];
+      const tracks = raw.map((entry) => {
+        const t = entry as Record<string, unknown>;
+        const ar = Array.isArray(t.ar) ? (t.ar as Record<string, unknown>[]) : [];
+        const al = (t.al ?? {}) as Record<string, unknown>;
+        return {
+          id: String(t.id ?? ""),
+          name: String(t.name ?? "未知歌曲"),
+          artist:
+            ar.map((a) => String(a.name ?? "")).filter(Boolean).join(" / ") ||
+            "未知艺人",
+          album: String(al.name ?? ""),
+          pic: String(al.picUrl ?? "").replace(/^http:\/\//, "https://"),
+          duration: Number(t.dt ?? 0) / 1000,
+          vip: Number(t.fee ?? 0) !== 0,
+        };
+      });
+      return jsonOk({
+        playlist: {
+          id,
+          name: String(p.name ?? `歌单 #${id}`),
+          cover: String(p.coverImgUrl ?? "").replace(/^http:\/\//, "https://"),
+          desc: String(p.description ?? ""),
+          tracks,
+        },
+      });
+    }
+
+    return jsonOk({ error: "未知的登录接口" }, 404);
+  } catch (e) {
+    return jsonOk(
+      { error: `登录代理请求失败：${String((e as Error)?.message ?? e)}` },
+      502,
+    );
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -577,6 +932,20 @@ export default {
           headers: JSON_HEADERS,
         });
       }
+    }
+
+    if (url.pathname.startsWith(`${NCM_LOGIN_PREFIX}/`)) {
+      const { sid, isNew } = getOrCreateNcmSid(request);
+      const response = await handleNeteaseLogin(request, sid);
+      if (isNew) {
+        // 本地 wrangler dev 是 http，不能下发 Secure，否则浏览器会丢掉 sid
+        const secure = url.protocol === "https:" ? "; Secure" : "";
+        response.headers.append(
+          "set-cookie",
+          `ncm_sid=${sid}; Path=/; Max-Age=${NCM_JAR_TTL}; SameSite=Lax; HttpOnly${secure}`,
+        );
+      }
+      return response;
     }
 
     return env.ASSETS.fetch(request);
