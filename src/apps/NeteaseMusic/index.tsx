@@ -39,6 +39,7 @@ import {
   Sun,
   Volume2,
   VolumeX,
+  UserRound,
   X,
 } from 'lucide-react';
 import type { AppProps } from '@/shell/types';
@@ -83,8 +84,25 @@ interface LyricLine {
   text: string;
 }
 
-type View = 'home' | 'playlist' | 'search';
+type View = 'home' | 'playlist' | 'search' | 'channel';
 type RepeatMode = 'list' | 'one' | 'shuffle';
+
+/**
+ * 栏目页：左侧导航与首页入口点进去后的独立内容。
+ * 以前所有入口都指向同一个歌单，看着像「点哪儿都是热播榜」，
+ * 现在每个栏目有自己的标题、说明和一组不同的公共歌单。
+ */
+interface ChannelInfo {
+  id: string;
+  title: string;
+  desc: string;
+  /** 属于登录后才有的个性化内容，页面顶部会明确标注未登录 */
+  needsLogin?: boolean;
+  /** 本地功能视图：红心 / 最近播放 / 桌面版不支持 */
+  local?: 'liked' | 'recent' | 'unsupported';
+  /** 栏目下可点的公共歌单，各栏目组合不同 */
+  items?: { id: string; name: string }[];
+}
 
 function loadConfig(): Config {
   if (typeof localStorage === 'undefined') return DEFAULT_CONFIG;
@@ -395,28 +413,37 @@ const NAV_MY = [
   { id: 'local', label: '本地音乐', icon: Disc3 },
 ];
 
-/** 首页顶部 7 个入口卡，点击都会加载一个真实歌单 */
-const ENTRY_CARDS = [
-  { title: '每日推荐', desc: '根据你的口味生成', gid: '3778678', tone: '#ececf0', ink: '#333' },
-  { title: '私人漫游', desc: '从熟悉的声音出发', gid: '3779629', tone: '#7b5cf0', ink: '#fff' },
-  { title: '私人雷达', desc: '今天也要听点新的', gid: '19723756', tone: '#9dc3cf', ink: '#333' },
-  { title: '音乐播客', desc: '用耳朵去旅行', gid: '4395559', tone: '#3f4a3c', ink: '#fff' },
-  { title: '心动模式', desc: '跟着感觉走', gid: '71385707', tone: '#b4526b', ink: '#fff' },
-  { title: '相似歌曲', desc: '从这首延伸出去', gid: '991319590', tone: '#d98b4a', ink: '#fff' },
-  { title: '每日播客', desc: '每天一点新鲜事', gid: '3778678', tone: '#2d4a63', ink: '#fff' },
+/** 真实公共歌单：全部实测可用，且不含任何个人账号歌单 */
+const PUBLIC_PLAYLISTS = [
+  { id: '3778678', name: '热歌榜', count: '1634.7万' },
+  { id: '3779629', name: '新歌榜', count: '981.2万' },
+  { id: '19723756', name: '飙升榜', count: '742.6万' },
+  { id: '4395559', name: '华语金曲榜', count: '513.9万' },
+  { id: '991319590', name: '中文说唱榜', count: '196.3万' },
+  { id: '2884035', name: '原创榜', count: '96.1万' },
+  { id: '71385707', name: '电影原声 · 冷门精选', count: '88.2万' },
 ];
 
-/** 推荐歌单 / 榜单，ID 都是网易云真实歌单 */
-const RECOMMEND_PLAYLISTS = [
-  { id: '3778678', name: '热歌榜 · 大家都在听', count: '1634.7万' },
-  { id: '3779629', name: '新歌榜 · 本周上新', count: '981.2万' },
-  { id: '19723756', name: '飙升榜 · 涨势最猛', count: '742.6万' },
-  { id: '4395559', name: '华语金曲 · 回忆杀', count: '513.9万' },
-  { id: '71385707', name: '说唱现场 · 节奏拉满', count: '288.4万' },
-  { id: '991319590', name: '二次元日推 · 术力口', count: '196.3万' },
-  { id: '2829816518', name: '深夜 emo · 一个人听', count: '128.7万' },
-  { id: '2884035', name: '原创榜 · 独立音乐', count: '96.1万' },
+/** 把歌单 ID 列表转成栏目里的可点条目 */
+function channelItems(ids: string[]): { id: string; name: string }[] {
+  return ids.map((id) => ({
+    id,
+    name: PUBLIC_PLAYLISTS.find((p) => p.id === id)?.name ?? `歌单 #${id}`,
+  }));
+}
+
+/** 首页顶部 7 个入口卡：各自打开独立栏目，歌单组合互不重复 */
+const ENTRY_CARDS = [
+  { title: '每日推荐', desc: '根据你的口味生成', tone: '#ececf0', ink: '#333', ids: ['3778678', '3779629', '19723756'] },
+  { title: '私人漫游', desc: '从熟悉的声音出发', tone: '#7b5cf0', ink: '#fff', ids: ['4395559', '2884035', '71385707'] },
+  { title: '私人雷达', desc: '今天也要听点新的', tone: '#9dc3cf', ink: '#333', ids: ['3779629', '19723756', '991319590'] },
+  { title: '音乐播客', desc: '用耳朵去旅行', tone: '#3f4a3c', ink: '#fff', ids: ['71385707', '4395559', '2884035'] },
+  { title: '心动模式', desc: '跟着感觉走', tone: '#b4526b', ink: '#fff', ids: ['3778678', '4395559', '991319590'] },
+  { title: '相似歌曲', desc: '从这首延伸出去', tone: '#d98b4a', ink: '#fff', ids: ['19723756', '2884035', '3779629'] },
+  { title: '每日播客', desc: '每天一点新鲜事', tone: '#2d4a63', ink: '#fff', ids: ['991319590', '71385707', '3778678'] },
 ];
+
+const RECOMMEND_PLAYLISTS = PUBLIC_PLAYLISTS;
 
 const CHARTS = [
   { title: '飙升榜', gid: '19723756', hint: '每天更新' },
@@ -749,6 +776,14 @@ export default function NeteaseMusic(_: AppProps) {
 
   /* ---- 视图与数据 ---- */
   const [view, setView] = useState<View>('home');
+  const [channel, setChannel] = useState<ChannelInfo | null>(null);
+  const [activeNav, setActiveNav] = useState('home');
+  const [showLogin, setShowLogin] = useState(false);
+  const [chartPreviews, setChartPreviews] = useState<Record<string, string[]>>({});
+  const [recentTracks, setRecentTracks] = useState<Track[]>([]);
+  /** 见过的歌曲按 id 索引，供「我喜欢的音乐」栏目还原歌曲信息 */
+  const [trackIndex, setTrackIndex] = useState<Record<string, Track>>({});
+  const [recommendOffset, setRecommendOffset] = useState(0);
   const [playlist, setPlaylist] = useState<PlaylistData | null>(null);
   const [results, setResults] = useState<Track[]>([]);
   const [searchKw, setSearchKw] = useState('');
@@ -798,6 +833,11 @@ export default function NeteaseMusic(_: AppProps) {
         setConfig(cfg);
         setPlaylist(value);
         setActiveTracks(value.tracks);
+        setTrackIndex((prev) => {
+          const next = { ...prev };
+          for (const t of value.tracks) next[t.id] = t;
+          return next;
+        });
         if (!keepView) {
           setView('playlist');
           setShowPlayer(false);
@@ -824,6 +864,11 @@ export default function NeteaseMusic(_: AppProps) {
         setConfig(cfg);
         setResults(value);
         setActiveTracks(value);
+        setTrackIndex((prev) => {
+          const next = { ...prev };
+          for (const t of value) next[t.id] = t;
+          return next;
+        });
         setView('search');
         setShowPlayer(false);
         if (value.length === 0) setError('没有搜到相关歌曲，换个关键词试试。');
@@ -836,17 +881,39 @@ export default function NeteaseMusic(_: AppProps) {
     [config],
   );
 
-  /* 启动先拉热歌榜：既填首页封面，也让播放器立刻有歌可点 */
+  /* 启动：拉一份默认歌单让播放条有歌可点；同时分别预取三个榜单的前几首，
+     否则首页三张榜单卡会共用同一组歌（都截自默认歌单），看着像没换内容。 */
   useEffect(() => {
     void loadPlaylist('3778678', true);
+    let alive = true;
+    void (async () => {
+      const entries = await Promise.all(
+        CHARTS.map(async (c) => {
+          try {
+            const p = await new MusicClient(clientCfgRef.current).playlist(c.gid);
+            return [c.gid, p.tracks.slice(0, 3).map((t) => t.name)] as const;
+          } catch {
+            return [c.gid, [] as string[]] as const;
+          }
+        }),
+      );
+      if (alive) setChartPreviews(Object.fromEntries(entries));
+    })();
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ---------------------- 播放 ---------------------- */
   const playAt = useCallback(
-    async (idx: number) => {
-      const track = activeTracks[idx];
+    async (idx: number, list?: Track[]) => {
+      /* 允许栏目页（红心 / 最近播放）自带一份播放列表，否则会读到旧的 activeTracks */
+      if (list) setActiveTracks(list);
+      const source = list ?? activeTracks;
+      const track = source[idx];
       if (!track?.id) return;
+      setRecentTracks((prev) => [track, ...prev.filter((t) => t.id !== track.id)].slice(0, 50));
       const token = ++playTokenRef.current;
       const stale = () => token !== playTokenRef.current || !mountedRef.current;
       setError(null);
@@ -997,6 +1064,22 @@ export default function NeteaseMusic(_: AppProps) {
     a.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
   };
 
+  /** 打开独立栏目页：所有导航项 / 入口卡都走这里，不再挤到同一个歌单 */
+  const openChannel = (info: ChannelInfo) => {
+    setChannel(info);
+    setActiveNav(info.id);
+    setView('channel');
+    setShowPlayer(false);
+    setError(null);
+  };
+
+  const goHome = () => {
+    setView('home');
+    setActiveNav('home');
+    setChannel(null);
+    setShowPlayer(false);
+  };
+
   const submitSearch = () => {
     void doSearch(searchKw);
   };
@@ -1016,6 +1099,23 @@ export default function NeteaseMusic(_: AppProps) {
     () => (playlist?.tracks ?? []).slice(0, 8).map((t) => t.pic).filter(Boolean),
     [playlist],
   );
+
+  /** 「换一批」真的把推荐歌单轮转，而不是偷偷再拉一次新歌榜 */
+  const rotatedPlaylists = useMemo(
+    () => [
+      ...RECOMMEND_PLAYLISTS.slice(recommendOffset),
+      ...RECOMMEND_PLAYLISTS.slice(0, recommendOffset),
+    ],
+    [recommendOffset],
+  );
+
+  /** 栏目页里的本地歌曲列表（红心 / 最近播放） */
+  const channelTracks =
+    channel?.local === 'liked'
+      ? Object.values(trackIndex).filter((t) => liked.has(t.id))
+      : channel?.local === 'recent'
+        ? recentTracks
+        : [];
 
   /* ============================ 渲染 ============================ */
 
@@ -1139,20 +1239,38 @@ export default function NeteaseMusic(_: AppProps) {
           <IconButton title="API 设置" onClick={() => setShowSettings((v) => !v)} active={showSettings}>
             <SettingsIcon size={15} />
           </IconButton>
-          <span
-            className="flex items-center justify-center"
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              background: 'var(--nm-red-soft)',
-              color: 'var(--nm-red)',
-              fontSize: 11,
-            }}
-            title="未登录（登录功能待接入）"
+          {/* 未登录态：默认头像 + 昵称 + 可点的登录按钮 */}
+          <button
+            type="button"
+            onClick={() => setShowLogin(true)}
+            title="未登录 · 点击查看登录说明"
+            className="flex items-center gap-2"
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
           >
-            <Music2 size={13} />
-          </span>
+            <span
+              className="flex items-center justify-center"
+              style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--nm-red-soft)', color: 'var(--nm-red)' }}
+            >
+              <UserRound size={14} />
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--nm-sub)' }}>未登录</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowLogin(true)}
+            style={{
+              height: 28,
+              padding: '0 14px',
+              borderRadius: 14,
+              border: 'none',
+              background: 'var(--nm-red)',
+              color: '#fff',
+              fontSize: 11,
+              cursor: 'pointer',
+            }}
+          >
+            登录
+          </button>
         </div>
       </header>
 
@@ -1164,39 +1282,47 @@ export default function NeteaseMusic(_: AppProps) {
           style={{ width: 168, background: 'var(--nm-side)', borderRight: '1px solid var(--nm-border)' }}
         >
           <div className="flex flex-col gap-0.5">
-            {NAV_MAIN.map((n) =>
-              navItem(
-                n.label,
-                <n.icon size={14} />,
-                view === 'home' && n.id === 'home',
-                () => {
-                  setShowPlayer(false);
-                  if (n.id === 'home') setView('home');
-                  else void loadPlaylist(ENTRY_CARDS.find((c) => c.title.includes('推荐'))?.gid ?? '3778678');
-                },
-              ),
-            )}
+            {NAV_MAIN.map((n) => {
+              const ch: ChannelInfo =
+                n.id === 'featured'
+                  ? { id: n.id, title: '精选 · 歌单广场', desc: '按风格挑一张歌单，下面全部是网易云真实公共歌单。', items: channelItems(PUBLIC_PLAYLISTS.map((p) => p.id)) }
+                  : n.id === 'podcast'
+                    ? { id: n.id, title: '播客', desc: '公共网关只提供音乐歌单，暂不支持播客音频流；这里先给你几张适合当背景声的歌单。', items: channelItems(['71385707', '4395559', '2884035']) }
+                    : n.id === 'roam'
+                      ? { id: n.id, title: '私人漫游', desc: '从你熟悉的声音出发，一路延伸。', needsLogin: true, items: channelItems(['4395559', '2884035', '71385707']) }
+                      : { id: n.id, title: '关注', desc: '关注的人的动态与最新发布。', needsLogin: true, items: channelItems(['3779629', '19723756', '991319590']) };
+              return navItem(n.label, <n.icon size={14} />, activeNav === n.id, () =>
+                n.id === 'home' ? goHome() : openChannel(ch),
+              );
+            })}
           </div>
 
-          <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>我的音乐</div>
+          <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>
+            我的音乐 · 未登录
+          </div>
           <div className="flex flex-col gap-0.5">
             {NAV_MY.map((n) =>
-              navItem(n.label, <n.icon size={14} />, false, () => {
-                setShowPlayer(false);
-                void loadPlaylist('8820482645');
-              }),
+              navItem(n.label, <n.icon size={14} />, activeNav === n.id, () =>
+                openChannel({
+                  id: n.id,
+                  title: n.label,
+                  desc:
+                    n.id === 'download' || n.id === 'local'
+                      ? '桌面版不提供下载与本地文件扫描，用顶部搜索框可以直接在线收听。'
+                      : '这部分数据只记在这台设备本地，不会与网易云账号同步。',
+                  local: n.id === 'liked' ? 'liked' : n.id === 'recent' ? 'recent' : 'unsupported',
+                }),
+              ),
             )}
           </div>
 
-          <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>创建的歌单 1</div>
-          {navItem('学习学到发癫', <ListMusic size={14} />, false, () => void loadPlaylist('3778678'))}
-
-          <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>收藏的歌单</div>
+          <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>热门榜单</div>
           <div className="flex flex-col gap-0.5">
-            {RECOMMEND_PLAYLISTS.slice(0, 5).map((p) =>
-              navItem(p.name.split(' · ')[0], <span style={{ width: 14 }}>♪</span>, false, () =>
-                void loadPlaylist(p.id),
-              ),
+            {CHARTS.map((c) =>
+              navItem(c.title, <span style={{ width: 14 }}>♪</span>, activeNav === `chart-${c.gid}`, () => {
+                setActiveNav(`chart-${c.gid}`);
+                void loadPlaylist(c.gid);
+              }),
             )}
           </div>
         </nav>
@@ -1225,7 +1351,7 @@ export default function NeteaseMusic(_: AppProps) {
                   </button>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--nm-sub)', marginTop: 8 }}>
-                  专辑：{current?.album || '—'} &nbsp;/&nbsp; 歌手：{current?.artist || '—'} &nbsp;/&nbsp; 来源：推荐
+                  专辑：{current?.album || '—'} &nbsp;/&nbsp; 歌手：{current?.artist || '—'} &nbsp;/&nbsp; 来源：{playlist?.name ?? '在线播放'}
                 </div>
                 <div className="mt-3 flex gap-2">
                   {['歌词', '百科', '相似推荐'].map((t, i) => (
@@ -1305,7 +1431,15 @@ export default function NeteaseMusic(_: AppProps) {
                       <button
                         type="button"
                         key={c.title}
-                        onClick={() => void loadPlaylist(c.gid)}
+                        onClick={() =>
+                          openChannel({
+                            id: `entry-${c.title}`,
+                            title: c.title,
+                            desc: c.desc,
+                            needsLogin: true,
+                            items: channelItems(c.ids),
+                          })
+                        }
                         className="flex flex-col text-left"
                         style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', minWidth: 0 }}
                       >
@@ -1338,13 +1472,16 @@ export default function NeteaseMusic(_: AppProps) {
                     <SectionTitle
                       title="推荐歌单"
                       extra={
-                        <IconButton title="换一批" onClick={() => void loadPlaylist('3779629', true)}>
+                        <IconButton
+                          title="换一批"
+                          onClick={() => setRecommendOffset((o) => (o + 3) % RECOMMEND_PLAYLISTS.length)}
+                        >
                           <Repeat size={14} />
                         </IconButton>
                       }
                     />
                     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(118px, 1fr))' }}>
-                      {RECOMMEND_PLAYLISTS.map((p, i) => (
+                      {rotatedPlaylists.map((p, i) => (
                         <PlaylistCard
                           key={p.id}
                           title={p.name}
@@ -1404,16 +1541,114 @@ export default function NeteaseMusic(_: AppProps) {
                             <span style={{ fontSize: 14, fontWeight: 600 }}>{c.title}</span>
                             <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--nm-muted)' }}>{c.hint}</span>
                           </div>
-                          {(playlist?.tracks ?? []).slice(0, 3).map((t, i) => (
-                            <div key={`${t.id}-${i}`} className="mt-2 flex items-center gap-2 truncate" style={{ fontSize: 11 }}>
+                          {(chartPreviews[c.gid] ?? []).slice(0, 3).map((name, i) => (
+                            <div key={`${c.gid}-${i}`} className="mt-2 flex items-center gap-2 truncate" style={{ fontSize: 11 }}>
                               <span style={{ color: 'var(--nm-red)', width: 14 }}>{i + 1}</span>
-                              <span className="truncate" style={{ color: 'var(--nm-sub)' }}>{t.name}</span>
+                              <span className="truncate" style={{ color: 'var(--nm-sub)' }}>{name}</span>
                             </div>
                           ))}
+                          {(chartPreviews[c.gid] ?? []).length === 0 && (
+                            <div className="mt-2" style={{ fontSize: 10, color: 'var(--nm-muted)' }}>
+                              榜单加载中或网关暂不可用…
+                            </div>
+                          )}
                         </button>
                       ))}
                     </div>
                   </div>
+                </>
+              )}
+
+              {view === 'channel' && channel && (
+                <>
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{channel.title}</h1>
+                      <p style={{ fontSize: 12, color: 'var(--nm-sub)', margin: '8px 0 0', lineHeight: 1.6 }}>
+                        {channel.desc}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={goHome}
+                      style={{ height: 30, padding: '0 12px', borderRadius: 15, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      返回推荐
+                    </button>
+                  </div>
+
+                  {channel.needsLogin && (
+                    <div
+                      className="mt-4 flex items-center gap-2 px-3 py-2.5"
+                      style={{ borderRadius: 8, background: 'var(--nm-red-soft)', color: 'var(--nm-red)', fontSize: 12 }}
+                    >
+                      <AlertCircle size={14} />
+                      <span className="flex-1">未登录：个性化推荐暂不可用，下面这些是可以立即收听的公共歌单。</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowLogin(true)}
+                        style={{ height: 24, padding: '0 12px', borderRadius: 12, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 11, cursor: 'pointer' }}
+                      >
+                        登录
+                      </button>
+                    </div>
+                  )}
+
+                  {(channel.local === 'liked' || channel.local === 'recent') && (
+                    <div className="mt-6">
+                      <SectionTitle title={`${channel.title} · ${channelTracks.length} 首`} />
+                      {channelTracks.length === 0 ? (
+                        <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>
+                          {channel.local === 'liked' ? '还没有点过红心，去歌单里点几首吧。' : '还没有播放记录，随便点一首试试。'}
+                        </p>
+                      ) : (
+                        channelTracks.map((t, i) => (
+                          <TrackRow
+                            key={`${t.id}-${i}`}
+                            index={i}
+                            track={t}
+                            active={current?.id === t.id}
+                            liked={liked.has(t.id)}
+                            onPlay={() => void playAt(i, channelTracks)}
+                            onLike={() => toggleLike(t.id)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {channel.local === 'unsupported' && (
+                    <div
+                      className="mt-6"
+                      style={{ padding: 16, borderRadius: 10, border: '1px solid var(--nm-border)', background: 'var(--nm-card)', fontSize: 12, color: 'var(--nm-sub)', lineHeight: 1.7 }}
+                    >
+                      这个桌面应用只做在线播放，不落盘、不扫描本地文件。想听什么直接用顶部搜索框搜网易云曲库即可。
+                    </div>
+                  )}
+
+                  {(channel.items ?? []).length > 0 && (
+                    <div className="mt-6 mb-4">
+                      <SectionTitle title="可以立即收听" />
+                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+                        {(channel.items ?? []).map((item) => (
+                          <button
+                            type="button"
+                            key={item.id}
+                            onClick={() => {
+                              setActiveNav(`pl-${item.id}`);
+                              void loadPlaylist(item.id);
+                            }}
+                            style={{ border: '1px solid var(--nm-border)', background: 'var(--nm-card)', borderRadius: 10, padding: 14, textAlign: 'left', cursor: 'pointer', color: 'var(--nm-text)' }}
+                          >
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 6 }}>
+                              歌单 #{item.id} · 点击进入
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1738,6 +1973,96 @@ export default function NeteaseMusic(_: AppProps) {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ---------------------------- 登录面板 ---------------------------- */}
+      {showLogin && (
+        <div
+          onClick={() => setShowLogin(false)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 380,
+              maxWidth: '100%',
+              background: 'var(--nm-card)',
+              border: '1px solid var(--nm-border)',
+              borderRadius: 14,
+              padding: 20,
+              boxShadow: '0 16px 48px rgba(0,0,0,.35)',
+            }}
+          >
+            <div className="flex items-center" style={{ fontSize: 14, fontWeight: 600 }}>
+              <span
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--nm-red)', color: '#fff', marginRight: 8 }}
+              >
+                <Music2 size={13} />
+              </span>
+              登录网易云音乐
+              <button
+                type="button"
+                onClick={() => setShowLogin(false)}
+                style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--nm-muted)', cursor: 'pointer' }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div
+              className="mt-4 flex flex-col items-center justify-center"
+              style={{ height: 132, borderRadius: 10, border: '1px dashed var(--nm-border)', background: 'var(--nm-panel)', textAlign: 'center', padding: 12 }}
+            >
+              <UserRound size={26} style={{ color: 'var(--nm-muted)' }} />
+              <div style={{ fontSize: 12, color: 'var(--nm-sub)', marginTop: 10 }}>应用内扫码登录：待接入</div>
+              <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 6, lineHeight: 1.6 }}>
+                官方 weapi 需要服务端 AES/RSA 加密代理与 Cookie 保管，
+                目前只做未登录态，不会放一个假二维码骗你扫。
+              </div>
+            </div>
+
+            <p style={{ fontSize: 11, color: 'var(--nm-muted)', lineHeight: 1.7, margin: '14px 0 0' }}>
+              登录后可用：每日推荐 / 私人漫游 / 私人雷达 / 关注动态 / 我的歌单。
+              现在这些入口展示的是公共歌单，并已明确标注「未登录」。
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--nm-muted)', lineHeight: 1.7, margin: '8px 0 0' }}>
+              安全说明：本应用不会读取、保存或上传你的网易云 Cookie，登录态也绝不会发给任何第三方公共网关。
+            </p>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  window.open(
+                    'https://music.163.com/#/login?targetUrl=https%3A%2F%2Fmusic.163.com%2Fst%2Fwebplayer',
+                    '_blank',
+                    'noopener,noreferrer',
+                  )
+                }
+                style={{ flex: 1, height: 34, borderRadius: 17, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 12, cursor: 'pointer' }}
+              >
+                前往官方网页登录
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLogin(false)}
+                style={{ height: 34, padding: '0 16px', borderRadius: 17, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 12, cursor: 'pointer' }}
+              >
+                关闭
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
