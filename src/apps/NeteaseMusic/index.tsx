@@ -24,6 +24,7 @@ import {
   Heart,
   ListMusic,
   Loader2,
+  MessageCircle,
   Moon,
   MoreHorizontal,
   Music2,
@@ -40,6 +41,7 @@ import {
   Volume2,
   VolumeX,
   UserRound,
+  ThumbsUp,
   X,
 } from 'lucide-react';
 import type { AppProps } from '@/shell/types';
@@ -82,6 +84,33 @@ interface PlaylistData {
 interface LyricLine {
   t: number;
   text: string;
+}
+
+/* ---- 歌曲评论（网易云官方公开接口） ---- */
+interface CommentUser {
+  nickname?: string;
+  avatarUrl?: string;
+  userId?: number;
+}
+interface BeRepliedItem {
+  user?: CommentUser;
+  content?: string;
+}
+interface SongComment {
+  commentId: number | string;
+  content?: string;
+  time?: number;
+  timeStr?: string;
+  likedCount?: number;
+  user?: CommentUser;
+  beReplied?: BeRepliedItem[];
+}
+interface CommentPayload {
+  total?: number;
+  hotComments?: SongComment[];
+  comments?: SongComment[];
+  more?: boolean;
+  error?: string;
 }
 
 type View = 'home' | 'playlist' | 'search' | 'channel';
@@ -229,6 +258,35 @@ async function fetchJson<T>(url: string, timeout = 20_000): Promise<T> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/* ---- 歌曲评论：走自己的 Worker 代理，绕开官方接口的 CORS ---- */
+const COMMENT_ENDPOINT = '/api/netease/comment';
+
+async function fetchSongComments(id: string, offset = 0, limit = 20): Promise<CommentPayload> {
+  const r = await fetch(
+    `${COMMENT_ENDPOINT}?id=${encodeURIComponent(id)}&limit=${limit}&offset=${offset}`,
+    { credentials: 'omit' },
+  );
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    if (r.status === 404) msg = '评论代理不可用（请用 wrangler dev 或 Cloudflare 打开）';
+    else {
+      try {
+        const j = (await r.json()) as { error?: string };
+        if (j.error) msg = j.error;
+      } catch {
+        /* 保留 HTTP 状态作为错误信息 */
+      }
+    }
+    throw new Error(msg);
+  }
+  return (await r.json()) as CommentPayload;
+}
+
+/** 官方头像常写成 http://，https 页面下会被混合内容拦截 */
+function safeAvatar(url?: string): string {
+  return url ? url.replace(/^http:\/\//, 'https://') : '';
 }
 
 /* ---- GD Studio 公共网关 ---- */
@@ -586,6 +644,7 @@ function TrackRow({
   liked,
   onPlay,
   onLike,
+  onComment,
 }: {
   index: number;
   track: Track;
@@ -593,6 +652,7 @@ function TrackRow({
   liked: boolean;
   onPlay: () => void;
   onLike: () => void;
+  onComment?: () => void;
 }) {
   return (
     <div
@@ -668,9 +728,205 @@ function TrackRow({
           color={liked ? 'var(--nm-red)' : 'var(--nm-muted)'}
         />
       </button>
+      {onComment && (
+        <button
+          type="button"
+          onClick={onComment}
+          title="查看这首歌的评论"
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4 }}
+        >
+          <MessageCircle size={14} color="var(--nm-muted)" />
+        </button>
+      )}
       <span style={{ width: 44, textAlign: 'right', color: 'var(--nm-muted)' }}>
         {track.duration ? fmtTime(track.duration) : '--:--'}
       </span>
+    </div>
+  );
+}
+
+/* ---------------------- 评论区 ---------------------- */
+
+function CommentItem({ c }: { c: SongComment }) {
+  const avatar = safeAvatar(c.user?.avatarUrl);
+  const replied = c.beReplied?.[0];
+  return (
+    <div style={{ display: 'flex', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--nm-border)' }}>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          flexShrink: 0,
+          background: avatar
+            ? `url(${avatar}) center / cover no-repeat, var(--nm-card)`
+            : 'var(--nm-card)',
+          border: '1px solid var(--nm-border)',
+        }}
+      />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
+          <span className="truncate" style={{ color: 'var(--nm-sub)', fontWeight: 600 }}>
+            {c.user?.nickname ?? '云村村民'}
+          </span>
+          <span style={{ marginLeft: 'auto', color: 'var(--nm-muted)', fontSize: 10, flexShrink: 0 }}>
+            {c.timeStr ?? (c.time ? new Date(c.time).toLocaleDateString('zh-CN') : '')}
+          </span>
+        </div>
+        {replied?.content && (
+          <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 4, background: 'var(--nm-panel)', fontSize: 10, color: 'var(--nm-muted)', lineHeight: 1.5 }}>
+            @{replied.user?.nickname ?? '某用户'}：{replied.content}
+          </div>
+        )}
+        <p style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--nm-text)', margin: '6px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {c.content ?? ''}
+        </p>
+        <div className="flex items-center gap-1" style={{ marginTop: 8, fontSize: 10, color: 'var(--nm-muted)' }}>
+          <ThumbsUp size={11} /> {c.likedCount ?? 0}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface CommentDrawerProps {
+  track: Track;
+  tab: 'hot' | 'new';
+  hot: SongComment[];
+  latest: SongComment[];
+  total: number;
+  loading: boolean;
+  error: string | null;
+  more: boolean;
+  onTab: (t: 'hot' | 'new') => void;
+  onClose: () => void;
+  onMore: () => void;
+  onRetry: () => void;
+  onLogin: () => void;
+}
+
+function CommentDrawer({
+  track, tab, hot, latest, total, loading, error, more,
+  onTab, onClose, onMore, onRetry, onLogin,
+}: CommentDrawerProps) {
+  const list = tab === 'hot' ? hot : latest;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 52,
+        right: 0,
+        bottom: 80,
+        width: 380,
+        maxWidth: '72%',
+        zIndex: 35,
+        background: 'var(--nm-bg)',
+        borderLeft: '1px solid var(--nm-border)',
+        boxShadow: '-12px 0 32px rgba(0,0,0,.25)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--nm-border)' }}>
+        <div className="flex items-center" style={{ fontSize: 14, fontWeight: 600 }}>
+          <MessageCircle size={15} style={{ color: 'var(--nm-red)', marginRight: 7 }} />
+          评论
+          <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 400, color: 'var(--nm-muted)' }}>
+            {total > 0 ? `${total} 条` : ''}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            title="关闭评论区"
+            style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--nm-muted)', cursor: 'pointer' }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+        <div className="truncate" style={{ fontSize: 11, color: 'var(--nm-sub)', marginTop: 6 }}>
+          {track.name} · {track.artist}
+        </div>
+      </div>
+
+      <div className="flex gap-2" style={{ padding: '10px 16px 0' }}>
+        {([['hot', '精彩评论'], ['new', '最新评论']] as const).map(([key, label]) => (
+          <button
+            type="button"
+            key={key}
+            onClick={() => onTab(key)}
+            style={{
+              height: 26,
+              padding: '0 12px',
+              borderRadius: 13,
+              border: '1px solid var(--nm-border)',
+              background: tab === key ? 'var(--nm-red)' : 'transparent',
+              color: tab === key ? '#fff' : 'var(--nm-sub)',
+              fontSize: 11,
+              cursor: 'pointer',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto" style={{ padding: '4px 16px 12px' }}>
+        {loading && (
+          <div className="flex items-center gap-2" style={{ color: 'var(--nm-muted)', fontSize: 12, padding: '16px 0' }}>
+            <Loader2 size={14} className="animate-spin" /> 正在加载评论…
+          </div>
+        )}
+        {!loading && error && (
+          <div style={{ padding: '16px 0', fontSize: 12, color: 'var(--nm-red)' }}>
+            <div>评论加载失败：{error}</div>
+            <button
+              type="button"
+              onClick={onRetry}
+              style={{ marginTop: 10, height: 28, padding: '0 12px', borderRadius: 14, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 11, cursor: 'pointer' }}
+            >
+              重试
+            </button>
+          </div>
+        )}
+        {!loading && !error && list.length === 0 && (
+          <p style={{ color: 'var(--nm-muted)', fontSize: 12, padding: '16px 0' }}>
+            {tab === 'hot' ? '这首歌暂时没有精彩评论，去「最新评论」看看。' : '这首歌还没有评论。'}
+          </p>
+        )}
+        {list.map((c) => (
+          <CommentItem key={String(c.commentId)} c={c} />
+        ))}
+        {tab === 'new' && more && !loading && (
+          <button
+            type="button"
+            onClick={onMore}
+            style={{ width: '100%', height: 32, marginTop: 12, borderRadius: 6, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 11, cursor: 'pointer' }}
+          >
+            加载更多评论
+          </button>
+        )}
+      </div>
+
+      {/* 未登录时不放假输入框骗提交，明确指向登录 */}
+      <div style={{ borderTop: '1px solid var(--nm-border)', padding: 12 }}>
+        <div className="flex gap-2">
+          <input
+            disabled
+            placeholder="登录后才能发表评论"
+            style={{ flex: 1, minWidth: 0, height: 32, borderRadius: 16, border: '1px solid var(--nm-border)', background: 'var(--nm-panel)', color: 'var(--nm-text)', fontSize: 11, padding: '0 12px' }}
+          />
+          <button
+            type="button"
+            onClick={onLogin}
+            style={{ height: 32, padding: '0 14px', borderRadius: 16, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 11, cursor: 'pointer' }}
+          >
+            登录
+          </button>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 8, lineHeight: 1.6 }}>
+          评论读取自网易云官方公开接口，本应用只展示，不上传任何账号信息。
+        </div>
+      </div>
     </div>
   );
 }
@@ -784,6 +1040,18 @@ export default function NeteaseMusic(_: AppProps) {
   /** 见过的歌曲按 id 索引，供「我喜欢的音乐」栏目还原歌曲信息 */
   const [trackIndex, setTrackIndex] = useState<Record<string, Track>>({});
   const [recommendOffset, setRecommendOffset] = useState(0);
+  /* ---- 评论区状态 ---- */
+  const [commentTrack, setCommentTrack] = useState<Track | null>(null);
+  const [commentTab, setCommentTab] = useState<'hot' | 'new'>('hot');
+  const [hotComments, setHotComments] = useState<SongComment[]>([]);
+  const [latestComments, setLatestComments] = useState<SongComment[]>([]);
+  const [commentTotal, setCommentTotal] = useState(0);
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [commentOffset, setCommentOffset] = useState(0);
+  const [commentMore, setCommentMore] = useState(false);
+  /** 切歌时丢弃上一次的异步评论结果 */
+  const commentTokenRef = useRef(0);
   const [playlist, setPlaylist] = useState<PlaylistData | null>(null);
   const [results, setResults] = useState<Track[]>([]);
   const [searchKw, setSearchKw] = useState('');
@@ -1063,6 +1331,55 @@ export default function NeteaseMusic(_: AppProps) {
     const rect = e.currentTarget.getBoundingClientRect();
     a.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
   };
+
+  /** 打开某首歌的评论区：读官方公开热评 + 最新评论 */
+  const openComments = useCallback(async (track: Track) => {
+    if (!track?.id) return;
+    const token = ++commentTokenRef.current;
+    setCommentTrack(track);
+    setCommentTab('hot');
+    setHotComments([]);
+    setLatestComments([]);
+    setCommentTotal(0);
+    setCommentOffset(0);
+    setCommentMore(false);
+    setCommentError(null);
+    setCommentLoading(true);
+    try {
+      const data = await fetchSongComments(track.id, 0);
+      if (token !== commentTokenRef.current) return;
+      setHotComments(data.hotComments ?? []);
+      setLatestComments(data.comments ?? []);
+      setCommentTotal(data.total ?? 0);
+      setCommentOffset((data.comments ?? []).length);
+      setCommentMore(!!data.more);
+    } catch (e) {
+      if (token === commentTokenRef.current) setCommentError(String((e as Error)?.message ?? e));
+    } finally {
+      if (token === commentTokenRef.current) setCommentLoading(false);
+    }
+  }, []);
+
+  const loadMoreComments = useCallback(async () => {
+    const track = commentTrack;
+    if (!track) return;
+    const token = commentTokenRef.current;
+    setCommentLoading(true);
+    setCommentError(null);
+    try {
+      const data = await fetchSongComments(track.id, commentOffset);
+      if (token !== commentTokenRef.current) return;
+      const extra = data.comments ?? [];
+      setLatestComments((prev) => [...prev, ...extra]);
+      setCommentOffset((o) => o + extra.length);
+      setCommentMore(!!data.more);
+      if (data.total) setCommentTotal(data.total);
+    } catch (e) {
+      if (token === commentTokenRef.current) setCommentError(String((e as Error)?.message ?? e));
+    } finally {
+      if (token === commentTokenRef.current) setCommentLoading(false);
+    }
+  }, [commentTrack, commentOffset]);
 
   /** 打开独立栏目页：所有导航项 / 入口卡都走这里，不再挤到同一个歌单 */
   const openChannel = (info: ChannelInfo) => {
@@ -1354,21 +1671,17 @@ export default function NeteaseMusic(_: AppProps) {
                   专辑：{current?.album || '—'} &nbsp;/&nbsp; 歌手：{current?.artist || '—'} &nbsp;/&nbsp; 来源：{playlist?.name ?? '在线播放'}
                 </div>
                 <div className="mt-3 flex gap-2">
-                  {['歌词', '百科', '相似推荐'].map((t, i) => (
-                    <span
-                      key={t}
-                      style={{
-                        fontSize: 10,
-                        padding: '3px 8px',
-                        borderRadius: 4,
-                        background: i === 0 ? 'var(--nm-hover)' : 'transparent',
-                        color: i === 0 ? 'var(--nm-text)' : 'var(--nm-muted)',
-                        border: '1px solid var(--nm-border)',
-                      }}
-                    >
-                      {t}
-                    </span>
-                  ))}
+                  <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, background: 'var(--nm-hover)', color: 'var(--nm-text)', border: '1px solid var(--nm-border)' }}>
+                    歌词
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => current && void openComments(current)}
+                    title="打开这首歌的评论区"
+                    style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, background: 'transparent', color: 'var(--nm-sub)', border: '1px solid var(--nm-border)', cursor: 'pointer' }}
+                  >
+                    评论{commentTrack?.id === current?.id && commentTotal > 0 ? ` · ${commentTotal}` : ''}
+                  </button>
                 </div>
                 <div
                   ref={lyricScrollRef}
@@ -1611,6 +1924,7 @@ export default function NeteaseMusic(_: AppProps) {
                             liked={liked.has(t.id)}
                             onPlay={() => void playAt(i, channelTracks)}
                             onLike={() => toggleLike(t.id)}
+                            onComment={() => void openComments(t)}
                           />
                         ))
                       )}
@@ -1722,6 +2036,7 @@ export default function NeteaseMusic(_: AppProps) {
                           liked={liked.has(t.id)}
                           onPlay={() => void playAt(i)}
                           onLike={() => toggleLike(t.id)}
+                          onComment={() => void openComments(t)}
                         />
                       ))}
                     </div>
@@ -1759,6 +2074,7 @@ export default function NeteaseMusic(_: AppProps) {
                         liked={liked.has(t.id)}
                         onPlay={() => void playAt(i)}
                         onLike={() => toggleLike(t.id)}
+                        onComment={() => void openComments(t)}
                       />
                     ))}
                     {results.length === 0 && !loading && (
@@ -1806,6 +2122,9 @@ export default function NeteaseMusic(_: AppProps) {
           </div>
           <IconButton title="喜欢" onClick={() => current && toggleLike(current.id)} active={!!current && liked.has(current.id)} size={24}>
             <Heart size={13} fill={current && liked.has(current.id) ? 'currentColor' : 'none'} />
+          </IconButton>
+          <IconButton title="这首歌的评论" onClick={() => current && void openComments(current)} size={24}>
+            <MessageCircle size={13} />
           </IconButton>
         </div>
 
@@ -1890,6 +2209,28 @@ export default function NeteaseMusic(_: AppProps) {
           </IconButton>
         </div>
       </footer>
+
+      {/* ---------------------------- 评论区（每首歌） ---------------------------- */}
+      {commentTrack && (
+        <CommentDrawer
+          track={commentTrack}
+          tab={commentTab}
+          hot={hotComments}
+          latest={latestComments}
+          total={commentTotal}
+          loading={commentLoading}
+          error={commentError}
+          more={commentMore}
+          onTab={setCommentTab}
+          onClose={() => {
+            commentTokenRef.current += 1;
+            setCommentTrack(null);
+          }}
+          onMore={() => void loadMoreComments()}
+          onRetry={() => void openComments(commentTrack)}
+          onLogin={() => setShowLogin(true)}
+        />
+      )}
 
       {/* ---------------------------- API 设置（二级页） ---------------------------- */}
       {showSettings && (

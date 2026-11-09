@@ -2,8 +2,9 @@
 // 站点是纯静态（astro build:cf → dist-cf/），Bilibili 应用需要的跨域代理
 // 无法用 Astro 的 src/pages/api 动态路由实现（静态构建会报
 // GetStaticPathsRequired），所以代理逻辑放在这里：
-// - /api/bilibili/*  → 本 Worker 处理（转发 api.bilibili.com / passport.bilibili.com）
-// - 其余路径         → 回退到静态资产（ASSETS binding）
+// - /api/bilibili/*      → 本 Worker 处理（转发 api.bilibili.com / passport.bilibili.com）
+// - /api/netease/comment → 网易云歌曲评论代理（官方公开接口，解决浏览器 CORS）
+// - 其余路径             → 回退到静态资产（ASSETS binding）
 //
 // 风控对策（B 站对裸请求返回 412 风控页）：
 // - 首次访问用 finger/spi 接口引导 buvid3/buvid4，作为匿名访客身份
@@ -22,6 +23,8 @@ interface Env {
 const API_BASE = "https://api.bilibili.com";
 const PASSPORT_BASE = "https://passport.bilibili.com";
 const PROXY_PREFIX = "/api/bilibili";
+const NETEASE_COMMENT_PATH = "/api/netease/comment";
+const NETEASE_ORIGIN = "https://music.163.com";
 const SITE_REFERER = "https://www.bilibili.com/";
 
 const JSON_HEADERS = { "content-type": "application/json;charset=utf-8" };
@@ -468,6 +471,77 @@ async function handleBilibili(
   return fetchAndTrack(targetUrl, request, sid, jar);
 }
 
+/**
+ * 网易云歌曲评论代理。
+ *
+ * 官方 /api/v1/resource/comments/R_SO_4_<歌曲ID> 读取的是公开评论，
+ * 不需要登录，但响应不带 CORS 头，浏览器直连会被拦，所以在 Worker 里转发。
+ * 隐私边界：只读取公开数据——不透传浏览器的任何 Cookie 给上游，
+ * 也不把上游下发的 Cookie 返回给浏览器。
+ */
+async function handleNeteaseComment(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const songId = (url.searchParams.get("id") ?? "").trim();
+  if (!/^\d{1,20}$/.test(songId)) {
+    return new Response(JSON.stringify({ error: "缺少合法的歌曲 ID" }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const limitRaw = Number(url.searchParams.get("limit") ?? 20);
+  const offsetRaw = Number(url.searchParams.get("offset") ?? 0);
+  const limit = Number.isFinite(limitRaw)
+    ? Math.min(50, Math.max(1, Math.floor(limitRaw)))
+    : 20;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw)) : 0;
+
+  const upstream = new URL(
+    `${NETEASE_ORIGIN}/api/v1/resource/comments/R_SO_4_${songId}`,
+  );
+  upstream.searchParams.set("limit", String(limit));
+  upstream.searchParams.set("offset", String(offset));
+
+  const upstreamResponse = await fetch(upstream.toString(), {
+    headers: {
+      Referer: `${NETEASE_ORIGIN}/`,
+      Origin: NETEASE_ORIGIN,
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "zh-CN,zh;q=0.9",
+    },
+    credentials: "omit",
+  });
+
+  const body = await upstreamResponse.text();
+  if (!upstreamResponse.ok) {
+    return new Response(
+      JSON.stringify({ error: `网易云评论接口返回 HTTP ${upstreamResponse.status}` }),
+      { status: 502, headers: JSON_HEADERS },
+    );
+  }
+
+  // 上游 Content-Type 是 text/plain，但 body 实际是 JSON，这里手动解析
+  let data: unknown;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return new Response(JSON.stringify({ error: "评论接口返回内容不是 JSON" }), {
+      status: 502,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  return new Response(JSON.stringify(data), {
+    headers: {
+      ...JSON_HEADERS,
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -488,6 +562,17 @@ export default {
         return response;
       } catch {
         return new Response(JSON.stringify({ error: "代理请求失败" }), {
+          status: 502,
+          headers: JSON_HEADERS,
+        });
+      }
+    }
+
+    if (url.pathname === NETEASE_COMMENT_PATH) {
+      try {
+        return await handleNeteaseComment(request);
+      } catch {
+        return new Response(JSON.stringify({ error: "评论代理请求失败" }), {
           status: 502,
           headers: JSON_HEADERS,
         });
