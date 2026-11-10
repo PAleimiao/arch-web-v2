@@ -25,7 +25,9 @@ import {
   Heart,
   ListMusic,
   Loader2,
+  Maximize2,
   MessageCircle,
+  Minimize2,
   Moon,
   MoreHorizontal,
   Music2,
@@ -36,8 +38,10 @@ import {
   Search,
   Settings as SettingsIcon,
   Share2,
+  Shuffle,
   SkipBack,
   SkipForward,
+  SlidersHorizontal,
   Sun,
   Volume2,
   VolumeX,
@@ -53,12 +57,84 @@ import { useOSStore } from '@/stores/useOSStore';
 /* ============================ 配置与类型 ============================ */
 
 const STORAGE_KEY = 'arch-web-netease:config';
+const PLAYER_STYLE_KEY = 'arch-web-netease:player-style';
 const GD_STUDIO = 'https://music-api.gdstudio.xyz/api.php';
 
 type GatewayKind = 'gdstudio' | 'netease-api';
 interface Config {
   gateway: string;
   kind: GatewayKind;
+}
+
+/** 播放页样式 */
+type PlayerTheme = 'immersive' | 'classic';
+/** 沉浸页背景来源 */
+type BgSource = 'cover' | 'random' | 'custom';
+/** 请求播放地址时的音质（GD Studio 的 br 参数） */
+type Quality = 128 | 320 | 999;
+
+/**
+ * 播放器外观 / 播放设置。与网关 Config 分开存，互不干扰。
+ * 参考 YinXue Milayer 的播放页与设置项设计。
+ */
+interface PlayerStyle {
+  theme: PlayerTheme;
+  quality: Quality;
+  bgSource: BgSource;
+  accent: string;
+  /** 背景模糊半径 px */
+  blur: number;
+  /** 黑色遮罩不透明度 0~1 */
+  dim: number;
+  /** 歌词 3D 倾斜效果 */
+  lyric3d: boolean;
+  /** 歌词字体大小 px */
+  lyricSize: number;
+  /** 歌词行间距倍率 */
+  lyricGap: number;
+  /** 当前行高亮放大倍率 */
+  lyricHighlight: number;
+  /** 自定义背景图（data URL 或外链），bgSource=custom 时生效 */
+  customBg: string;
+}
+
+const ACCENTS = ['#ffffff', '#ff9f43', '#ff5e6c', '#2ed8a0', '#4a9eff', '#a55cff', '#ff7eb6'];
+const QUALITY_LABEL: Record<Quality, string> = {
+  128: '标准 · 128K',
+  320: '极高 · 320K',
+  999: '无损 · 尝试最高',
+};
+
+const DEFAULT_PLAYER_STYLE: PlayerStyle = {
+  theme: 'immersive',
+  quality: 320,
+  bgSource: 'cover',
+  accent: '#ffffff',
+  blur: 50,
+  dim: 0.25,
+  lyric3d: true,
+  lyricSize: 32,
+  lyricGap: 1.5,
+  lyricHighlight: 1.05,
+  customBg: '',
+};
+
+function loadPlayerStyle(): PlayerStyle {
+  if (typeof localStorage === 'undefined') return DEFAULT_PLAYER_STYLE;
+  try {
+    const raw = localStorage.getItem(PLAYER_STYLE_KEY);
+    return raw ? { ...DEFAULT_PLAYER_STYLE, ...JSON.parse(raw) } : DEFAULT_PLAYER_STYLE;
+  } catch {
+    return DEFAULT_PLAYER_STYLE;
+  }
+}
+
+function persistPlayerStyle(s: PlayerStyle): void {
+  try {
+    localStorage.setItem(PLAYER_STYLE_KEY, JSON.stringify(s));
+  } catch {
+    /* 隐私模式等场景下存储不可用，忽略即可 */
+  }
 }
 
 const DEFAULT_CONFIG: Config = { gateway: GD_STUDIO, kind: 'gdstudio' };
@@ -527,9 +603,9 @@ async function gdSearch(cfg: Config, kw: string): Promise<Track[]> {
   }));
 }
 
-async function gdUrl(cfg: Config, id: string): Promise<string | null> {
+async function gdUrl(cfg: Config, id: string, br = 320): Promise<string | null> {
   const r = await fetchJson<{ url?: string }>(
-    buildUrl(cfg, { types: 'url', source: 'netease', id, br: 320 }),
+    buildUrl(cfg, { types: 'url', source: 'netease', id, br }),
   );
   return r?.url || null;
 }
@@ -582,8 +658,10 @@ async function ncmSearch(cfg: Config, kw: string): Promise<Track[]> {
   return (r?.result?.songs ?? []).map(mapSong);
 }
 
-async function ncmUrl(cfg: Config, id: string): Promise<string | null> {
-  const r = await fetchJson<{ data?: { url?: string }[] }>(`${ncmBase(cfg)}/song/url?id=${id}`);
+async function ncmUrl(cfg: Config, id: string, br = 320): Promise<string | null> {
+  const r = await fetchJson<{ data?: { url?: string }[] }>(
+    `${ncmBase(cfg)}/song/url?id=${id}&br=${br}`,
+  );
   return r?.data?.[0]?.url || null;
 }
 
@@ -607,8 +685,10 @@ class MusicClient {
     return this.cfg.kind === 'gdstudio' ? gdSearch(this.cfg, kw) : ncmSearch(this.cfg, kw);
   }
 
-  async url(id: string): Promise<string | null> {
-    return this.cfg.kind === 'gdstudio' ? gdUrl(this.cfg, id) : ncmUrl(this.cfg, id);
+  async url(id: string, br = 320): Promise<string | null> {
+    return this.cfg.kind === 'gdstudio'
+      ? gdUrl(this.cfg, id, br)
+      : ncmUrl(this.cfg, id, br);
   }
 
   async lyric(id: string): Promise<string> {
@@ -1319,11 +1399,37 @@ export default function NeteaseMusic({ context }: AppProps) {
   /* ---- 配置 ---- */
   const [config, setConfig] = useState<Config>(loadConfig);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPlayerSettings, setShowPlayerSettings] = useState(false);
   const [gatewayInput, setGatewayInput] = useState(config.gateway);
   const clientCfgRef = useRef<Config>(config);
   useEffect(() => {
     clientCfgRef.current = config;
   }, [config]);
+
+  /* ---- 播放器样式 / 播放设置（独立持久化） ---- */
+  const [playerStyle, setPlayerStyle] = useState<PlayerStyle>(loadPlayerStyle);
+  const styleRef = useRef<PlayerStyle>(playerStyle);
+  useEffect(() => {
+    styleRef.current = playerStyle;
+    persistPlayerStyle(playerStyle);
+  }, [playerStyle]);
+  /** 局部更新样式，改完立即生效并落盘 */
+  const patchPlayerStyle = (patch: Partial<PlayerStyle>) =>
+    setPlayerStyle((s) => ({ ...s, ...patch }));
+  /** 播放队列抽屉（沉浸页右上角图标） */
+  const [showQueue, setShowQueue] = useState(false);
+  /** 沉浸页全屏 */
+  const immersiveRef = useRef<HTMLDivElement>(null);
+  const [immersiveFull, setImmersiveFull] = useState(false);
+  const toggleImmersiveFull = () => {
+    const el = immersiveRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().then(() => setImmersiveFull(false)).catch(() => {});
+    } else {
+      void el.requestFullscreen().then(() => setImmersiveFull(true)).catch(() => {});
+    }
+  };
 
   /* ---- 视图与数据 ---- */
   const [view, setView] = useState<View>('home');
@@ -1806,11 +1912,15 @@ export default function NeteaseMusic({ context }: AppProps) {
       setActiveLyricIdx(-1);
       try {
         const mc = new MusicClient(clientCfgRef.current);
-        const [url, lyric, pic] = await Promise.all([
-          mc.url(track.id),
+        let [url, lyric, pic] = await Promise.all([
+          mc.url(track.id, styleRef.current.quality),
           mc.lyric(track.id),
           track.pic ? Promise.resolve(track.pic) : mc.pic(track.id),
         ]);
+        // 所选音质无可用地址时，自动降级到极高 320K 再试（对齐参考站行为）
+        if (!url && styleRef.current.quality !== 320) {
+          url = await mc.url(track.id, 320).catch(() => null);
+        }
         if (stale()) return;
         if (pic && !track.pic) {
           const patch = (list: Track[]) => {
@@ -2275,6 +2385,267 @@ export default function NeteaseMusic({ context }: AppProps) {
     </button>
   );
 
+  /* ---------------------- 沉浸式播放页（参考 YinXue Milayer） ---------------------- */
+  const renderImmersivePlayer = () => {
+    // 背景来源：跟随封面 / 自定义图 / 随机（从见过的封面里按曲目 id 稳定挑一张）
+    let bg = current?.pic ?? '';
+    if (playerStyle.bgSource === 'custom' && playerStyle.customBg) bg = playerStyle.customBg;
+    if (playerStyle.bgSource === 'random') {
+      const pool = Object.values(trackIndex).map((t) => t.pic).filter(Boolean);
+      if (pool.length) bg = pool[Math.abs(String(current?.id ?? '').length * 7) % pool.length];
+    }
+    return (
+      <div ref={immersiveRef} className="relative h-full min-h-0 overflow-hidden" style={{ isolation: 'isolate' }}>
+        {/* 模糊背景层 */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute', inset: -80, zIndex: -2,
+            background: bg
+              ? `url(${bg}) center / cover no-repeat`
+              : 'linear-gradient(135deg,#2b3a67,#6a3b5a,#3a2b4f)',
+            filter: `blur(${playerStyle.blur}px)`,
+            transform: 'scale(1.15)',
+          }}
+        />
+        <div
+          aria-hidden
+          style={{ position: 'absolute', inset: 0, zIndex: -1, background: `rgba(0,0,0,${playerStyle.dim})` }}
+        />
+
+        {/* 右上角工具：队列 / 全屏 / 外观设置 / 收起 */}
+        <div className="absolute right-6 top-5 z-10 flex items-center gap-1.5">
+          <IconButton title="播放队列" onClick={() => setShowQueue((v) => !v)} size={28} active={showQueue}>
+            <ListMusic size={15} color="currentColor" />
+          </IconButton>
+          <IconButton title={immersiveFull ? '退出全屏' : '全屏播放'} onClick={toggleImmersiveFull} size={28} active={immersiveFull}>
+            {immersiveFull ? <Minimize2 size={15} color="currentColor" /> : <Maximize2 size={15} color="currentColor" />}
+          </IconButton>
+          <IconButton title="外观与音质设置" onClick={() => setShowPlayerSettings((v) => !v)} size={28} active={showPlayerSettings}>
+            <SlidersHorizontal size={15} color="currentColor" />
+          </IconButton>
+          <IconButton title="收起播放页" onClick={() => setShowPlayer(false)} size={28}>
+            <ChevronRight size={17} color="currentColor" />
+          </IconButton>
+        </div>
+
+        {/* 主体：左封面信息 + 右歌词 */}
+        <div className="flex h-full" style={{ padding: '4% 6%' }}>
+          {/* 左：封面 + 信息 + 控制 */}
+          <div className="flex w-[42%] min-w-[280px] max-w-[420px] flex-col justify-center">
+            <div
+              style={{
+                width: '100%', aspectRatio: '1 / 1', borderRadius: 16,
+                background: current?.pic
+                  ? `url(${safeAvatar(current.pic)}) center / cover no-repeat, #000`
+                  : 'linear-gradient(135deg,#2b3a67,#6a3b5a)',
+                boxShadow: '0 24px 60px rgba(0,0,0,.5)',
+              }}
+            />
+            <div style={{ marginTop: 26, color: '#fff' }}>
+              <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: '.5px' }} className="truncate">
+                {current?.name ?? '暂无播放'}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.72, marginTop: 7 }} className="truncate">
+                {current?.artist || '未知艺人'} · {current?.album || '单曲'}
+              </div>
+            </div>
+            {/* 极简进度条 */}
+            <div className="flex items-center gap-2" style={{ marginTop: 22 }}>
+              <span style={{ fontSize: 10, opacity: 0.7, width: 30 }}>{fmtTime(position)}</span>
+              <div onClick={seek} style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,.28)', cursor: 'pointer' }}>
+                <div style={{ width: `${duration ? Math.min(100, (position / duration) * 100) : 0}%`, height: '100%', borderRadius: 2, background: playerStyle.accent }} />
+              </div>
+              <span style={{ fontSize: 10, opacity: 0.7, width: 30, textAlign: 'right' }}>{fmtTime(duration || current?.duration || 0)}</span>
+            </div>
+            {/* 控制条 */}
+            <div className="flex items-center justify-center gap-6" style={{ marginTop: 18 }}>
+              <button type="button" title={repeatMode === 'list' ? '列表循环' : repeatMode === 'one' ? '单曲循环' : '随机播放'} onClick={() => setRepeatMode((m) => (m === 'list' ? 'one' : m === 'one' ? 'shuffle' : 'list'))} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: repeatMode !== 'list' ? 1 : 0.55, cursor: 'pointer', padding: 4 }}>
+                {repeatMode === 'shuffle' ? <Shuffle size={16} /> : <Repeat size={16} />}
+              </button>
+              <button type="button" title="上一首" onClick={playPrev} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: 0.85, cursor: 'pointer', padding: 4 }}>
+                <SkipBack size={19} fill="currentColor" />
+              </button>
+              <button
+                type="button"
+                title={playing ? '暂停' : '播放'}
+                onClick={() => (current ? setPlaying((p) => !p) : void playAt(0))}
+                className="flex items-center justify-center"
+                style={{ width: 50, height: 50, borderRadius: '50%', border: 'none', background: '#fff', color: '#111', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}
+              >
+                {loadingTrack ? <Loader2 size={20} className="animate-spin" /> : playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+              </button>
+              <button type="button" title="下一首" onClick={playNext} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: 0.85, cursor: 'pointer', padding: 4 }}>
+                <SkipForward size={19} fill="currentColor" />
+              </button>
+              <button type="button" title={muted ? '取消静音' : '静音'} onClick={() => setMuted((v) => !v)} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: 0.7, cursor: 'pointer', padding: 4 }}>
+                {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* 右：大歌词 */}
+          <div className="flex min-w-0 flex-1 items-center justify-center" style={{ paddingLeft: '6%' }}>
+            <div
+              ref={lyricScrollRef}
+              className="w-full overflow-y-auto"
+              style={{
+                maxHeight: '80%', scrollbarWidth: 'none', textAlign: 'left',
+                maskImage: 'linear-gradient(transparent,#000 18%,#000 82%,transparent)',
+                perspective: '800px',
+              }}
+            >
+              {lyrics.length === 0 ? (
+                <div style={{ color: '#fff', opacity: 0.7, fontSize: 18 }}>
+                  {current ? '暂无歌词，先听一会儿吧' : '点一首歌开始播放'}
+                </div>
+              ) : (
+                lyrics.map((ln, i) => {
+                  const active = i === activeLyricIdx;
+                  return (
+                    <div
+                      key={`${ln.t}-${i}`}
+                      style={{
+                        fontSize: active ? playerStyle.lyricSize * playerStyle.lyricHighlight : playerStyle.lyricSize,
+                        lineHeight: playerStyle.lyricGap,
+                        margin: `${playerStyle.lyricSize * 0.3}px 0`,
+                        color: playerStyle.accent,
+                        fontWeight: active ? 700 : 500,
+                        opacity: active ? 1 : 0.38,
+                        transform: active && playerStyle.lyric3d ? 'rotateX(-8deg) translateX(6px)' : 'none',
+                        transformOrigin: 'left center',
+                        transition: 'font-size .25s, opacity .25s, transform .25s',
+                        textShadow: active ? '0 2px 12px rgba(0,0,0,.4)' : 'none',
+                        borderLeft: active ? `3px solid ${playerStyle.accent}` : '3px solid transparent',
+                        paddingLeft: active ? 14 : 14,
+                      }}
+                    >
+                      {ln.text || '\u00a0'}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 播放队列抽屉 */}
+        {showQueue && (
+          <div className="absolute right-0 top-0 z-20 flex h-full flex-col" style={{ width: 320, background: 'rgba(12,14,22,.92)', backdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,.12)' }}>
+            <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,.1)', color: '#fff' }}>
+              <ListMusic size={15} />
+              <span style={{ fontSize: 13, fontWeight: 600 }}>播放队列 ({activeTracks.length})</span>
+              <button type="button" onClick={() => setShowQueue(false)} title="关闭队列" style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: '#fff', opacity: 0.7, cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+              {activeTracks.map((t, i) => (
+                <button type="button" key={`${t.id}-${i}`} onClick={() => void playAt(i)} className="flex w-full items-center gap-3 px-3 py-2 text-left" style={{ border: 'none', background: i === currentIdx ? 'rgba(255,255,255,.1)' : 'transparent', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 11, opacity: 0.5, width: 18 }}>{i === currentIdx ? '♪' : i + 1}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span className="block truncate" style={{ fontSize: 12, color: '#fff', fontWeight: i === currentIdx ? 600 : 400 }}>{t.name}</span>
+                    <span className="block truncate" style={{ fontSize: 10, opacity: 0.55, color: '#fff' }}>{t.artist}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* ---------------------- 播放外观 / 音质设置面板 ---------------------- */
+  const sliderRow = (
+    label: string, value: string, min: number, max: number, step: number,
+    v: number, onChange: (n: number) => void,
+  ) => (
+    <div style={{ marginBottom: 16 }}>
+      <div className="flex items-center justify-between" style={{ fontSize: 11, color: 'var(--nm-sub)', marginBottom: 7 }}>
+        <span>{label}</span><span style={{ color: 'var(--nm-text)' }}>{value}</span>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={v}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={{ width: '100%', accentColor: 'var(--nm-red)' }} />
+    </div>
+  );
+  const segmentBtn = (on: boolean, children: ReactNode, onClick: () => void) => (
+    <button type="button" onClick={onClick}
+      style={{ flex: 1, height: 28, borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer',
+        background: on ? 'var(--nm-red)' : 'transparent', color: on ? '#fff' : 'var(--nm-muted)' }}>
+      {children}
+    </button>
+  );
+  const renderPlayerSettings = () => (
+    <div className="absolute right-0 top-0 z-30 flex h-full flex-col" style={{ width: 300, background: 'var(--nm-side)', borderLeft: '1px solid var(--nm-border)', boxShadow: '-12px 0 32px rgba(0,0,0,.3)' }}>
+      <div className="flex items-center px-4 py-3" style={{ borderBottom: '1px solid var(--nm-border)' }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>外观与音质</span>
+        <button type="button" onClick={() => setShowPlayerSettings(false)} title="关闭设置" style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--nm-muted)', cursor: 'pointer' }}><X size={16} /></button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" style={{ scrollbarWidth: 'none' }}>
+        {/* 播放样式 */}
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--nm-text)', marginBottom: 10 }}>播放样式</div>
+        <div className="flex gap-1 mb-4" style={{ padding: 3, borderRadius: 8, background: 'var(--nm-hover)' }}>
+          {segmentBtn(playerStyle.theme === 'immersive', '沉浸封面', () => patchPlayerStyle({ theme: 'immersive' }))}
+          {segmentBtn(playerStyle.theme === 'classic', '经典黑胶', () => patchPlayerStyle({ theme: 'classic' }))}
+        </div>
+
+        {/* 音质 */}
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--nm-text)', marginBottom: 10 }}>播放音质</div>
+        <select value={playerStyle.quality} onChange={(e) => patchPlayerStyle({ quality: Number(e.target.value) as Quality })}
+          style={{ width: '100%', height: 32, marginBottom: 6, borderRadius: 6, border: '1px solid var(--nm-border)', background: 'var(--nm-card)', color: 'var(--nm-text)', fontSize: 11, padding: '0 8px' }}>
+          {([128, 320, 999] as Quality[]).map((q) => <option key={q} value={q}>{QUALITY_LABEL[q]}</option>)}
+        </select>
+        <div style={{ fontSize: 10, color: 'var(--nm-muted)', lineHeight: 1.5, marginBottom: 18 }}>下次切歌时生效；所选音质无可用地址时会自动尝试较低码率。</div>
+
+        {/* 外观：仅沉浸样式可调 */}
+        {playerStyle.theme === 'immersive' && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--nm-text)', marginBottom: 10, paddingTop: 12, borderTop: '1px solid var(--nm-border)' }}>外观</div>
+            <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginBottom: 6 }}>背景来源</div>
+            <div className="flex gap-1 mb-3" style={{ padding: 3, borderRadius: 8, background: 'var(--nm-hover)' }}>
+              {segmentBtn(playerStyle.bgSource === 'cover', '跟随封面', () => patchPlayerStyle({ bgSource: 'cover' }))}
+              {segmentBtn(playerStyle.bgSource === 'random', '随机图片', () => patchPlayerStyle({ bgSource: 'random' }))}
+              {segmentBtn(playerStyle.bgSource === 'custom', '自定义', () => patchPlayerStyle({ bgSource: 'custom' }))}
+            </div>
+            {playerStyle.bgSource === 'custom' && (
+              <label style={{ display: 'block', fontSize: 10, color: 'var(--nm-sub)', marginBottom: 12, cursor: 'pointer' }}>
+                选择本地图片
+                <input type="file" accept="image/*" onChange={(e) => {
+                  const f = e.target.files?.[0]; if (!f) return;
+                  const reader = new FileReader();
+                  reader.onload = () => patchPlayerStyle({ customBg: String(reader.result ?? '') });
+                  reader.readAsDataURL(f);
+                }} style={{ width: '100%', marginTop: 6, fontSize: 10, color: 'var(--nm-muted)' }} />
+              </label>
+            )}
+            <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginBottom: 8 }}>主题色</div>
+            <div className="flex items-center gap-2.5 mb-5" style={{ flexWrap: 'wrap' }}>
+              {ACCENTS.map((c) => (
+                <button key={c} type="button" title={c} onClick={() => patchPlayerStyle({ accent: c })}
+                  style={{ width: 22, height: 22, borderRadius: '50%', border: playerStyle.accent === c ? `2px solid var(--nm-red)` : '2px solid transparent', background: c, cursor: 'pointer' }} />
+              ))}
+            </div>
+            {sliderRow('背景模糊度', `${playerStyle.blur}px`, 0, 120, 2, playerStyle.blur, (n) => patchPlayerStyle({ blur: n }))}
+            {sliderRow('黑色遮罩不透明度', `${Math.round(playerStyle.dim * 100)}%`, 0, 1, 0.05, playerStyle.dim, (n) => patchPlayerStyle({ dim: n }))}
+
+            {/* 歌词 */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--nm-text)', marginBottom: 10, paddingTop: 12, borderTop: '1px solid var(--nm-border)' }}>歌词</div>
+            <div className="flex items-center justify-between" style={{ fontSize: 11, color: 'var(--nm-sub)', marginBottom: 14 }}>
+              <span>歌词 3D 倾斜效果</span>
+              <button type="button" onClick={() => patchPlayerStyle({ lyric3d: !playerStyle.lyric3d })}
+                style={{ width: 34, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer', position: 'relative', background: playerStyle.lyric3d ? 'var(--nm-red)' : 'var(--nm-border)' }}>
+                <span style={{ position: 'absolute', top: 2, left: playerStyle.lyric3d ? 18 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left .15s' }} />
+              </button>
+            </div>
+            {sliderRow('歌词字体大小', `${playerStyle.lyricSize}px`, 18, 56, 1, playerStyle.lyricSize, (n) => patchPlayerStyle({ lyricSize: n }))}
+            {sliderRow('歌词行间距', playerStyle.lyricGap.toFixed(1), 1, 2.5, 0.1, playerStyle.lyricGap, (n) => patchPlayerStyle({ lyricGap: n }))}
+            {sliderRow('歌词高亮放大度', playerStyle.lyricHighlight.toFixed(2), 1, 1.6, 0.05, playerStyle.lyricHighlight, (n) => patchPlayerStyle({ lyricHighlight: n }))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div style={rootStyle}>
       <audio
@@ -2370,6 +2741,9 @@ export default function NeteaseMusic({ context }: AppProps) {
             {dark ? <Sun size={13} /> : <Moon size={13} />}
             {dark ? '亮色' : '暗色'}
           </button>
+          <IconButton title="播放外观与音质" onClick={() => { setShowPlayerSettings((v) => !v); setShowPlayer(true); }} active={showPlayerSettings}>
+            <SlidersHorizontal size={15} />
+          </IconButton>
           <IconButton title="API 设置" onClick={() => setShowSettings((v) => !v)} active={showSettings}>
             <SettingsIcon size={15} />
           </IconButton>
@@ -2524,7 +2898,8 @@ export default function NeteaseMusic({ context }: AppProps) {
         {/* 右侧内容 */}
         <main className="min-w-0 flex-1 overflow-y-auto" style={{ position: 'relative' }}>
           {showPlayer ? (
-            /* ---------------------- 播放页 ---------------------- */
+            /* ---------------------- 播放页（按样式分流） ---------------------- */
+            playerStyle.theme === 'immersive' ? renderImmersivePlayer() : (
             <div
               className="flex h-full min-h-0"
               style={{ background: 'var(--nm-player-bg)', padding: '36px 6%' }}
@@ -2589,6 +2964,7 @@ export default function NeteaseMusic({ context }: AppProps) {
                 </div>
               </div>
             </div>
+            )
           ) : (
             <div className="px-7 py-5">
               {/* 错误 / 加载提示 */}
@@ -3172,6 +3548,9 @@ export default function NeteaseMusic({ context }: AppProps) {
               )}
             </div>
           )}
+
+          {/* 播放外观 / 音质设置（浮层，可覆盖播放页） */}
+          {showPlayerSettings && renderPlayerSettings()}
         </main>
       </div>
 
