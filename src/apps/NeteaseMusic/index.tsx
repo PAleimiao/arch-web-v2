@@ -404,11 +404,19 @@ function buildUrl(cfg: Config, params: Record<string, string | number>): string 
 
 async function fetchJson<T>(url: string, timeout = 20_000): Promise<T> {
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), timeout);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, timeout);
   try {
     const r = await fetch(url, { signal: ctl.signal, credentials: 'omit' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return (await r.json()) as T;
+  } catch (e) {
+    // 公共网关慢时应给明确中文提示，而不是抛英文 AbortError
+    if (timedOut) throw new Error('音乐网关响应超时，请稍后重试或换个网络');
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -1502,7 +1510,14 @@ export default function NeteaseMusic({ context }: AppProps) {
 
   /* ---- 播放状态 ---- */
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [currentIdx, setCurrentIdx] = useState(-1);
+  /**
+   * 播放真相源：正在播的那一份列表快照 + 其中的下标。
+   * 与「当前浏览的列表 activeTracks / currentIdx」刻意分离——
+   * 切歌单 / 搜索 / 打开专辑时 activeTracks 会被覆盖，但正在播的歌不应受影响
+   * （官方行为：切页面不打断播放，播放信息始终对应当前这首歌）。
+   */
+  const [playQueue, setPlayQueue] = useState<Track[]>([]);
+  const [playIdx, setPlayIdx] = useState(-1);
   const [playUrl, setPlayUrl] = useState<string | null>(null);
   const [loadingTrack, setLoadingTrack] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -1527,7 +1542,8 @@ export default function NeteaseMusic({ context }: AppProps) {
     };
   }, []);
 
-  const current = currentIdx >= 0 && currentIdx < activeTracks.length ? activeTracks[currentIdx] : null;
+  // 播放信息只认「播放快照」，切浏览列表不会让正在播的歌信息丢失 / 串台
+  const current = playIdx >= 0 && playIdx < playQueue.length ? playQueue[playIdx] : null;
 
   /* ---------------------- 加载歌单 / 搜索 ---------------------- */
   const loadPlaylist = useCallback(
@@ -1895,9 +1911,11 @@ export default function NeteaseMusic({ context }: AppProps) {
 
   /* ---------------------- 播放 ---------------------- */
   const playAt = useCallback(
-    async (idx: number, list?: Track[]) => {
-      /* 允许栏目页（红心 / 最近播放）自带一份播放列表，否则会读到旧的 activeTracks */
-      if (list) setActiveTracks(list);
+    async (idx: number, list?: Track[], internal = false) => {
+      /* 允许栏目页（红心 / 最近播放）自带一份播放列表，否则会读到旧的 activeTracks。
+       * internal=true 表示「上一首/下一首/点队列」这类基于播放快照的内部切歌，
+       * 此时不要把用户正在浏览的列表 activeTracks 也改掉。 */
+      if (list && !internal) setActiveTracks(list);
       const source = list ?? activeTracks;
       const track = source[idx];
       if (!track?.id) return;
@@ -1905,7 +1923,9 @@ export default function NeteaseMusic({ context }: AppProps) {
       const token = ++playTokenRef.current;
       const stale = () => token !== playTokenRef.current || !mountedRef.current;
       setError(null);
-      setCurrentIdx(idx);
+      // 快照这一份列表作为播放队列，之后切浏览列表不会污染正在播的歌
+      setPlayQueue(source);
+      setPlayIdx(idx);
       setPlayUrl(null);
       setLoadingTrack(true);
       setLyrics([]);
@@ -1923,14 +1943,16 @@ export default function NeteaseMusic({ context }: AppProps) {
         }
         if (stale()) return;
         if (pic && !track.pic) {
-          const patch = (list: Track[]) => {
-            const next = list.slice();
-            if (next[idx]?.id === track.id) next[idx] = { ...next[idx], pic };
-            return next;
-          };
-          setActiveTracks(patch);
-          setResults((prev) => (prev.length ? patch(prev) : prev));
-          setPlaylist((prev) => (prev ? { ...prev, tracks: patch(prev.tracks) } : prev));
+          // 按歌曲 id 补封面，不依赖下标（播放快照与浏览列表可能顺序不同）
+          const patchById = (list: Track[]) =>
+            list.map((t) => (t.id === track.id ? { ...t, pic } : t));
+          // 播放快照总要更新；浏览列表仅在非内部切歌时同步，避免污染用户正在看的列表
+          setPlayQueue((prev) => patchById(prev));
+          if (!internal) {
+            setActiveTracks((prev) => patchById(prev));
+            setResults((prev) => (prev.length ? patchById(prev) : prev));
+            setPlaylist((prev) => (prev ? { ...prev, tracks: patchById(prev.tracks) } : prev));
+          }
         }
         if (!url) {
           setError('这首歌没有可用播放链接（VIP 独占 / 版权下架 / 网关未开放 URL 接口）。');
@@ -1949,17 +1971,19 @@ export default function NeteaseMusic({ context }: AppProps) {
   );
 
   const playPrev = useCallback(() => {
-    if (activeTracks.length === 0) return;
-    void playAt(currentIdx <= 0 ? activeTracks.length - 1 : currentIdx - 1);
-  }, [activeTracks, currentIdx, playAt]);
+    if (playQueue.length === 0) return;
+    // 按播放快照切歌，并把它作为列表传回，避免 playAt 误读被覆盖的 activeTracks
+    const i = playIdx <= 0 ? playQueue.length - 1 : playIdx - 1;
+    void playAt(i, playQueue, true);
+  }, [playQueue, playIdx, playAt]);
 
   const playNext = useCallback(() => {
-    if (activeTracks.length === 0) return;
+    if (playQueue.length === 0) return;
     let i: number;
-    if (repeatMode === 'shuffle') i = Math.floor(Math.random() * activeTracks.length);
-    else i = currentIdx >= activeTracks.length - 1 ? 0 : currentIdx + 1;
-    void playAt(i);
-  }, [activeTracks, currentIdx, repeatMode, playAt]);
+    if (repeatMode === 'shuffle') i = Math.floor(Math.random() * playQueue.length);
+    else i = playIdx >= playQueue.length - 1 ? 0 : playIdx + 1;
+    void playAt(i, playQueue, true);
+  }, [playQueue, playIdx, repeatMode, playAt]);
 
   /* ---------------------- audio 同步 ---------------------- */
   useEffect(() => {
@@ -2534,15 +2558,15 @@ export default function NeteaseMusic({ context }: AppProps) {
           <div className="absolute right-0 top-0 z-20 flex h-full flex-col" style={{ width: 320, background: 'rgba(12,14,22,.92)', backdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,.12)' }}>
             <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,.1)', color: '#fff' }}>
               <ListMusic size={15} />
-              <span style={{ fontSize: 13, fontWeight: 600 }}>播放队列 ({activeTracks.length})</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>播放队列 ({playQueue.length})</span>
               <button type="button" onClick={() => setShowQueue(false)} title="关闭队列" style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: '#fff', opacity: 0.7, cursor: 'pointer' }}><X size={16} /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-              {activeTracks.map((t, i) => (
-                <button type="button" key={`${t.id}-${i}`} onClick={() => void playAt(i)} className="flex w-full items-center gap-3 px-3 py-2 text-left" style={{ border: 'none', background: i === currentIdx ? 'rgba(255,255,255,.1)' : 'transparent', cursor: 'pointer' }}>
-                  <span style={{ fontSize: 11, opacity: 0.5, width: 18 }}>{i === currentIdx ? '♪' : i + 1}</span>
+              {playQueue.map((t, i) => (
+                <button type="button" key={`${t.id}-${i}`} onClick={() => void playAt(i, playQueue, true)} className="flex w-full items-center gap-3 px-3 py-2 text-left" style={{ border: 'none', background: i === playIdx ? 'rgba(255,255,255,.1)' : 'transparent', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 11, opacity: 0.5, width: 18 }}>{i === playIdx ? '♪' : i + 1}</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span className="block truncate" style={{ fontSize: 12, color: '#fff', fontWeight: i === currentIdx ? 600 : 400 }}>{t.name}</span>
+                    <span className="block truncate" style={{ fontSize: 12, color: '#fff', fontWeight: i === playIdx ? 600 : 400 }}>{t.name}</span>
                     <span className="block truncate" style={{ fontSize: 10, opacity: 0.55, color: '#fff' }}>{t.artist}</span>
                   </span>
                 </button>
