@@ -198,7 +198,13 @@ export default function BilibiliApp(_: AppProps) {
       setLoginMessage("用手机 B 站客户端扫码");
     } catch (e) {
       setLoginState("error");
-      setLoginMessage(e instanceof Error ? e.message : "生成二维码失败");
+      const msg = e instanceof Error ? e.message : "生成二维码失败";
+      // 风控 / 412 的根因是 Cloudflare 出口 IP 被 B 站限制，给出可操作的解法
+      if (/412|风控|限制|502/.test(msg)) {
+        setLoginMessage("当前网络被 B 站拦截，开加速器后点「刷新二维码」即可");
+      } else {
+        setLoginMessage(msg);
+      }
     }
   }, []);
 
@@ -518,8 +524,19 @@ export default function BilibiliApp(_: AppProps) {
                 </div>
               </div>
             ) : (
-              <div className="flex h-44 items-center justify-center text-[11px] text-arch-muted">
-                {loginState === "error" ? loginMessage : "正在生成二维码"}
+              <div
+                className={`flex h-44 flex-col items-center justify-center gap-2 px-2 text-center text-[11px] leading-relaxed ${
+                  loginState === "error" ? "text-arch-red" : "text-arch-muted"
+                }`}
+              >
+                {loginState === "error" ? (
+                  <>
+                    <span>二维码获取失败</span>
+                    <span className="text-arch-muted">{loginMessage}</span>
+                  </>
+                ) : (
+                  "正在生成二维码"
+                )}
               </div>
             )}
           </div>

@@ -123,15 +123,21 @@ function getOrCreateSid(request: Request): { sid: string; isNew: boolean } {
 
 let bootCache: { cookies: string[]; expires: number } | null = null;
 
-function buildUpstreamHeaders(request: Request, cookies: string[]): Headers {
-  const headers = new Headers();
-  const userAgent =
-    request.headers.get("user-agent") ??
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+/** 固定用正常桌面 Chrome UA：绝不透传浏览器的 UA（无头 / 脚本 UA 会直接被 B 站判机器人） */
+const BILI_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
-  headers.set("user-agent", userAgent);
+function buildUpstreamHeaders(_request: Request, cookies: string[]): Headers {
+  const headers = new Headers();
+  headers.set("user-agent", BILI_UA);
   headers.set("referer", SITE_REFERER);
   headers.set("origin", "https://www.bilibili.com");
+  headers.set("accept", "application/json, text/plain, */*");
+  headers.set("accept-language", "zh-CN,zh;q=0.9,en;q=0.8");
+  // 补全 sec-fetch 元数据，让请求指纹贴近真实浏览器，降低 -352 / 412 命中率
+  headers.set("sec-fetch-site", "same-site");
+  headers.set("sec-fetch-mode", "cors");
+  headers.set("sec-fetch-dest", "empty");
   if (cookies.length > 0) headers.set("cookie", cookies.join("; "));
   return headers;
 }
@@ -248,26 +254,50 @@ async function fetchAndTrack(
   sid: string,
   jar: string[],
 ): Promise<Response> {
-  const upstream = await fetch(targetUrl, {
-    method: "GET",
-    headers: buildUpstreamHeaders(request, jar),
-    redirect: "follow",
-  });
+  /** 单次转发；返回上游响应，风控 HTML / 412 由外层判定后决定是否重试 */
+  const attempt = async (cookies: string[]) =>
+    fetch(targetUrl, {
+      method: "GET",
+      headers: buildUpstreamHeaders(request, cookies),
+      redirect: "follow",
+    });
 
-  const setCookies = upstream.headers.getSetCookie?.() ?? [];
-  const bilibiliCookies = setCookies.filter((sc) => isBilibiliCookie(sc));
+  // 第一次：用现有 jar（含已引导的 buvid）
+  let upstream = await attempt(jar);
+  let contentType = upstream.headers.get("content-type") ?? "";
+  let blocked =
+    upstream.status === 412 ||
+    contentType.includes("text/html");
 
-  // 风控页 / 异常 HTML：转成 JSON 错误，别把一坨 HTML 丢给前端当错误消息
-  const contentType = upstream.headers.get("content-type") ?? "";
-  if (contentType.includes("text/html")) {
+  // 被风控：清空 buvid 缓存并重新引导匿名身份，短暂等待后重试一次。
+  // Cloudflare 出口 IP 常被 B 站标记，重新握手有时能拿到干净的会话，
+  // 救不回就如实报错（不塞假数据、不干等）。
+  if (blocked) {
+    try {
+      bootCache = null; // 强制下次重新拉 finger/spi
+      await new Promise((r) => setTimeout(r, 350));
+      const fresh = await getBuvidCookies(request);
+      const retryJar = fresh.length > 0 ? mergeCookies(jar, fresh) : jar;
+      upstream = await attempt(retryJar);
+      contentType = upstream.headers.get("content-type") ?? "";
+      blocked = upstream.status === 412 || contentType.includes("text/html");
+    } catch {
+      /* 重试失败：沿用第一次的 blocked 判定往下走 */
+    }
+  }
+
+  // 两次都被风控：转成明确的 JSON 错误，并提示可行的解决办法
+  if (blocked) {
     return new Response(
       JSON.stringify({
-        error: `B站返回风控页面（HTTP ${upstream.status}），请稍后重试`,
+        error: `B站风控拦截（HTTP ${upstream.status}），当前网络出口可能被限制，请开加速器或稍后重试`,
       }),
       { status: 502, headers: JSON_HEADERS },
     );
   }
 
+  const setCookies = upstream.headers.getSetCookie?.() ?? [];
+  const bilibiliCookies = setCookies.filter((sc) => isBilibiliCookie(sc));
   if (bilibiliCookies.length > 0) {
     await writeJar(sid, mergeCookies(jar, bilibiliCookies));
   }
@@ -276,12 +306,9 @@ async function fetchAndTrack(
   upstream.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (
-      [
-        "content-length",
-        "transfer-encoding",
-        "content-encoding",
-        "set-cookie",
-      ].includes(lower)
+      ["content-length", "transfer-encoding", "content-encoding", "set-cookie"].includes(
+        lower,
+      )
     ) {
       return;
     }
