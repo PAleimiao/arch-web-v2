@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bomb, Flag, RotateCcw, Smile, Timer } from "lucide-react";
 import type { AppProps } from "@/shell/types";
+import { isWindowActive } from "@/shell/window/windowKeys";
 import { cn } from "@/lib/cn";
 
 /**
@@ -43,7 +44,7 @@ const STATUS = {
 
 type GameStatus = keyof typeof STATUS;
 
-export default function Minesweeper(_: AppProps) {
+export default function Minesweeper({ context }: AppProps) {
   const [diff, setDiff] = useState<Difficulty>("easy");
   const cfg = PRESETS[diff];
   const [board, setBoard] = useState<Cell[][]>(() =>
@@ -209,6 +210,8 @@ export default function Minesweeper(_: AppProps) {
   /* ------------------------ 键盘支持 ------------------------ */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 应用级隔离：只有扫雷窗口激活时才响应方向键
+      if (!isWindowActive(context.windowId)) return;
       if (e.target && (e.target as HTMLElement).tagName === "SELECT") return;
       const [r, c] = cursor;
       const cfg = PRESETS[diff];

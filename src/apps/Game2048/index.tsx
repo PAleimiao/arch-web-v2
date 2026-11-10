@@ -8,6 +8,7 @@ import {
   Trophy,
 } from "lucide-react";
 import type { AppProps } from "../../shell/types";
+import { isWindowActive } from "../../shell/window/windowKeys";
 
 type Board = (number | null)[][];
 
@@ -194,6 +195,8 @@ export default function Game2048({ context }: AppProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 应用级隔离：只有 2048 窗口激活时才响应方向键
+      if (!isWindowActive(context.windowId)) return;
       const map: Record<string, Direction> = {
         ArrowUp: "up",
         ArrowDown: "down",
@@ -215,7 +218,7 @@ export default function Game2048({ context }: AppProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleMove]);
+  }, [handleMove, context.windowId]);
 
   const reset = () => {
     let b = emptyBoard();

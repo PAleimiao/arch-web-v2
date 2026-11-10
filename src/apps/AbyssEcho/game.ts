@@ -331,12 +331,15 @@ export class AbyssGame {
 
   private sfx = new Sfx();
   private hasSave: SaveData | null = null;
+  /** 由宿主应用注入：判断本游戏窗口是否为当前激活窗口（应用级按键隔离） */
+  private isActive: () => boolean;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, isActive: () => boolean = () => true) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas 2d 不可用");
     this.ctx = ctx;
     this.hasSave = loadSave();
+    this.isActive = isActive;
   }
 
   /* ------------------------- 生命周期 ------------------------- */
@@ -379,6 +382,8 @@ export class AbyssGame {
   };
 
   private onKeyDown = (e: KeyboardEvent) => {
+    // 应用级隔离：失焦窗口不接收新按键（onKeyUp 仍放行以清空按键状态，防止角色狂奔）
+    if (!this.isActive()) return;
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
     const k = e.key.toLowerCase();

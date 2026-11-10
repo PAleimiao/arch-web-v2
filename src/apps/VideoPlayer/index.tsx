@@ -16,6 +16,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import type { AppProps } from "@/shell/types";
+import { isWindowActive } from "@/shell/window/windowKeys";
 import { cn } from "@/lib/cn";
 
 /* ----------------------------- hls.js CDN 动态加载 ----------------------------- */
@@ -90,7 +91,7 @@ interface VideoItem {
 
 /* ------------------------------ 主组件 ------------------------------ */
 
-export default function VideoPlayer(_: AppProps) {
+export default function VideoPlayer({ context }: AppProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -294,6 +295,8 @@ export default function VideoPlayer(_: AppProps) {
   /* --------------------------- 键盘快捷键 --------------------------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 应用级隔离：只有视频播放器窗口激活时才响应方向键
+      if (!isWindowActive(context.windowId)) return;
       // 焦点不在可编辑元素才响应
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;

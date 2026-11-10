@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import type { AppProps } from "@/shell/types";
+import { isWindowActive } from "@/shell/window/windowKeys";
 import {
   countBlobs,
   deleteBlob,
@@ -143,7 +144,7 @@ interface Photo {
   addedAt: number;
 }
 
-export default function Gallery(_: AppProps) {
+export default function Gallery({ context }: AppProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,6 +246,8 @@ export default function Gallery(_: AppProps) {
   useEffect(() => {
     if (activeIdx === null) return;
     const onKey = (e: KeyboardEvent) => {
+      // 应用级隔离：只有相册窗口激活时才响应方向键
+      if (!isWindowActive(context.windowId)) return;
       if (e.key === "Escape") closeLightbox();
       else if (e.key === "ArrowRight") next();
       else if (e.key === "ArrowLeft") prev();

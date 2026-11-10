@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Gamepad, Pause, Play, RotateCcw, Trophy } from "lucide-react";
 import type { AppProps } from "@/shell/types";
+import { isWindowActive } from "@/shell/window/windowKeys";
 import { cn } from "@/lib/cn";
 
 const COLS = 20;
@@ -157,6 +158,8 @@ export default function Snake({ context }: AppProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 应用级隔离：只有贪吃蛇窗口激活时才吃方向键
+      if (!isWindowActive(context.windowId)) return;
       const g = gameRef.current;
       let want: Pos | null = null;
       switch (e.key) {
@@ -200,7 +203,7 @@ export default function Snake({ context }: AppProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [diff, restart]);
+  }, [diff, restart, context.windowId]);
 
   useEffect(() => {
     context.setTitle("贪吃蛇");

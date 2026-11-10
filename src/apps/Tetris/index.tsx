@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, Trophy } from "lucide-react";
 import type { AppProps } from "@/shell/types";
+import { isWindowActive } from "@/shell/window/windowKeys";
 import { cn } from "@/lib/cn";
 
 const COLS = 10;
@@ -395,6 +396,8 @@ export default function Tetris({ context }: AppProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 应用级隔离：只有俄罗斯方块窗口激活时才响应键盘
+      if (!isWindowActive(context.windowId)) return;
       const m = gameRef.current;
       if (e.key === "p" || e.key === "P") {
         e.preventDefault();

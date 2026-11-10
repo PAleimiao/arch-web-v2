@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import qrcode from 'qrcode-generator';
 import type { AppProps } from '@/shell/types';
+import { isWindowActive } from '@/shell/window/windowKeys';
 import { useOSStore } from '@/stores/useOSStore';
 
 /* ============================ 配置与类型 ============================ */
@@ -1309,7 +1310,7 @@ function DetailPage({
 
 /* ============================ 主组件 ============================ */
 
-export default function NeteaseMusic(_: AppProps) {
+export default function NeteaseMusic({ context }: AppProps) {
   /* ---- 全局明暗主题（改一处全站变） ---- */
   const dark = useOSStore((s) => s.settings.darkMode);
   const updateSettings = useOSStore((s) => s.updateSettings);
@@ -1916,19 +1917,23 @@ export default function NeteaseMusic(_: AppProps) {
   /* ---------------------- 快捷键 ---------------------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 只有本应用窗口处于激活态才处理方向键，避免玩贪吃蛇等游戏时误切歌
+      if (!isWindowActive(context.windowId)) return;
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
       if (e.code === 'Space') {
         e.preventDefault();
         setPlaying((p) => !p);
       } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
         playPrev();
       } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
         playNext();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [playPrev, playNext]);
+  }, [playPrev, playNext, context.windowId]);
 
   const toggleLike = (id: string) =>
     setLiked((prev) => {
