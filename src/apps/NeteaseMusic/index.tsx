@@ -519,6 +519,30 @@ function mapOfficialSong(s: WeapiRaw): Track {
   };
 }
 
+/**
+ * 官方 weapi 读歌单详情（游客可读，0.1s 级），替代慢速公共网关。
+ * 返回内部 PlaylistData；失败抛错由上层回退 GD Studio。
+ */
+async function officialPlaylist(id: string): Promise<PlaylistData> {
+  const data = await ncmWeapi('/v3/playlist/detail', { id, n: 1000, s: 8 }, false);
+  const p = (data.playlist ?? {}) as WeapiRaw;
+  const raw = Array.isArray(p.tracks) ? (p.tracks as WeapiRaw[]) : [];
+  if (raw.length === 0) throw new Error('官方歌单返回空列表');
+  return {
+    id,
+    name: String(p.name ?? `歌单 #${id}`),
+    cover: safeAvatar(String(p.coverImgUrl ?? '')),
+    desc: String(p.description ?? ''),
+    tracks: raw.map(mapOfficialSong),
+  };
+}
+
+/** 官方 weapi 读歌词（游客可读），需带 lv/kv/tv 才返回 lrc */
+async function officialLyric(id: string): Promise<string> {
+  const data = await ncmWeapi('/song/lyric', { id, lv: 0, kv: 0, tv: 0 }, false);
+  return String((data.lrc as WeapiRaw | undefined)?.lyric ?? '');
+}
+
 /** 官方歌单对象 → 卡片条目 */
 function mapOfficialPlaylist(p: WeapiRaw): { id: string; name: string; pic: string; sub: string } {
   const creator = (p.creator ?? {}) as WeapiRaw;
@@ -685,8 +709,15 @@ async function ncmLyric(cfg: Config, id: string): Promise<string> {
 class MusicClient {
   constructor(private cfg: Config) {}
 
-  playlist(id: string) {
-    return this.cfg.kind === 'gdstudio' ? gdPlaylist(this.cfg, id) : ncmPlaylist(this.cfg, id);
+  async playlist(id: string): Promise<PlaylistData> {
+    // 官方 weapi 优先（游客可读、0.1s 级、数据含封面/艺人/时长），失败回退旧网关
+    try {
+      return await officialPlaylist(id);
+    } catch {
+      return this.cfg.kind === 'gdstudio'
+        ? gdPlaylist(this.cfg, id)
+        : ncmPlaylist(this.cfg, id);
+    }
   }
 
   search(kw: string) {
@@ -700,7 +731,12 @@ class MusicClient {
   }
 
   async lyric(id: string): Promise<string> {
-    return this.cfg.kind === 'gdstudio' ? gdLyric(this.cfg, id) : ncmLyric(this.cfg, id);
+    // 官方歌词优先（游客可读、快），失败回退旧网关
+    try {
+      return await officialLyric(id);
+    } catch {
+      return this.cfg.kind === 'gdstudio' ? gdLyric(this.cfg, id) : ncmLyric(this.cfg, id);
+    }
   }
 
   async pic(id: string): Promise<string> {

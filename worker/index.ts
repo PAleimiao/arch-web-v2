@@ -976,6 +976,7 @@ const NCM_ALLOWED = new Set([
   "/search/get", // 搜索（单曲/专辑/歌手/歌单/用户）
   "/song/like/get", // 我喜欢的音乐 id 列表（需登录）
   "/v3/song/detail", // 歌曲详情（批量补封面/艺人）
+  "/song/lyric", // 歌词（游客可读，替代慢速公共网关）
 ]);
 
 /** 形如 /v1/album/123 /v1/artist/456 /v1/user/detail/789 的路径 */
