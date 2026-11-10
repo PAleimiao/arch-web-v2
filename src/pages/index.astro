@@ -30,6 +30,34 @@ const refreshPreamble = `
       href={`${base}/favicon.svg`}
     />
     <meta name="theme-color" content="#0b0e14" />
+    {import.meta.env.PROD && (
+      <script is:inline>
+        /*
+         * 缓存自愈：Astro 每次构建会换 JS hash 并删掉旧 hash 文件。
+         * 若浏览器缓存了旧 HTML，它会引用已 404 的旧 JS → 桌面白屏且无报错。
+         * 这里在挂载超时后给 URL 加时间戳强制刷新一次，拿回新 HTML。
+         * 用 sessionStorage 保证每个标签页最多自愈一次，绝不无限刷新。
+         */
+        (function () {
+          try {
+            var KEY = "arch-web.healed";
+            if (sessionStorage.getItem(KEY) === "1") return;
+            setTimeout(function () {
+              var root = document.getElementById("os-root");
+              // 主 JS 正常挂载会往 #os-root 塞内容；仍为空说明脚本没跑起来
+              if (root && root.childElementCount === 0) {
+                sessionStorage.setItem(KEY, "1");
+                var u = new URL(window.location.href);
+                u.searchParams.set("__heal", Date.now().toString());
+                window.location.replace(u.toString());
+              }
+            }, 4000);
+          } catch (e) {
+            /* 隐私模式下 sessionStorage 可能不可用，静默跳过自愈 */
+          }
+        })();
+      </script>
+    )}
   </head>
   <body>
     <div id="os-root"></div>
