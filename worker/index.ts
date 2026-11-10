@@ -843,6 +843,7 @@ async function handleNeteaseLogin(request: Request, sid: string): Promise<Respon
           cover: String(p.coverImgUrl ?? "").replace(/^http:\/\//, "https://"),
           count: Number(p.trackCount ?? 0),
           creator: String(creator?.nickname ?? ""),
+          specialType: Number(p.specialType ?? 0),
         };
       });
       return jsonOk({ playlists });
@@ -897,6 +898,83 @@ async function handleNeteaseLogin(request: Request, sid: string): Promise<Respon
   }
 }
 
+// ---------------------------------------------------------------------------
+// 通用 weapi 读取网关
+//
+// 前端的每日推荐 / 歌单分类 / 搜索分类 / 专辑/歌手/用户详情 都走这里。
+// 安全：路径白名单精确匹配，只允许只读接口，绝不当任意 URL 的免费代理；
+// 需要登录态的接口（每日推荐 / 红心）会带上服务端 jar 里的 MUSIC_U，
+// 凭证依旧不下发浏览器。
+// ---------------------------------------------------------------------------
+
+const NCM_WEAPI_PATH = "/api/netease/weapi";
+
+/** 允许的官方 weapi 路径（只读，不含任何写操作 / 登录操作） */
+const NCM_ALLOWED = new Set([
+  "/v2/discovery/recommend/songs", // 每日推荐歌曲（需登录）
+  "/v1/discovery/recommend/resource", // 每日推荐歌单（需登录）
+  "/playlist/catalogue", // 歌单分类
+  "/playlist/list", // 分类歌单列表
+  "/search/get", // 搜索（单曲/专辑/歌手/歌单/用户）
+  "/song/like/get", // 我喜欢的音乐 id 列表（需登录）
+  "/v3/song/detail", // 歌曲详情（批量补封面/艺人）
+]);
+
+/** 形如 /v1/album/123 /v1/artist/456 /v1/user/detail/789 的路径 */
+function isAllowedNcmRoute(path: string): boolean {
+  if (NCM_ALLOWED.has(path)) return true;
+  return /^\/v1\/(album|artist|radio\/get)\/\d+$/.test(path) ||
+    /^\/v1\/user\/detail\/\d+$/.test(path) ||
+    /^\/v3\/playlist\/detail$/.test(path) ||
+    /^\/user\/playlist$/.test(path) ||
+    path === "/v1/radio/get" ||
+    path === "/v1/discovery/recommend/resource";
+}
+
+async function handleNcmWeapi(request: Request, sid: string): Promise<Response> {
+  const fail = (msg: string, status = 400) =>
+    new Response(JSON.stringify({ error: msg }), {
+      status,
+      headers: JSON_HEADERS,
+    });
+
+  if (request.method !== "POST") return fail("仅支持 POST", 405);
+
+  let body: { path?: unknown; payload?: unknown; auth?: unknown };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return fail("请求体不是合法 JSON");
+  }
+
+  const path = typeof body.path === "string" ? body.path : "";
+  if (!path.startsWith("/") || !isAllowedNcmRoute(path)) {
+    return fail("接口不在白名单内", 403);
+  }
+  // 防止路径里夹带 query 造成越权
+  if (path.includes("?") || path.includes("//")) return fail("非法路径", 403);
+
+  const payload =
+    body.payload && typeof body.payload === "object" && !Array.isArray(body.payload)
+      ? (body.payload as Record<string, unknown>)
+      : {};
+
+  const needAuth = body.auth === true;
+  const session = needAuth ? await readNcmJar(sid) : null;
+  if (needAuth && !session) {
+    return fail("需要登录才能访问该接口", 401);
+  }
+
+  try {
+    const { json } = await ncmWeapiRequest(path, payload, session);
+    return new Response(JSON.stringify(json), {
+      headers: { ...JSON_HEADERS, "cache-control": "no-store" },
+    });
+  } catch (e) {
+    return fail(`官方接口请求失败：${String((e as Error)?.message ?? e)}`, 502);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -939,6 +1017,19 @@ export default {
       const response = await handleNeteaseLogin(request, sid);
       if (isNew) {
         // 本地 wrangler dev 是 http，不能下发 Secure，否则浏览器会丢掉 sid
+        const secure = url.protocol === "https:" ? "; Secure" : "";
+        response.headers.append(
+          "set-cookie",
+          `ncm_sid=${sid}; Path=/; Max-Age=${NCM_JAR_TTL}; SameSite=Lax; HttpOnly${secure}`,
+        );
+      }
+      return response;
+    }
+
+    if (url.pathname === NCM_WEAPI_PATH) {
+      const { sid, isNew } = getOrCreateNcmSid(request);
+      const response = await handleNcmWeapi(request, sid);
+      if (isNew) {
         const secure = url.protocol === "https:" ? "; Secure" : "";
         response.headers.append(
           "set-cookie",

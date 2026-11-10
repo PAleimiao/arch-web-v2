@@ -19,6 +19,7 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  RotateCw,
   ChevronRight,
   Disc3,
   Heart,
@@ -146,27 +147,68 @@ interface UserPlaylist {
   cover: string;
   count: number;
   creator: string;
+  /** 5 = 「我喜欢的音乐」特殊歌单 */
+  specialType?: number;
 }
 
-type View = 'home' | 'playlist' | 'search' | 'channel';
+type View = 'home' | 'playlist' | 'search' | 'channel' | 'album' | 'artist' | 'user';
 type RepeatMode = 'list' | 'one' | 'shuffle';
+/** 搜索分类：1 单曲 / 10 专辑 / 100 歌手 / 1000 歌单 / 1002 用户 */
+type SearchTab = '1' | '10' | '100' | '1000' | '1002';
+
+/** 一张导航快照，前进/后退就是在这条栈上移动 */
+interface NavEntry {
+  view: View;
+  title?: string;
+  playlistId?: string;
+  playlistName?: string;
+  channel?: ChannelInfo;
+  searchKw?: string;
+  searchTab?: SearchTab;
+  albumId?: string;
+  artistId?: string;
+  userId?: string;
+}
+
+/** 搜索结果里除歌曲外的通用条目 */
+interface SearchItem {
+  id: string;
+  name: string;
+  pic: string;
+  sub: string;
+  extra?: string;
+}
+
+/** 歌单分类里的一类 */
+interface PlaylistCategory {
+  name: string;
+  category: number;
+  hot?: boolean;
+}
 
 /**
  * 栏目页：左侧导航与首页入口点进去后的独立内容。
- * 以前所有入口都指向同一个歌单，看着像「点哪儿都是热播榜」，
- * 现在每个栏目有自己的标题、说明和一组不同的公共歌单。
+ * kind 决定渲染哪种数据：
+ *   - links      一组可点的公共歌单（未登录兜底）
+ *   - dailySongs 每日推荐歌曲（登录，官方每日刷新）
+ *   - dailyPl    每日推荐歌单（登录）
+ *   - categories 歌单分类广场（官方 catalogue）
+ *   - catList    某个分类下的歌单列表
+ *   - local      本机功能（红心 / 最近播放）
  */
 interface ChannelInfo {
   id: string;
   title: string;
   desc: string;
-  /** 属于登录后才有的个性化内容，页面顶部会明确标注未登录 */
+  kind?: 'links' | 'dailySongs' | 'dailyPl' | 'categories' | 'catList';
   needsLogin?: boolean;
-  /** 本地功能视图：红心 / 最近播放 / 桌面版不支持 */
   local?: 'liked' | 'recent' | 'unsupported';
-  /** 栏目下可点的公共歌单，各栏目组合不同 */
-  items?: { id: string; name: string }[];
+  items?: { id: string; name: string; pic?: string }[];
+  catName?: string;
 }
+
+/** 官方通用的原始数据包装（网关原样透传，字段用可选兜底） */
+type WeapiRaw = Record<string, any>;
 
 function loadConfig(): Config {
   if (typeof localStorage === 'undefined') return DEFAULT_CONFIG;
@@ -350,6 +392,107 @@ function makeQrDataUrl(text: string): string {
   qr.addData(text);
   qr.make();
   return qr.createDataURL(8, 0);
+}
+
+/* ---- 官方 weapi 通用读取网关（白名单在 Worker 侧） ---- */
+
+const WEAPI_ENDPOINT = '/api/netease/weapi';
+
+/**
+ * 走 Worker 转发读取官方接口。
+ * auth=true 时自动带服务端 cookie jar 里的登录态（凭证不下发浏览器）。
+ */
+async function ncmWeapi(
+  path: string,
+  payload: Record<string, unknown> = {},
+  auth = false,
+): Promise<WeapiRaw> {
+  const r = await fetch(WEAPI_ENDPOINT, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path, payload, auth }),
+  });
+  const data = (await r.json().catch(() => ({}))) as WeapiRaw & { error?: string };
+  if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+/** 官方歌曲对象（每日推荐 / 专辑 / 歌手热门都长这样）→ 内部 Track */
+function mapOfficialSong(s: WeapiRaw): Track {
+  const album = (s.album ?? s.al ?? {}) as WeapiRaw;
+  const artists = (s.artists ?? s.ar ?? []) as WeapiRaw[];
+  const pic = safeAvatar(String(album.pic ?? album.picUrl ?? ''));
+  return {
+    id: String(s.id ?? ''),
+    name: String(s.name ?? '未知歌曲'),
+    artist: artists.map((a) => String(a.name ?? '')).filter(Boolean).join(' / ') || '未知艺人',
+    album: String(album.name ?? ''),
+    pic,
+    duration: Number(s.dt ?? s.duration ?? 0) / 1000,
+    vip: Number(s.fee ?? s.feeType ?? 0) !== 0,
+  };
+}
+
+/** 官方歌单对象 → 卡片条目 */
+function mapOfficialPlaylist(p: WeapiRaw): { id: string; name: string; pic: string; sub: string } {
+  const creator = (p.creator ?? {}) as WeapiRaw;
+  return {
+    id: String(p.id ?? ''),
+    name: String(p.name ?? '未命名歌单'),
+    pic: safeAvatar(String(p.picUrl ?? p.coverImgUrl ?? '')),
+    sub: creator.nickname ? `by ${creator.nickname}` : `${p.playCount ?? p.playcount ?? 0} 次播放`,
+  };
+}
+
+/** 搜索结果按分类映射成卡片；type=1 单曲特殊走 Track */
+function mapSearchItems(kind: SearchTab, result: WeapiRaw): SearchItem[] {
+  const safe = (u: unknown) => safeAvatar(String(u ?? ''));
+  if (kind === '1') {
+    return ((result.songs ?? []) as WeapiRaw[]).map((s) => {
+      const al = (s.album ?? {}) as WeapiRaw;
+      const ar = (s.artists ?? s.ar ?? []) as WeapiRaw[];
+      return {
+        id: String(s.id ?? ''),
+        name: String(s.name ?? ''),
+        pic: safe(al.pic ?? al.picUrl),
+        sub: ar.map((a) => String(a.name ?? '')).join(' / ') || '未知艺人',
+        extra: String(al.name ?? ''),
+      };
+    });
+  }
+  if (kind === '10') {
+    return ((result.albums ?? []) as WeapiRaw[]).map((a) => ({
+      id: String(a.id ?? ''),
+      name: String(a.name ?? ''),
+      pic: safe(a.picUrl),
+      sub: String((a.artist as WeapiRaw)?.name ?? a.artists?.[0]?.name ?? '未知艺人'),
+      extra: a.publishTime ? new Date(Number(a.publishTime)).getFullYear().toString() : '',
+    }));
+  }
+  if (kind === '100') {
+    return ((result.artists ?? []) as WeapiRaw[]).map((a) => ({
+      id: String(a.id ?? ''),
+      name: String(a.name ?? ''),
+      pic: safe(a.picUrl),
+      sub: String(a.briefDesc ?? '歌手'),
+    }));
+  }
+  if (kind === '1000') {
+    return ((result.playlists ?? []) as WeapiRaw[]).map((p) => ({
+      id: String(p.id ?? ''),
+      name: String(p.name ?? ''),
+      pic: safe(p.coverImgUrl),
+      sub: `by ${String((p.creator as WeapiRaw)?.nickname ?? '云村')}`,
+      extra: String(p.playCount ?? ''),
+    }));
+  }
+  return ((result.userprofiles ?? []) as WeapiRaw[]).map((u) => ({
+    id: String(u.userId ?? ''),
+    name: String(u.nickname ?? ''),
+    pic: safe(u.avatarUrl),
+    sub: String(u.signature ?? '这位云村村民很低调'),
+  }));
 }
 
 /* ---- GD Studio 公共网关 ---- */
@@ -1079,6 +1222,91 @@ function Vinyl({ cover, playing }: { cover: string; playing: boolean }) {
   );
 }
 
+/* ============================ 专辑 / 歌手 详情页 ============================ */
+
+interface DetailPageData {
+  kind: 'album' | 'artist' | 'user';
+  title: string;
+  pic: string;
+  sub: string;
+  desc?: string;
+}
+
+function DetailPage({
+  data, tracks, activeId, liked, onPlay, onLike, onComment,
+}: {
+  data: DetailPageData;
+  tracks: Track[];
+  activeId?: string;
+  liked: Set<string>;
+  onPlay: (i: number) => void;
+  onLike: (id: string) => void;
+  onComment: (t: Track) => void;
+  onOpenPlaylist: (id: string, name: string) => void;
+}) {
+  return (
+    <>
+      <div className="flex gap-6">
+        <div
+          style={{
+            width: 176, height: 176, borderRadius: data.kind === 'artist' ? '50%' : 10,
+            flexShrink: 0,
+            background: data.pic ? `url(${data.pic}) center / cover no-repeat, var(--nm-card)` : 'var(--nm-card)',
+            border: '1px solid var(--nm-border)',
+          }}
+        />
+        <div className="min-w-0 flex-1">
+          <div style={{ fontSize: 12, color: 'var(--nm-red)' }}>
+            {data.kind === 'album' ? '专辑' : '歌手'}
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, margin: '6px 0 10px' }}>{data.title}</h1>
+          <div style={{ fontSize: 11, color: 'var(--nm-muted)' }}>{data.sub} · {tracks.length} 首</div>
+          {data.desc && (
+            <p className="line-clamp-3" style={{ fontSize: 11, color: 'var(--nm-sub)', marginTop: 10, lineHeight: 1.6 }}>
+              {data.desc}
+            </p>
+          )}
+          {tracks.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onPlay(0)}
+              className="mt-4 flex items-center gap-2"
+              style={{ height: 34, padding: '0 18px', borderRadius: 17, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 12, cursor: 'pointer' }}
+            >
+              <Play size={13} fill="currentColor" /> 播放全部
+            </button>
+          )}
+        </div>
+      </div>
+      {tracks.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center gap-3 px-3 pb-2" style={{ fontSize: 11, color: 'var(--nm-muted)', borderBottom: '1px solid var(--nm-border)' }}>
+            <span style={{ width: 26 }}>#</span>
+            <span style={{ flex: '1 1 40%' }}>标题</span>
+            <span style={{ flex: '1 1 28%' }}>专辑</span>
+            <span style={{ width: 26 }} />
+            <span style={{ width: 44, textAlign: 'right' }}>时长</span>
+          </div>
+          <div className="mt-1">
+            {tracks.map((t, i) => (
+              <TrackRow
+                key={`${t.id}-${i}`}
+                index={i}
+                track={t}
+                active={activeId === t.id}
+                liked={liked.has(t.id)}
+                onPlay={() => onPlay(i)}
+                onLike={() => onLike(t.id)}
+                onComment={() => onComment(t)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ============================ 主组件 ============================ */
 
 export default function NeteaseMusic(_: AppProps) {
@@ -1137,6 +1365,34 @@ export default function NeteaseMusic(_: AppProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /* ---- 导航历史栈（前进 / 后退 / logo 回首页） ---- */
+  const [navStack, setNavStack] = useState<NavEntry[]>([{ view: 'home' }]);
+  const [navIdx, setNavIdx] = useState(0);
+  const canGoBack = navIdx > 0;
+  const canGoForward = navIdx < navStack.length - 1;
+
+  /* ---- 搜索分类 ---- */
+  const [searchTab, setSearchTab] = useState<SearchTab>('1');
+  const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
+  const [searchCounts, setSearchCounts] = useState<Partial<Record<SearchTab, number>>>({});
+
+  /* ---- 官方每日推荐 / 歌单分类 ---- */
+  const [dailySongs, setDailySongs] = useState<Track[]>([]);
+  const [dailyPlaylists, setDailyPlaylists] = useState<SearchItem[]>([]);
+  const [categories, setCategories] = useState<PlaylistCategory[]>([]);
+  const [categoryTracks, setCategoryTracks] = useState<SearchItem[]>([]);
+  const [detailView, setDetailView] = useState<{
+    kind: 'album' | 'artist' | 'user';
+    id: string;
+    title: string;
+    pic: string;
+    sub: string;
+    tracks: Track[];
+    desc?: string;
+  } | null>(null);
+  /** 登录态下「我喜欢的音乐」对应的官方歌单 id（specialType=5） */
+  const [likedPlaylistId, setLikedPlaylistId] = useState('');
+
   /* ---- 播放状态 ---- */
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentIdx, setCurrentIdx] = useState(-1);
@@ -1190,7 +1446,25 @@ export default function NeteaseMusic(_: AppProps) {
         }
         if (value.tracks.length === 0) setError('这个歌单暂时没有可展示的歌曲。');
       } catch (e) {
-        if (mountedRef.current) setError(`加载失败：${String((e as Error)?.message ?? e)}`);
+        // 公共网关偶发连接抖动，自动重试一次
+        try {
+          const { value, cfg } = await withFallback(override ?? config, (c) =>
+            new MusicClient(c).playlist(id),
+          );
+          if (!mountedRef.current) return;
+          setConfig(cfg);
+          setPlaylist(value);
+          setActiveTracks(value.tracks);
+          setTrackIndex((prev) => {
+            const next = { ...prev };
+            for (const t of value.tracks) next[t.id] = t;
+            return next;
+          });
+          if (!keepView) { setView('playlist'); setShowPlayer(false); }
+          if (value.tracks.length === 0) setError('这个歌单暂时没有可展示的歌曲。');
+        } catch (e2) {
+          if (mountedRef.current) setError(`加载失败：${String((e2 as Error)?.message ?? e)}`);
+        }
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -1198,34 +1472,295 @@ export default function NeteaseMusic(_: AppProps) {
     [config],
   );
 
-  const doSearch = useCallback(
-    async (kw: string) => {
-      const trimmed = kw.trim();
-      if (!trimmed) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const { value, cfg } = await withFallback(config, (c) => new MusicClient(c).search(trimmed));
-        if (!mountedRef.current) return;
-        setConfig(cfg);
-        setResults(value);
-        setActiveTracks(value);
+  /*
+   * 下面这一组导航 / 官方数据加载函数刻意用「普通箭头函数」而非 useCallback：
+   * 它们互相引用（runSearch↔restoreNav、openSearchItem→playAt 等），
+   * 用 useCallback 的依赖数组会在渲染期求值后置变量而触发 TDZ。
+   * 普通函数只在事件 / effect 里被调用（渲染完成后），函数体延迟执行，天然安全。
+   */
+
+  /** 按分类搜索（官方 weapi），失败时单曲类回退 GD Studio */
+  async function runSearch(kw: string, tab: SearchTab, onBeforeLoad?: () => void) {
+    const trimmed = kw.trim();
+    if (!trimmed) return;
+    setLoading(true);
+    setError(null);
+    onBeforeLoad?.();
+    try {
+      const data = await ncmWeapi('/search/get', {
+        s: trimmed,
+        type: Number(tab),
+        offset: 0,
+        total: true,
+        limit: 30,
+      });
+      if (!mountedRef.current) return;
+      const result = (data.result ?? {}) as WeapiRaw;
+      setSearchItems(mapSearchItems(tab, result));
+      setSearchCounts({
+        '1': Number(result.songCount ?? 0),
+        '10': Number(result.albumCount ?? 0),
+        '100': Number(result.artistCount ?? 0),
+        '1000': Number(result.playlistCount ?? 0),
+        '1002': Number(result.userprofileCount ?? 0),
+      });
+      if (tab === '1') {
+        const tracks = ((result.songs ?? []) as WeapiRaw[]).map(mapOfficialSong);
+        setResults(tracks);
+        setActiveTracks(tracks);
         setTrackIndex((prev) => {
           const next = { ...prev };
-          for (const t of value) next[t.id] = t;
+          for (const t of tracks) next[t.id] = t;
           return next;
         });
-        setView('search');
-        setShowPlayer(false);
-        if (value.length === 0) setError('没有搜到相关歌曲，换个关键词试试。');
-      } catch (e) {
-        if (mountedRef.current) setError(`搜索失败：${String((e as Error)?.message ?? e)}`);
-      } finally {
-        if (mountedRef.current) setLoading(false);
       }
-    },
-    [config],
-  );
+      setView('search');
+      setShowPlayer(false);
+      if ((result.songs?.length ?? result.albums?.length ?? result.artists?.length ?? result.playlists?.length ?? result.userprofiles?.length ?? 0) === 0) {
+        setError('没有搜到相关内容，换个关键词或分类试试。');
+      }
+    } catch (e) {
+      if (!mountedRef.current) return;
+      if (tab === '1') {
+        try {
+          const { value, cfg } = await withFallback(config, (c) => new MusicClient(c).search(trimmed));
+          if (!mountedRef.current) return;
+          setConfig(cfg);
+          setResults(value);
+          setActiveTracks(value);
+          setSearchItems(value.map((t) => ({ id: t.id, name: t.name, pic: t.pic, sub: t.artist })));
+          setView('search');
+          setError(null);
+        } catch {
+          setError(`搜索失败：${String((e as Error)?.message ?? e)}`);
+        }
+      } else {
+        setError(`搜索失败：${String((e as Error)?.message ?? e)}`);
+      }
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }
+
+  /** 搜索框回车：默认搜单曲 */
+  async function doSearch(kw: string) {
+    const trimmed = kw.trim();
+    if (!trimmed) return;
+    setSearchKw(trimmed);
+    setSearchTab('1');
+    await runSearch(trimmed, '1', () => pushNav({ view: 'search', searchKw: trimmed, searchTab: '1' }));
+  }
+
+  /* ==================== 导航历史栈 ==================== */
+
+  function pushNav(entry: NavEntry) {
+    setNavStack((prev) => [...prev.slice(0, navIdx + 1), entry]);
+    setNavIdx((i) => i + 1);
+  }
+
+  /** 恢复某个历史快照 */
+  function restoreNav(entry: NavEntry) {
+    setView(entry.view);
+    setShowPlayer(false);
+    setChannel(entry.channel ?? null);
+    setActiveNav(entry.channel?.id ?? (entry.view === 'home' ? 'home' : ''));
+    if (entry.view === 'search') {
+      setSearchKw(entry.searchKw ?? '');
+      setSearchTab(entry.searchTab ?? '1');
+      if (entry.searchKw) void runSearch(entry.searchKw, entry.searchTab ?? '1');
+    } else if (entry.view === 'playlist' && entry.playlistId) {
+      setActiveNav(`pl-${entry.playlistId}`);
+      // 自己歌单用官方接口，公共榜单用公共网关
+      const mine = userPlaylists.some((p) => p.id === entry.playlistId);
+      if (mine && profile) void loadOfficialPlaylist(entry.playlistId, entry.playlistName);
+      else void loadPlaylist(entry.playlistId, false);
+    } else if (entry.view === 'album' && entry.albumId) {
+      void openAlbum(entry.albumId, entry.title ?? '专辑', false);
+    } else if (entry.view === 'artist' && entry.artistId) {
+      void openArtist(entry.artistId, entry.title ?? '歌手', false);
+    } else if (entry.view === 'user' && entry.userId) {
+      void openUser(entry.userId, entry.title ?? '用户', false);
+    } else if (entry.view === 'channel' && entry.channel) {
+      const kind = entry.channel.kind;
+      if (kind === 'categories') void loadCategories();
+      if (kind === 'dailySongs' || kind === 'dailyPl') void loadDailyData();
+      if (kind === 'catList' && entry.channel.catName) void loadCategoryPlaylists(entry.channel.catName);
+    }
+  }
+
+  function goBack() {
+    if (!canGoBack) return;
+    const next = navIdx - 1;
+    setNavIdx(next);
+    restoreNav(navStack[next]);
+  }
+
+  function goForward() {
+    if (!canGoForward) return;
+    const next = navIdx + 1;
+    setNavIdx(next);
+    restoreNav(navStack[next]);
+  }
+
+  /** logo：刷新首页数据并回到首页 */
+  function goHome() {
+    setView('home');
+    setActiveNav('home');
+    setChannel(null);
+    setShowPlayer(false);
+    setError(null);
+    setRecommendOffset(0);
+    if (navStack[navIdx]?.view !== 'home') pushNav({ view: 'home' });
+    void loadPlaylist('3778678', true);
+    void loadDailyData();
+  }
+
+  /* ==================== 官方数据加载 ==================== */
+
+  /** 每日推荐歌曲 + 每日推荐歌单（登录态），供首页入口卡与栏目用 */
+  async function loadDailyData() {
+    if (!profile) return;
+    try {
+      const [songsRes, plRes] = await Promise.all([
+        ncmWeapi('/v2/discovery/recommend/songs', { limit: 30 }, true),
+        ncmWeapi('/v1/discovery/recommend/resource', {}, true),
+      ]);
+      if (!mountedRef.current) return;
+      setDailySongs(((songsRes.data?.dailySongs ?? []) as WeapiRaw[]).map(mapOfficialSong));
+      setDailyPlaylists(((plRes.recommend ?? []) as WeapiRaw[]).map(mapOfficialPlaylist));
+    } catch {
+      /* 每日推荐失败不影响其它功能，入口卡继续用兜底封面 */
+    }
+  }
+
+  /** 歌单分类广场 */
+  async function loadCategories() {
+    try {
+      const data = await ncmWeapi('/playlist/catalogue');
+      if (!mountedRef.current) return;
+      const subs = (data.sub ?? []) as WeapiRaw[];
+      setCategories(subs.map((s) => ({ name: String(s.name ?? ''), category: Number(s.category ?? 0), hot: !!s.hot })));
+    } catch (e) {
+      if (mountedRef.current) setError(`分类加载失败：${String((e as Error)?.message ?? e)}`);
+    }
+  }
+
+  /** 某个分类下的歌单列表 */
+  async function loadCategoryPlaylists(cat: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await ncmWeapi('/playlist/list', { cat, order: 'hot', limit: 30, offset: 0, total: true });
+      if (!mountedRef.current) return;
+      setCategoryTracks(((data.playlists ?? []) as WeapiRaw[]).map(mapOfficialPlaylist));
+      setView('channel');
+      setShowPlayer(false);
+    } catch (e) {
+      if (mountedRef.current) setError(`歌单列表加载失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }
+
+  /** 打开专辑：把专辑歌曲当成一个歌单展示 */
+  async function openAlbum(id: string, title: string, record = true) {
+    setLoading(true);
+    setError(null);
+    if (record) pushNav({ view: 'album', albumId: id, title });
+    try {
+      const data = await ncmWeapi(`/v1/album/${id}`);
+      if (!mountedRef.current) return;
+      const alb = (data.album ?? {}) as WeapiRaw;
+      const tracks = ((data.songs ?? []) as WeapiRaw[]).map(mapOfficialSong);
+      setDetailView({
+        kind: 'album', id, title: String(alb.name ?? title),
+        pic: safeAvatar(String(alb.picUrl ?? '')),
+        sub: `专辑 · ${String((alb.artist as WeapiRaw)?.name ?? alb.artists?.[0]?.name ?? '群星')}`,
+        tracks, desc: String(alb.description ?? ''),
+      });
+      setActiveTracks(tracks);
+      setView('album');
+      setShowPlayer(false);
+    } catch (e) {
+      if (mountedRef.current) setError(`专辑加载失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }
+
+  /** 打开歌手：简介 + 热门歌曲 */
+  async function openArtist(id: string, title: string, record = true) {
+    setLoading(true);
+    setError(null);
+    if (record) pushNav({ view: 'artist', artistId: id, title });
+    try {
+      const data = await ncmWeapi(`/v1/artist/${id}`);
+      if (!mountedRef.current) return;
+      const art = (data.artist ?? {}) as WeapiRaw;
+      const tracks = ((data.hotSongs ?? []) as WeapiRaw[]).map(mapOfficialSong);
+      setDetailView({
+        kind: 'artist', id, title: String(art.name ?? title),
+        pic: safeAvatar(String(art.picUrl ?? '')), sub: '歌手 · 热门歌曲',
+        tracks, desc: String(art.briefDesc ?? ''),
+      });
+      setActiveTracks(tracks);
+      setView('artist');
+      setShowPlayer(false);
+    } catch (e) {
+      if (mountedRef.current) setError(`歌手加载失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }
+
+  /** 打开用户：简介 + 该用户歌单 */
+  async function openUser(id: string, title: string, record = true) {
+    setLoading(true);
+    setError(null);
+    if (record) pushNav({ view: 'user', userId: id, title });
+    try {
+      const [detail, pl] = await Promise.all([
+        ncmWeapi(`/v1/user/detail/${id}`),
+        ncmWeapi('/user/playlist', { uid: id, limit: 30, offset: 0 }),
+      ]);
+      if (!mountedRef.current) return;
+      const pf = (detail.profile ?? {}) as WeapiRaw;
+      const plays = ((pl.playlist ?? []) as WeapiRaw[]).slice(0, 12).map(mapOfficialPlaylist);
+      setDetailView({
+        kind: 'user', id, title: String(pf.nickname ?? title),
+        pic: safeAvatar(String(pf.avatarUrl ?? '')),
+        sub: `Lv.${detail.level ?? '?'} · ${plays.length} 张歌单`,
+        tracks: [], desc: String(pf.signature ?? ''),
+      });
+      setSearchItems(plays);
+      setView('user');
+      setShowPlayer(false);
+    } catch (e) {
+      if (mountedRef.current) setError(`用户加载失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }
+
+  /** 搜索结果卡片点击分发 */
+  function openSearchItem(tab: SearchTab, item: SearchItem) {
+    if (tab === '1') {
+      const idx = results.findIndex((t) => t.id === item.id);
+      if (idx >= 0) void playAt(idx);
+    } else if (tab === '10') {
+      void openAlbum(item.id, item.name);
+    } else if (tab === '100') {
+      void openArtist(item.id, item.name);
+    } else if (tab === '1000') {
+      setActiveNav(`pl-${item.id}`);
+      pushNav({ view: 'playlist', playlistId: item.id, playlistName: item.name });
+      // 公开歌单：登录时优先官方接口，失败回退公共网关
+      if (profile) void loadOfficialPlaylist(item.id, item.name, true);
+      else void loadPlaylist(item.id, false);
+    } else {
+      void openUser(item.id, item.name);
+    }
+  }
 
   /* 启动：拉一份默认歌单让播放条有歌可点；同时分别预取三个榜单的前几首，
      否则首页三张榜单卡会共用同一组歌（都截自默认歌单），看着像没换内容。 */
@@ -1422,7 +1957,10 @@ export default function NeteaseMusic(_: AppProps) {
   const loadUserPlaylists = useCallback(async () => {
     try {
       const data = await ncmApi<{ playlists?: UserPlaylist[] }>('/playlists');
-      setUserPlaylists(data.playlists ?? []);
+      const list = data.playlists ?? [];
+      setUserPlaylists(list);
+      const liked = list.find((p) => p.specialType === 5) ?? list.find((p) => p.name.includes('喜欢的音乐'));
+      setLikedPlaylistId(liked?.id ?? '');
     } catch {
       setUserPlaylists([]);
     }
@@ -1501,6 +2039,11 @@ export default function NeteaseMusic(_: AppProps) {
     })();
   }, [loadUserPlaylists]);
 
+  /* 一旦登录，自动拉每日推荐（首页入口卡封面 + 每日栏目数据） */
+  useEffect(() => {
+    if (profile) void loadDailyData();
+  }, [profile]);
+
   /* 扫码轮询：801 继续等 / 802 待确认 / 803 成功 / 800 过期 */
   useEffect(() => {
     if (!showLogin || profile || !qrKey) return;
@@ -1550,14 +2093,25 @@ export default function NeteaseMusic(_: AppProps) {
     return () => stopLoginPoll();
   }, [showLogin, profile, qrKey, stopLoginPoll, loadUserPlaylists]);
 
-  /** 登录后用官方接口读歌单（我的歌单 / 私人歌单），失败回退公共网关 */
+  /**
+   * 登录后用官方接口读歌单。
+   * 关键：失败时绝不静默回退 GD Studio 公共网关——公共网关对私人歌单
+   * 会返回错误内容（曾导致「点自建歌单却显示我喜欢的音乐」的串台）。
+   * 这里明确报错，让用户知道是这张歌单没读到，而不是偷偷换内容。
+   */
   const loadOfficialPlaylist = useCallback(
-    async (id: string) => {
+    async (id: string, name?: string, allowPublicFallback = false) => {
       setLoading(true);
       setError(null);
       try {
         const data = await fetchOfficialPlaylist(id);
         if (!mountedRef.current) return;
+        if (!data || data.tracks.length === 0) {
+          if (allowPublicFallback) { setLoading(false); void loadPlaylist(id, false); return; }
+          setError('这张歌单没有可展示的歌曲，或当前登录态无权访问。');
+          setPlaylist({ id, name: name ?? `歌单 #${id}`, cover: '', desc: '', tracks: [] });
+          return;
+        }
         setPlaylist(data);
         setActiveTracks(data.tracks);
         setTrackIndex((prev) => {
@@ -1567,10 +2121,14 @@ export default function NeteaseMusic(_: AppProps) {
         });
         setView('playlist');
         setShowPlayer(false);
-        setLoading(false);
-        if (data.tracks.length === 0) setError('这个歌单暂时没有可展示的歌曲。');
-      } catch {
-        void loadPlaylist(id);
+      } catch (e) {
+        if (!mountedRef.current) return;
+        // 仅公开歌单（搜索 / 分类 / 每日推荐）允许回退公共网关；
+        // 自建 / 收藏歌单绝不回退，避免串台。
+        if (allowPublicFallback) { void loadPlaylist(id, false); return; }
+        setError(`读取「${name ?? '这张歌单'}」失败：${String((e as Error)?.message ?? e)}`);
+      } finally {
+        if (mountedRef.current) setLoading(false);
       }
     },
     [loadPlaylist],
@@ -1625,20 +2183,16 @@ export default function NeteaseMusic(_: AppProps) {
     }
   }, [commentTrack, commentOffset]);
 
-  /** 打开独立栏目页：所有导航项 / 入口卡都走这里，不再挤到同一个歌单 */
+  /** 打开独立栏目页：记录历史，登录态栏目顺带拉取真实数据 */
   const openChannel = (info: ChannelInfo) => {
     setChannel(info);
     setActiveNav(info.id);
     setView('channel');
     setShowPlayer(false);
     setError(null);
-  };
-
-  const goHome = () => {
-    setView('home');
-    setActiveNav('home');
-    setChannel(null);
-    setShowPlayer(false);
+    pushNav({ view: 'channel', channel: info });
+    if (info.kind === 'dailySongs' || info.kind === 'dailyPl') void loadDailyData();
+    if (info.kind === 'categories') void loadCategories();
   };
 
   const submitSearch = () => {
@@ -1735,7 +2289,14 @@ export default function NeteaseMusic(_: AppProps) {
         className="flex shrink-0 items-center gap-3 px-4"
         style={{ height: 52, background: 'var(--nm-top)', borderBottom: '1px solid var(--nm-border)' }}
       >
-        <div className="flex items-center gap-2" style={{ minWidth: 150 }}>
+        {/* logo：点击刷新首页数据并跳回首页 */}
+        <button
+          type="button"
+          onClick={goHome}
+          title="点击刷新并回到首页"
+          className="flex items-center gap-2"
+          style={{ minWidth: 150, border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, color: 'inherit' }}
+        >
           <span
             className="flex items-center justify-center"
             style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--nm-red)', color: '#fff' }}
@@ -1743,11 +2304,18 @@ export default function NeteaseMusic(_: AppProps) {
             <Music2 size={14} />
           </span>
           <span style={{ fontSize: 14, fontWeight: 600 }}>网易云音乐</span>
-        </div>
+          <RotateCw size={12} style={{ color: 'var(--nm-muted)' }} />
+        </button>
 
-        <IconButton title="返回" onClick={() => { setView('home'); setShowPlayer(false); }} size={26}>
-          <ArrowLeft size={15} />
-        </IconButton>
+        {/* 前进 / 后退（基于浏览历史） */}
+        <div className="flex items-center gap-0.5">
+          <IconButton title="返回上一级" onClick={goBack} size={26} active={canGoBack}>
+            <span style={{ opacity: canGoBack ? 1 : 0.35 }}><ArrowLeft size={16} /></span>
+          </IconButton>
+          <IconButton title="前进下一级" onClick={goForward} size={26} active={canGoForward}>
+            <span style={{ opacity: canGoForward ? 1 : 0.35 }}><ArrowRight size={16} /></span>
+          </IconButton>
+        </div>
 
         <form
           onSubmit={(e) => { e.preventDefault(); submitSearch(); }}
@@ -1874,11 +2442,11 @@ export default function NeteaseMusic(_: AppProps) {
             {NAV_MAIN.map((n) => {
               const ch: ChannelInfo =
                 n.id === 'featured'
-                  ? { id: n.id, title: '精选 · 歌单广场', desc: '按风格挑一张歌单，下面全部是网易云真实公共歌单。', items: channelItems(PUBLIC_PLAYLISTS.map((p) => p.id)) }
+                  ? { id: n.id, title: '歌单分类', desc: '按语种 / 风格 / 场景 / 情感 / 主题挑歌单，全部来自网易云官方分类。', kind: 'categories' }
                   : n.id === 'podcast'
                     ? { id: n.id, title: '播客', desc: '公共网关只提供音乐歌单，暂不支持播客音频流；这里先给你几张适合当背景声的歌单。', items: channelItems(['71385707', '4395559', '2884035']) }
                     : n.id === 'roam'
-                      ? { id: n.id, title: '私人漫游', desc: '从你熟悉的声音出发，一路延伸。', needsLogin: true, items: channelItems(['4395559', '2884035', '71385707']) }
+                      ? { id: n.id, title: '私人漫游', desc: '从你熟悉的声音出发，一路延伸。', needsLogin: !profile, kind: profile ? 'dailySongs' : 'links', items: channelItems(['4395559', '2884035', '71385707']) }
                       : { id: n.id, title: '关注', desc: '关注的人的动态与最新发布。', needsLogin: true, items: channelItems(['3779629', '19723756', '991319590']) };
               return navItem(n.label, <n.icon size={14} />, activeNav === n.id, () =>
                 n.id === 'home' ? goHome() : openChannel(ch),
@@ -1887,21 +2455,30 @@ export default function NeteaseMusic(_: AppProps) {
           </div>
 
           <div style={{ fontSize: 10, color: 'var(--nm-muted)', padding: '16px 10px 6px' }}>
-            我的音乐 · 未登录
+            我的音乐{profile ? '' : ' · 未登录'}
           </div>
           <div className="flex flex-col gap-0.5">
             {NAV_MY.map((n) =>
-              navItem(n.label, <n.icon size={14} />, activeNav === n.id, () =>
+              navItem(n.label, <n.icon size={14} />, activeNav === n.id, () => {
+                setActiveNav(n.id);
+                // 已登录的「我喜欢的音乐」直接打开官方歌单（含全部红心）
+                if (n.id === 'liked' && profile && likedPlaylistId) {
+                  pushNav({ view: 'playlist', playlistId: likedPlaylistId, playlistName: '我喜欢的音乐' });
+                  void loadOfficialPlaylist(likedPlaylistId, '我喜欢的音乐');
+                  return;
+                }
                 openChannel({
                   id: n.id,
                   title: n.label,
                   desc:
                     n.id === 'download' || n.id === 'local'
                       ? '桌面版不提供下载与本地文件扫描，用顶部搜索框可以直接在线收听。'
-                      : '这部分数据只记在这台设备本地，不会与网易云账号同步。',
+                      : profile
+                        ? '这部分是这台设备的本机记录，不与网易云账号同步。'
+                        : '登录后可用全部红心；当前显示这台设备的本机记录。',
                   local: n.id === 'liked' ? 'liked' : n.id === 'recent' ? 'recent' : 'unsupported',
-                }),
-              ),
+                });
+              }),
             )}
           </div>
 
@@ -1916,10 +2493,11 @@ export default function NeteaseMusic(_: AppProps) {
                     正在读取你的歌单…
                   </div>
                 ) : (
-                  userPlaylists.slice(0, 8).map((p) =>
+                  userPlaylists.slice(0, 12).map((p) =>
                     navItem(p.name, <ListMusic size={14} />, activeNav === `mine-${p.id}`, () => {
                       setActiveNav(`mine-${p.id}`);
-                      void loadOfficialPlaylist(p.id);
+                      pushNav({ view: 'playlist', playlistId: p.id, playlistName: p.name });
+                      void loadOfficialPlaylist(p.id, p.name);
                     }),
                   )
                 )}
@@ -2029,74 +2607,105 @@ export default function NeteaseMusic(_: AppProps) {
 
               {view === 'home' && (
                 <>
-                  {/* 顶部入口卡 */}
+                  {/* 顶部入口卡：登录后用每日推荐首图当封面（网易云惯例） */}
                   <div
                     className="grid gap-3"
                     style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))' }}
                   >
-                    {ENTRY_CARDS.map((c) => (
-                      <button
-                        type="button"
-                        key={c.title}
-                        onClick={() =>
-                          openChannel({
-                            id: `entry-${c.title}`,
-                            title: c.title,
-                            desc: c.desc,
-                            needsLogin: true,
-                            items: channelItems(c.ids),
-                          })
-                        }
-                        className="flex flex-col text-left"
-                        style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', minWidth: 0 }}
-                      >
-                        <div
-                          style={{
-                            width: '100%',
-                            aspectRatio: '1 / 1',
-                            borderRadius: 10,
-                            background: c.tone,
-                            color: c.ink,
-                            padding: 9,
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            lineHeight: 1.35,
-                          }}
+                    {ENTRY_CARDS.map((c, idx) => {
+                      // 入口卡封面：优先每日推荐歌单，其次每日推荐歌曲首图
+                      const cover = profile
+                        ? (dailyPlaylists[idx]?.pic || dailySongs[idx]?.pic || '')
+                        : (coverPalette[idx % Math.max(coverPalette.length, 1)] ?? '');
+                      const isDaily = c.title === '每日推荐' || c.title === '私人雷达';
+                      const kind: ChannelInfo['kind'] = isDaily ? 'dailySongs' : 'dailyPl';
+                      return (
+                        <button
+                          type="button"
+                          key={c.title}
+                          onClick={() =>
+                            openChannel({
+                              id: `entry-${c.title}`,
+                              title: c.title,
+                              desc: c.desc,
+                              needsLogin: !profile,
+                              kind,
+                              items: channelItems(c.ids),
+                            })
+                          }
+                          className="flex flex-col text-left"
+                          style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', minWidth: 0 }}
                         >
-                          {c.title}
-                        </div>
-                        <span style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 6 }} className="truncate">
-                          {c.desc}
-                        </span>
-                      </button>
-                    ))}
+                          <div
+                            style={{
+                              width: '100%',
+                              aspectRatio: '1 / 1',
+                              borderRadius: 10,
+                              background: cover
+                                ? `linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,.5)), url(${cover}) center / cover no-repeat, ${c.tone}`
+                                : c.tone,
+                              color: cover ? '#fff' : c.ink,
+                              padding: 9,
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              lineHeight: 1.35,
+                              textShadow: cover ? '0 1px 4px rgba(0,0,0,.5)' : 'none',
+                            }}
+                          >
+                            {c.title}
+                          </div>
+                          <span style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 6 }} className="truncate">
+                            {c.desc}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* 推荐歌单 */}
+                  {/* 推荐歌单：登录后用官方每日推荐歌单，可点进详情 */}
                   <div className="mt-7">
                     <SectionTitle
                       title="推荐歌单"
                       extra={
-                        <IconButton
-                          title="换一批"
-                          onClick={() => setRecommendOffset((o) => (o + 3) % RECOMMEND_PLAYLISTS.length)}
-                        >
-                          <Repeat size={14} />
-                        </IconButton>
+                        <div className="flex items-center gap-1">
+                          <IconButton title="歌单分类广场" onClick={() =>
+                            openChannel({ id: 'categories', title: '歌单分类', desc: '按语种 / 风格 / 场景 / 情感 / 主题挑歌单。', kind: 'categories' })
+                          }>
+                            <ListMusic size={14} />
+                          </IconButton>
+                          {!profile && (
+                            <IconButton
+                              title="换一批"
+                              onClick={() => setRecommendOffset((o) => (o + 3) % RECOMMEND_PLAYLISTS.length)}
+                            >
+                              <Repeat size={14} />
+                            </IconButton>
+                          )}
+                        </div>
                       }
                     />
                     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(118px, 1fr))' }}>
-                      {rotatedPlaylists.map((p, i) => (
-                        <PlaylistCard
-                          key={p.id}
-                          title={p.name}
-                          cover={coverPalette[i % Math.max(coverPalette.length, 1)] ?? ''}
-                          count={p.count}
-                          onClick={() => void loadPlaylist(p.id)}
-                        />
-                      ))}
+                      {profile && dailyPlaylists.length > 0
+                        ? dailyPlaylists.slice(0, 8).map((p) => (
+                            <PlaylistCard
+                              key={p.id}
+                              title={p.name}
+                              cover={p.pic}
+                              count={p.sub}
+                              onClick={() => { setActiveNav(`pl-${p.id}`); pushNav({ view: 'playlist', playlistId: p.id, playlistName: p.name }); if (profile) void loadOfficialPlaylist(p.id, p.name, true); else void loadPlaylist(p.id, false); }}
+                            />
+                          ))
+                        : rotatedPlaylists.map((p, i) => (
+                            <PlaylistCard
+                              key={p.id}
+                              title={p.name}
+                              cover={coverPalette[i % Math.max(coverPalette.length, 1)] ?? ''}
+                              count={p.count}
+                              onClick={() => void loadPlaylist(p.id)}
+                            />
+                          ))}
                     </div>
                   </div>
 
@@ -2184,13 +2793,14 @@ export default function NeteaseMusic(_: AppProps) {
                     </button>
                   </div>
 
-                  {channel.needsLogin && (
+                  {/* 未登录才提示；已登录不再显示「要登录」 */}
+                  {channel.needsLogin && !profile && (
                     <div
                       className="mt-4 flex items-center gap-2 px-3 py-2.5"
                       style={{ borderRadius: 8, background: 'var(--nm-red-soft)', color: 'var(--nm-red)', fontSize: 12 }}
                     >
                       <AlertCircle size={14} />
-                      <span className="flex-1">未登录：个性化推荐暂不可用，下面这些是可以立即收听的公共歌单。</span>
+                      <span className="flex-1">未登录：个性化推荐每天刷新，登录后即可看到专属内容。下面先给你可听的公共歌单。</span>
                       <button
                         type="button"
                         onClick={() => void openLogin()}
@@ -2201,9 +2811,116 @@ export default function NeteaseMusic(_: AppProps) {
                     </div>
                   )}
 
+                  {/* 每日推荐歌曲（登录，官方每天刷新） */}
+                  {channel.kind === 'dailySongs' && profile && (
+                    <div className="mt-6 mb-4">
+                      <SectionTitle title={`每日推荐 · ${dailySongs.length} 首`} extra={<span style={{ fontSize: 10, color: 'var(--nm-muted)' }}>每天更新</span>} />
+                      {dailySongs.length === 0 ? (
+                        <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>正在拉取今天的推荐…</p>
+                      ) : (
+                        dailySongs.map((t, i) => (
+                          <TrackRow
+                            key={`${t.id}-${i}`}
+                            index={i}
+                            track={t}
+                            active={current?.id === t.id}
+                            liked={liked.has(t.id)}
+                            onPlay={() => void playAt(i, dailySongs)}
+                            onLike={() => toggleLike(t.id)}
+                            onComment={() => void openComments(t)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* 每日推荐歌单（登录） */}
+                  {channel.kind === 'dailyPl' && profile && (
+                    <div className="mt-6 mb-4">
+                      <SectionTitle title={`每日推荐歌单 · ${dailyPlaylists.length} 张`} extra={<span style={{ fontSize: 10, color: 'var(--nm-muted)' }}>每天更新</span>} />
+                      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))' }}>
+                        {dailyPlaylists.map((p) => (
+                          <PlaylistCard
+                            key={p.id}
+                            title={p.name}
+                            cover={p.pic}
+                            count={p.sub}
+                            onClick={() => { setActiveNav(`pl-${p.id}`); pushNav({ view: 'playlist', playlistId: p.id, playlistName: p.name }); if (profile) void loadOfficialPlaylist(p.id, p.name, true); else void loadPlaylist(p.id, false); }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 歌单分类广场 */}
+                  {channel.kind === 'categories' && (
+                    <div className="mt-6 mb-4">
+                      {(['热门', '语种', '风格', '场景', '情感', '主题'] as const).map((group) => {
+                        const subs = categories.filter((c) =>
+                          group === '热门' ? c.hot :
+                          group === '语种' ? c.category === 0 :
+                          group === '风格' ? c.category === 1 :
+                          group === '场景' ? c.category === 2 :
+                          group === '情感' ? c.category === 3 : c.category === 4,
+                        );
+                        if (subs.length === 0) return null;
+                        return (
+                          <div key={group} className="mb-5">
+                            <SectionTitle title={group} />
+                            <div className="flex flex-wrap gap-2">
+                              {subs.map((s) => (
+                                <button
+                                  type="button"
+                                  key={s.name}
+                                  onClick={() => {
+                                    const next: ChannelInfo = { id: `cat-${s.name}`, title: s.name, desc: `「${s.name}」分类下的热门歌单。`, kind: 'catList', catName: s.name };
+                                    setChannel(next);
+                                    pushNav({ view: 'channel', channel: next });
+                                    void loadCategoryPlaylists(s.name);
+                                  }}
+                                  style={{ height: 30, padding: '0 14px', borderRadius: 15, border: '1px solid var(--nm-border)', background: 'var(--nm-card)', color: 'var(--nm-text)', fontSize: 12, cursor: 'pointer' }}
+                                >
+                                  {s.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {categories.length === 0 && <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>正在加载分类…</p>}
+                    </div>
+                  )}
+
+                  {/* 分类下的歌单列表 */}
+                  {channel.kind === 'catList' && (
+                    <div className="mt-6 mb-4">
+                      <SectionTitle title={`${channel.catName ?? '分类'} · ${categoryTracks.length} 张`} />
+                      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))' }}>
+                        {categoryTracks.map((p) => (
+                          <PlaylistCard
+                            key={p.id}
+                            title={p.name}
+                            cover={p.pic}
+                            count={p.sub}
+                            onClick={() => { setActiveNav(`pl-${p.id}`); pushNav({ view: 'playlist', playlistId: p.id, playlistName: p.name }); if (profile) void loadOfficialPlaylist(p.id, p.name, true); else void loadPlaylist(p.id, false); }}
+                          />
+                        ))}
+                      </div>
+                      {categoryTracks.length === 0 && !loading && (
+                        <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>这个分类暂时没有歌单。</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 本机栏目：我喜欢的音乐（登录后走官方红心）/ 最近播放 / 不支持 */}
                   {(channel.local === 'liked' || channel.local === 'recent') && (
                     <div className="mt-6">
                       <SectionTitle title={`${channel.title} · ${channelTracks.length} 首`} />
+                      {channel.local === 'liked' && !profile && (
+                        <p style={{ fontSize: 12, color: 'var(--nm-muted)', marginBottom: 8 }}>
+                          登录后可同步你网易云账号里全部红心歌曲。当前显示本机记录。
+                        </p>
+                      )}
                       {channelTracks.length === 0 ? (
                         <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>
                           {channel.local === 'liked' ? '还没有点过红心，去歌单里点几首吧。' : '还没有播放记录，随便点一首试试。'}
@@ -2234,29 +2951,57 @@ export default function NeteaseMusic(_: AppProps) {
                     </div>
                   )}
 
-                  {(channel.items ?? []).length > 0 && (
+                  {/* 兜底：未登录 / 普通栏目的一堆公共歌单 */}
+                  {(!channel.kind || (channel.needsLogin && !profile)) && (channel.items ?? []).length > 0 && (
                     <div className="mt-6 mb-4">
                       <SectionTitle title="可以立即收听" />
-                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+                      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))' }}>
                         {(channel.items ?? []).map((item) => (
-                          <button
-                            type="button"
+                          <PlaylistCard
                             key={item.id}
-                            onClick={() => {
-                              setActiveNav(`pl-${item.id}`);
-                              void loadPlaylist(item.id);
-                            }}
-                            style={{ border: '1px solid var(--nm-border)', background: 'var(--nm-card)', borderRadius: 10, padding: 14, textAlign: 'left', cursor: 'pointer', color: 'var(--nm-text)' }}
-                          >
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</div>
-                            <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 6 }}>
-                              歌单 #{item.id} · 点击进入
-                            </div>
-                          </button>
+                            title={item.name}
+                            cover={item.pic ?? (coverPalette[0] ?? '')}
+                            count="网易云歌单"
+                            onClick={() => { setActiveNav(`pl-${item.id}`); void loadPlaylist(item.id); pushNav({ view: 'playlist', playlistId: item.id, playlistName: item.name }); }}
+                          />
                         ))}
                       </div>
                     </div>
                   )}
+                </>
+              )}
+
+              {/* 专辑 / 歌手 / 用户 详情页 */}
+              {view === 'album' && detailView && (
+                <DetailPage data={detailView} tracks={detailView.tracks} activeId={current?.id} liked={liked}
+                  onPlay={(i) => void playAt(i, detailView.tracks)} onLike={(id) => toggleLike(id)}
+                  onComment={(t) => void openComments(t)} onOpenPlaylist={(id, name) => { void loadPlaylist(id, false); pushNav({ view: 'playlist', playlistId: id, playlistName: name }); }} />
+              )}
+              {view === 'artist' && detailView && (
+                <DetailPage data={detailView} tracks={detailView.tracks} activeId={current?.id} liked={liked}
+                  onPlay={(i) => void playAt(i, detailView.tracks)} onLike={(id) => toggleLike(id)}
+                  onComment={(t) => void openComments(t)} onOpenPlaylist={(id, name) => { void loadPlaylist(id, false); pushNav({ view: 'playlist', playlistId: id, playlistName: name }); }} />
+              )}
+              {view === 'user' && detailView && (
+                <>
+                  <div className="flex items-center gap-4 py-2">
+                    <div style={{ width: 88, height: 88, borderRadius: '50%', background: detailView.pic ? `url(${detailView.pic}) center / cover no-repeat, var(--nm-card)` : 'var(--nm-card)', border: '1px solid var(--nm-border)', flexShrink: 0 }} />
+                    <div>
+                      <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{detailView.title}</h1>
+                      <p style={{ fontSize: 12, color: 'var(--nm-muted)', margin: '8px 0 0' }}>{detailView.sub}</p>
+                      {detailView.desc && <p style={{ fontSize: 11, color: 'var(--nm-sub)', margin: '6px 0 0', maxWidth: 420 }} className="line-clamp-2">{detailView.desc}</p>}
+                    </div>
+                  </div>
+                  <div className="mt-5">
+                    <SectionTitle title="Ta 的歌单" />
+                    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))' }}>
+                      {searchItems.map((p) => (
+                        <PlaylistCard key={p.id} title={p.name} cover={p.pic} count={p.sub}
+                          onClick={() => { setActiveNav(`pl-${p.id}`); pushNav({ view: 'playlist', playlistId: p.id, playlistName: p.name }); if (profile) void loadOfficialPlaylist(p.id, p.name, true); else void loadPlaylist(p.id, false); }} />
+                      ))}
+                    </div>
+                    {searchItems.length === 0 && <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>暂无公开歌单</p>}
+                  </div>
                 </>
               )}
 
@@ -2340,41 +3085,84 @@ export default function NeteaseMusic(_: AppProps) {
 
               {view === 'search' && (
                 <>
-                  <div className="flex items-center gap-3" style={{ borderBottom: '1px solid var(--nm-border)', paddingBottom: 12 }}>
-                    {['单曲', '专辑', '歌手', '歌单', '用户'].map((t, i) => (
+                  <div className="flex items-center gap-4" style={{ borderBottom: '1px solid var(--nm-border)', paddingBottom: 12 }}>
+                    {([
+                      ['1', '单曲'], ['10', '专辑'], ['100', '歌手'],
+                      ['1000', '歌单'], ['1002', '用户'],
+                    ] as const).map(([key, label]) => (
                       <button
                         type="button"
-                        key={t}
+                        key={key}
+                        onClick={() => {
+                          if (key === searchTab || !searchKw) return;
+                          setSearchTab(key);
+                          void runSearch(searchKw, key);
+                        }}
                         style={{
                           border: 'none',
                           background: 'transparent',
-                          color: i === 0 ? 'var(--nm-red)' : 'var(--nm-muted)',
+                          color: key === searchTab ? 'var(--nm-red)' : 'var(--nm-muted)',
                           fontSize: 13,
-                          fontWeight: i === 0 ? 600 : 400,
-                          cursor: 'pointer',
+                          fontWeight: key === searchTab ? 600 : 400,
+                          cursor: searchKw ? 'pointer' : 'default',
                         }}
                       >
-                        {t}
+                        {label}
+                        {searchCounts[key] ? (
+                          <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 3 }}>{searchCounts[key]}</span>
+                        ) : null}
                       </button>
                     ))}
                   </div>
-                  <div className="mt-3">
-                    {results.map((t, i) => (
-                      <TrackRow
-                        key={`${t.id}-${i}`}
-                        index={i}
-                        track={t}
-                        active={current?.id === t.id}
-                        liked={liked.has(t.id)}
-                        onPlay={() => void playAt(i)}
-                        onLike={() => toggleLike(t.id)}
-                        onComment={() => void openComments(t)}
-                      />
-                    ))}
-                    {results.length === 0 && !loading && (
-                      <p style={{ color: 'var(--nm-muted)', fontSize: 12 }}>输入关键词回车即可搜索网易云曲库。</p>
-                    )}
-                  </div>
+
+                  {/* 单曲用歌曲行，其余用可点卡片 */}
+                  {searchTab === '1' ? (
+                    <div className="mt-3">
+                      {results.map((t, i) => (
+                        <TrackRow
+                          key={`${t.id}-${i}`}
+                          index={i}
+                          track={t}
+                          active={current?.id === t.id}
+                          liked={liked.has(t.id)}
+                          onPlay={() => void playAt(i)}
+                          onLike={() => toggleLike(t.id)}
+                          onComment={() => void openComments(t)}
+                        />
+                      ))}
+                      {results.length === 0 && !loading && !error && (
+                        <p style={{ color: 'var(--nm-muted)', fontSize: 12 }}>输入关键词回车即可搜索网易云曲库。</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+                      {searchItems.map((item) => {
+                        const round = searchTab === '100' || searchTab === '1002';
+                        return (
+                          <button
+                            type="button"
+                            key={item.id}
+                            onClick={() => openSearchItem(searchTab, item)}
+                            className="flex flex-col text-left"
+                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', minWidth: 0 }}
+                          >
+                            <div
+                              style={{
+                                width: '100%', aspectRatio: '1 / 1', borderRadius: round ? '50%' : 10,
+                                background: item.pic ? `url(${item.pic}) center / cover no-repeat, var(--nm-card)` : 'var(--nm-card)',
+                                border: '1px solid var(--nm-border)',
+                              }}
+                            />
+                            <div className="truncate" style={{ fontSize: 12, fontWeight: 600, marginTop: 8 }}>{item.name}</div>
+                            <div className="truncate" style={{ fontSize: 10, color: 'var(--nm-muted)', marginTop: 3 }}>{item.sub}</div>
+                          </button>
+                        );
+                      })}
+                      {searchItems.length === 0 && !loading && !error && (
+                        <p style={{ color: 'var(--nm-muted)', fontSize: 12 }}>换个关键词或分类试试。</p>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
