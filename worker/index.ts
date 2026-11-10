@@ -502,17 +502,25 @@ async function handleNeteaseComment(request: Request): Promise<Response> {
   upstream.searchParams.set("limit", String(limit));
   upstream.searchParams.set("offset", String(offset));
 
-  const upstreamResponse = await fetch(upstream.toString(), {
-    headers: {
-      Referer: `${NETEASE_ORIGIN}/`,
-      Origin: NETEASE_ORIGIN,
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-      Accept: "application/json, text/plain, */*",
-      "Accept-Language": "zh-CN,zh;q=0.9",
-    },
-    credentials: "omit",
-  });
+  let upstreamResponse: Response;
+  try {
+    upstreamResponse = await ncmFetchTimeout(upstream.toString(), {
+      headers: {
+        Referer: `${NETEASE_ORIGIN}/`,
+        Origin: NETEASE_ORIGIN,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        Accept: "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+      },
+      credentials: "omit",
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e) }), {
+      status: 504,
+      headers: JSON_HEADERS,
+    });
+  }
 
   const body = await upstreamResponse.text();
   if (!upstreamResponse.ok) {
@@ -649,6 +657,29 @@ async function ncmWeapi(
   return { params, encSecKey };
 }
 
+/**
+ * 带超时的官方请求：Cloudflare 海外节点偶尔到 music.163.com 的连接会被挂起，
+ * 裸 fetch 会一直等到平台级 30s+ 超时，前端表现为「点了没反应」。
+ * 这里 8 秒主动掐断并抛明确错误，前端能立刻显示重试提示。
+ * 纯网络层保护，不改动任何登录 / 加密 / Cookie 逻辑。
+ */
+const NCM_FETCH_TIMEOUT_MS = 8000;
+
+async function ncmFetchTimeout(url: string, init: RequestInit): Promise<Response> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), NCM_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: ctl.signal });
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") {
+      throw new Error(`官方接口连接超时（${NCM_FETCH_TIMEOUT_MS / 1000}s），当前网络可能不通，请稍后重试或换网络`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function ncmWeapiRequest(
   path: string,
   payload: Record<string, unknown>,
@@ -660,7 +691,7 @@ async function ncmWeapiRequest(
   const cookie = session?.musicU
     ? `os=pc; appver=2.10.13; MUSIC_U=${session.musicU}; __csrf=${csrf}`
     : "os=pc; appver=2.10.13; MUSIC_U=; __csrf=";
-  const res = await fetch(
+  const res = await ncmFetchTimeout(
     `${NETEASE_ORIGIN}/weapi${path}?csrf_token=${encodeURIComponent(csrf)}`,
     {
       method: "POST",
