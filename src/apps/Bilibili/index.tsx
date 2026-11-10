@@ -16,7 +16,7 @@ interface VideoCard {
   title: string;
   pic: string;
   owner?: { name?: string };
-  /** 热门接口返回秒数，搜索接口返回 "mm:ss" */
+  /** 推荐流/热门接口返回秒数，搜索接口返回 "mm:ss" */
   duration?: number | string;
   play?: number;
 }
@@ -106,6 +106,18 @@ function danmakuColor(color?: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
 }
 
+/**
+ * B 站图片（封面 / 头像）走 Worker 代理。
+ * 浏览器直连 hdslb.com 会被 CDN 拒成 403+HTML，触发 ORB 导致破图；
+ * Worker 的 stream 通道会挂 Referer 透传真实 image/jpeg，且白名单已含 hdslb.com。
+ * 空值 / 非 http(s)（如本地 data URL）原样返回。
+ */
+function proxyImg(url?: string): string {
+  const u = String(url ?? "");
+  if (!/^https?:\/\//.test(u)) return u;
+  return `/api/bilibili/stream?url=${encodeURIComponent(u)}`;
+}
+
 /* ----------------------------- 主组件 ----------------------------- */
 
 const DANMAKU_LANES = 6;
@@ -123,12 +135,14 @@ export default function BilibiliApp(_: AppProps) {
 
   /* 内容 */
   const [keyword, setKeyword] = useState("");
-  const [listTitle, setListTitle] = useState("热门");
+  const [listTitle, setListTitle] = useState("推荐");
   const [cards, setCards] = useState<VideoCard[]>([]);
   const [listPage, setListPage] = useState(1);
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  /** 推荐流的换批序号，0~4 轮换；每次刷新都拿到不同的一批真实视频 */
+  const [freshType, setFreshType] = useState(3);
 
   const [selectedBvid, setSelectedBvid] = useState("");
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
@@ -250,30 +264,68 @@ export default function BilibiliApp(_: AppProps) {
     setLoginMessage("请使用二维码登录");
   };
 
-  /* ----------------------- 内容：热门 / 搜索 ----------------------- */
+  /* ----------------------- 内容：推荐流 / 搜索 ----------------------- */
 
-  const loadPopular = useCallback(async (page: number, replace: boolean) => {
-    setListLoading(true);
-    setListError(null);
-    try {
-      const result = await fetchJson<{
-        code?: number;
-        data?: { list?: VideoCard[] };
-        message?: string;
-      }>(`/api/bilibili/x/web-interface/popular?ps=20&pn=${page}`);
-      if (result.code !== 0)
-        throw new Error(result.message || "热门列表获取失败");
-      const list = (result.data?.list ?? []).filter((v) => v.bvid);
-      setCards((prev) => (replace ? list : [...prev, ...list]));
-      setListPage(page);
-      setHasMore(list.length >= 20);
-      if (replace) setListTitle("热门");
-    } catch (e) {
-      setListError(e instanceof Error ? e.message : "加载失败");
-    } finally {
-      setListLoading(false);
-    }
-  }, []);
+  /**
+   * 首页推荐流。
+   *
+   * 用官方 index/top/feed/rcmd 替代 popular —— popular / ranking 现在稳定返回
+   * -352 风控码，而 rcmd 正常（code 0），且是真正的个性化推荐流，每天 / 每次
+   * 换批都会变，正好实现「实时刷新」。
+   *  - page>1：带 fresh_idx 翻下一批
+   *  - freshType：0~4 轮换，每次返回不同的首张，用来「换一批 / 刷新」
+   */
+  const loadFeed = useCallback(
+    async (page: number, replace: boolean, freshType = 3) => {
+      setListLoading(true);
+      setListError(null);
+      try {
+        const params = new URLSearchParams({
+          ps: "20",
+          fresh_type: String(freshType),
+        });
+        if (page > 1) params.set("fresh_idx", String(page - 1));
+        const result = await fetchJson<{
+          code?: number;
+          data?: { item?: Array<Record<string, any>> };
+          message?: string;
+        }>(`/api/bilibili/x/web-interface/index/top/feed/rcmd?${params}`);
+        if (result.code !== 0)
+          throw new Error(result.message || "推荐流获取失败");
+
+        // rcmd 的 item 混了 login_card / 广告等非视频卡片，只保留真实视频
+        const list: VideoCard[] = (result.data?.item ?? [])
+          .filter((v) => v.bvid && (v.goto === "av" || !v.goto))
+          .map((v) => ({
+            bvid: String(v.bvid),
+            title: String(v.title ?? ""),
+            // 官方图片多为 http://，https 页面直连会被混合内容拦截
+            pic: String(v.pic ?? v.pic_4_3 ?? "").replace(/^http:\/\//, "https://"),
+            owner: v.owner ? { name: String(v.owner.name ?? "") } : undefined,
+            duration: Number(v.duration ?? 0), // rcmd 也是秒，与 VideoCard 对齐
+            play: Number(v.stat?.view ?? 0),   // rcmd 播放数在 stat.view
+          }));
+
+        setCards((prev) => (replace ? list : [...prev, ...list]));
+        setListPage(page);
+        setHasMore(list.length > 0);
+        if (replace) setListTitle("推荐");
+      } catch (e) {
+        setListError(e instanceof Error ? e.message : "加载失败");
+      } finally {
+        setListLoading(false);
+      }
+    },
+    [],
+  );
+
+  /** 实时刷新 / 换一批：轮换 freshType 并重新拉第一页 */
+  const refreshFeed = useCallback(() => {
+    const next = (freshType + 1) % 5;
+    setFreshType(next);
+    setKeyword("");
+    void loadFeed(1, true, next);
+  }, [freshType, loadFeed]);
 
   const search = useCallback(async () => {
     const kw = keyword.trim();
@@ -289,7 +341,10 @@ export default function BilibiliApp(_: AppProps) {
         `/api/bilibili/x/web-interface/search/type?search_type=video&keyword=${encodeURIComponent(kw)}&page=1&pagesize=20`,
       );
       if (result.code !== 0) throw new Error(result.message || "搜索失败");
-      const list = (result.data?.result ?? []).filter((v) => v.bvid);
+      // 搜索结果的封面也可能带 http://，https 页面下会被混合内容拦截，统一转 https
+      const list = (result.data?.result ?? [])
+        .filter((v) => v.bvid)
+        .map((v) => ({ ...v, pic: String(v.pic ?? "").replace(/^http:\/\//, "https://") }));
       setCards(list);
       setListPage(1);
       setHasMore(false);
@@ -302,7 +357,7 @@ export default function BilibiliApp(_: AppProps) {
     }
   }, [keyword]);
 
-  /* 启动：先查登录态，再拉热门 */
+  /* 启动：先查登录态，再拉推荐流 */
   useEffect(() => {
     void (async () => {
       try {
@@ -323,8 +378,8 @@ export default function BilibiliApp(_: AppProps) {
   }, [loadUserInfo]);
 
   useEffect(() => {
-    if (isLoggedIn) void loadPopular(1, true);
-  }, [isLoggedIn, loadPopular]);
+    if (isLoggedIn) void loadFeed(1, true);
+  }, [isLoggedIn, loadFeed]);
 
   /* ----------------------- 播放 ----------------------- */
 
@@ -524,16 +579,16 @@ export default function BilibiliApp(_: AppProps) {
           >
             <Search size={12} /> 搜索
           </button>
-          {listTitle !== "热门" && (
+          {listTitle !== "推荐" && (
             <button
               type="button"
               onClick={() => {
                 setKeyword("");
-                void loadPopular(1, true);
+                void loadFeed(1, true, freshType);
               }}
               className="rounded-lg border border-arch-border px-2.5 py-1.5 text-xs text-arch-muted hover:bg-white/5"
             >
-              返回热门
+              返回推荐
             </button>
           )}
         </form>
@@ -543,7 +598,7 @@ export default function BilibiliApp(_: AppProps) {
             <div className="h-5 w-5 overflow-hidden rounded-full bg-white/10">
               {user?.face ? (
                 <img
-                  src={user.face}
+                  src={proxyImg(user.face)}
                   alt=""
                   className="h-full w-full object-cover"
                 />
@@ -568,7 +623,20 @@ export default function BilibiliApp(_: AppProps) {
             <span className="truncate">
               {listTitle} · {cards.length}
             </span>
-            {listLoading && <span>加载中…</span>}
+            <div className="flex items-center gap-2">
+              {listLoading ? (
+                <span>加载中…</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={refreshFeed}
+                  title="实时刷新：换一批新的推荐视频"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-arch-muted hover:bg-white/5 hover:text-arch-text"
+                >
+                  <RefreshCw size={12} /> 换一批
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -585,7 +653,7 @@ export default function BilibiliApp(_: AppProps) {
                 <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded bg-black/40">
                   {item.pic ? (
                     <img
-                      src={item.pic}
+                      src={proxyImg(item.pic)}
                       alt=""
                       loading="lazy"
                       className="h-full w-full object-cover"
@@ -615,10 +683,10 @@ export default function BilibiliApp(_: AppProps) {
               </div>
             )}
 
-            {cards.length > 0 && hasMore && listTitle === "热门" && (
+            {cards.length > 0 && hasMore && listTitle === "推荐" && (
               <button
                 type="button"
-                onClick={() => void loadPopular(listPage + 1, false)}
+                onClick={() => void loadFeed(listPage + 1, false, freshType)}
                 disabled={listLoading}
                 className="w-full py-2.5 text-[11px] text-arch-muted hover:bg-white/5 disabled:opacity-50"
               >
@@ -733,7 +801,7 @@ export default function BilibiliApp(_: AppProps) {
                         <div className="h-5 w-5 overflow-hidden rounded-full bg-white/10">
                           {r.member?.avatar ? (
                             <img
-                              src={r.member.avatar}
+                              src={proxyImg(r.member.avatar)}
                               alt=""
                               loading="lazy"
                               className="h-full w-full object-cover"
