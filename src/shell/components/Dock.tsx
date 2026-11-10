@@ -206,7 +206,7 @@ export default function Dock() {
             (w) => w.appId === appId && w.id === activeId && !w.minimized,
           );
           return (
-            <div key={appId} className="relative">
+            <div key={appId} className="group relative">
               <button
                 type="button"
                 title={app.description}
@@ -219,7 +219,7 @@ export default function Dock() {
                 }}
                 style={{ width: itemSize, height: itemSize }}
                 className={cn(
-                  "group relative flex items-center justify-center rounded-xl transition-all duration-150 hover:-translate-y-1 hover:bg-white/10",
+                  "relative flex items-center justify-center rounded-xl transition-all duration-150 hover:-translate-y-1 hover:bg-white/10",
                   active && "bg-white/12",
                 )}
               >
@@ -257,25 +257,22 @@ export default function Dock() {
                     ))}
                   </div>
                 )}
-                {/* hover 才显示的关闭按钮 */}
-                {count >= 1 && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      for (const w of windows.filter(
-                        (x) => x.appId === appId,
-                      )) {
-                        close(w.id);
-                      }
-                    }}
-                    className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white shadow group-hover:flex"
-                    title="关闭该应用所有窗口"
-                  >
-                    ×
-                  </button>
-                )}
               </button>
+              {/* hover 才显示的关闭按钮：与图标按钮同级，避免 <button> 嵌套 */}
+              {count >= 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    for (const w of windows.filter((x) => x.appId === appId)) {
+                      close(w.id);
+                    }
+                  }}
+                  className="absolute -right-1 -top-1 z-10 hidden h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white shadow group-hover:flex"
+                  title="关闭该应用所有窗口"
+                >
+                  ×
+                </button>
+              )}
             </div>
           );
         })}
