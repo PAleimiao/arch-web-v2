@@ -199,6 +199,23 @@ interface NcmProfile {
   nickname: string;
   avatarUrl: string;
   vipType: number;
+  vipExpire?: number;
+  vipLevel?: number;
+  isSvip?: boolean;
+}
+
+/** 账号会员状态：未开 / 有效 / 已过期 */
+function vipStatus(p: NcmProfile | null): 'none' | 'active' | 'expired' {
+  if (!p || !(p.vipType > 0)) return 'none';
+  if (!Number(p.vipExpire)) return 'active'; // 没拿到到期时间时按有效显示，不误报过期
+  return Number(p.vipExpire) > Date.now() ? 'active' : 'expired';
+}
+
+/** 会员标签文案：SVIP / 黑胶VIP / 普通 */
+function vipLabel(p: NcmProfile | null): string {
+  if (!p || !(p.vipType > 0)) return '普通账号';
+  if (vipStatus(p) === 'expired') return p.isSvip ? 'SVIP已过期' : 'VIP已过期';
+  return p.isSvip ? 'SVIP' : '黑胶VIP';
 }
 interface QrKeyResponse {
   unikey?: string;
@@ -278,7 +295,7 @@ interface ChannelInfo {
   id: string;
   title: string;
   desc: string;
-  kind?: 'links' | 'dailySongs' | 'dailyPl' | 'categories' | 'catList';
+  kind?: 'links' | 'dailySongs' | 'dailyPl' | 'categories' | 'catList' | 'charts' | 'banners';
   needsLogin?: boolean;
   local?: 'liked' | 'recent' | 'unsupported';
   items?: { id: string; name: string; pic?: string }[];
@@ -391,7 +408,8 @@ function mapSong(s: RawSong): Track {
     name: s.name ?? '未知歌曲',
     artist: ar.map((a) => a.name).filter(Boolean).join(' / ') || '未知艺人',
     album: al.name ?? '',
-    pic: al.picUrl ?? '',
+    // 必须转 https：应用在 https 部署时，http 封面会被浏览器当混合内容拦截 → 播放页没图
+    pic: safeAvatar(al.picUrl ?? ''),
     duration: s.dt ? Math.round(s.dt / 1000) : 0,
     vip: s.fee === 1 || s.fee === 8,
   };
@@ -841,13 +859,6 @@ const CHARTS = [
   { title: '热歌榜', gid: '3778678', hint: '每天更新' },
 ];
 
-const BANNERS = [
-  { title: '心鬼', sub: '新客首充', tone: 'linear-gradient(120deg,#2b3040,#4a5166)' },
-  { title: '蕾丝彼点', sub: '副研活动', tone: 'linear-gradient(120deg,#f3d9dd,#e9b8c4)' },
-  { title: 'GEEKBOI RAVE', sub: '新番连载', tone: 'linear-gradient(120deg,#c9d94a,#8fae33)' },
-  { title: '无意', sub: '让天空为我们翻转', tone: 'linear-gradient(120deg,#353535,#1f1f1f)' },
-];
-
 /* ============================ 小组件 ============================ */
 
 function IconButton({
@@ -886,12 +897,39 @@ function IconButton({
   );
 }
 
-function SectionTitle({ title, extra }: { title: string; extra?: ReactNode }) {
+function SectionTitle({
+  title,
+  extra,
+  onClick,
+}: {
+  title: string;
+  extra?: ReactNode;
+  /** 传入后整行标题可点，跳到对应栏目/列表 */
+  onClick?: () => void;
+}) {
+  const clickable = typeof onClick === 'function';
   return (
-    <div className="mb-3 flex items-center gap-1" style={{ color: 'var(--nm-text)' }}>
+    <div
+      className="mb-3 flex items-center gap-1"
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      title={clickable ? `查看全部${title}` : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (clickable && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
+      style={{
+        color: 'var(--nm-text)',
+        cursor: clickable ? 'pointer' : 'default',
+        borderRadius: 6,
+      }}
+    >
       <span style={{ fontSize: 17, fontWeight: 600 }}>{title}</span>
       <ChevronRight size={16} style={{ color: 'var(--nm-muted)' }} />
-      {extra && <div className="ml-auto">{extra}</div>}
+      {extra && <div className="ml-auto" onClick={(e) => e.stopPropagation()}>{extra}</div>}
     </div>
   );
 }
@@ -901,20 +939,24 @@ function PlaylistCard({
   cover,
   count,
   onClick,
+  onPlay,
 }: {
   title: string;
   cover: string;
   count: string;
+  /** 点封面 / 标题 → 进歌单详情 */
   onClick: () => void;
+  /** 点右下角圆形播放键 → 加载并播放该歌单全部（不传则不显示播放键） */
+  onPlay?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex flex-col text-left"
-      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', minWidth: 0 }}
-    >
+    <div className="group flex flex-col text-left" style={{ minWidth: 0 }}>
       <div
+        role="button"
+        tabIndex={0}
+        title={`打开${title}`}
+        onClick={onClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
         style={{
           position: 'relative',
           width: '100%',
@@ -925,6 +967,7 @@ function PlaylistCard({
             ? `url(${cover}) center / cover no-repeat, var(--nm-card)`
             : 'var(--nm-card)',
           border: '1px solid var(--nm-border)',
+          cursor: 'pointer',
         }}
       >
         <span
@@ -939,33 +982,45 @@ function PlaylistCard({
         >
           ▶ {count}
         </span>
-        <span
-          style={{
-            position: 'absolute',
-            right: 10,
-            bottom: 10,
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,.9)',
-            color: 'var(--nm-red)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'opacity .15s',
-          }}
-          className="opacity-0 group-hover:opacity-100"
-        >
-          <Play size={14} fill="currentColor" />
-        </span>
+        {onPlay && (
+          <button
+            type="button"
+            title={`播放${title}全部`}
+            onClick={(e) => { e.stopPropagation(); onPlay(); }}
+            style={{
+              position: 'absolute',
+              right: 10,
+              bottom: 10,
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              border: 'none',
+              background: 'rgba(255,255,255,.92)',
+              color: 'var(--nm-red)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'opacity .15s',
+            }}
+            className="opacity-0 group-hover:opacity-100"
+          >
+            <Play size={14} fill="currentColor" />
+          </button>
+        )}
       </div>
       <span
+        role="button"
+        tabIndex={0}
+        title={`打开${title}`}
+        onClick={onClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
         className="mt-2 line-clamp-2"
-        style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--nm-text)' }}
+        style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--nm-text)', cursor: 'pointer' }}
       >
         {title}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -1287,7 +1342,7 @@ function Vinyl({ cover, playing }: { cover: string; playing: boolean }) {
             inset: '22%',
             borderRadius: '50%',
             background: cover
-              ? `url(${cover}) center / cover no-repeat, #444`
+              ? `url(${safeAvatar(cover)}) center / cover no-repeat, #444`
               : 'radial-gradient(circle,#666,#222)',
             border: '6px solid #0d0d0d',
           }}
@@ -1519,11 +1574,11 @@ export default function NeteaseMusic({ context }: AppProps) {
   /** 即时反馈 toast（收藏等），浮在应用窗口右上角，任何视图都可见 */
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2800);
-  };
+  }, []);
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
   }, []);
@@ -1544,6 +1599,10 @@ export default function NeteaseMusic({ context }: AppProps) {
   const [dailyPlaylists, setDailyPlaylists] = useState<SearchItem[]>([]);
   const [categories, setCategories] = useState<PlaylistCategory[]>([]);
   const [categoryTracks, setCategoryTracks] = useState<SearchItem[]>([]);
+  /** 官方榜单总览（/toplist/detail，游客可读） */
+  const [chartList, setChartList] = useState<SearchItem[]>([]);
+  /** 官方推荐 banner / 活动（/v2/banner/get，游客可读） */
+  const [bannerList, setBannerList] = useState<{ id: string; title: string; pic: string; targetType: number; targetId: string }[]>([]);
   const [detailView, setDetailView] = useState<{
     kind: 'album' | 'artist' | 'user';
     id: string;
@@ -1583,6 +1642,13 @@ export default function NeteaseMusic({ context }: AppProps) {
   /* 异步取播放链接时用户可能又点了别的歌，用令牌丢掉过期结果 */
   const playTokenRef = useRef(0);
   const mountedRef = useRef(true);
+  /** 切歌时 a.load() 会触发 pause 事件，用这个标志忽略掉，避免污染 playing 状态 */
+  const switchingRef = useRef(false);
+  /** stalled/waiting 自愈：网络抖动卡住时重试，避免概率性中途停住 */
+  const stalledTimerRef = useRef<number | null>(null);
+  const retryRef = useRef(0);
+  /** VIP 到期提示去重：同一首歌只提示一次，避免每首都弹 */
+  const lastVipWarnRef = useRef('');
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -1754,6 +1820,8 @@ export default function NeteaseMusic({ context }: AppProps) {
     } else if (entry.view === 'channel' && entry.channel) {
       const kind = entry.channel.kind;
       if (kind === 'categories') void loadCategories();
+      if (kind === 'charts') void loadCharts();
+      if (kind === 'banners') void loadBanners();
       if (kind === 'dailySongs' || kind === 'dailyPl') void loadDailyData();
       if (kind === 'catList' && entry.channel.catName) void loadCategoryPlaylists(entry.channel.catName);
     }
@@ -1804,6 +1872,39 @@ export default function NeteaseMusic({ context }: AppProps) {
     }
   }
 
+  /** 官方推荐 banner / 活动（/v2/banner/get，游客可读）。silent=首页预取，不闪 loading */
+  async function loadBanners(silent = false) {
+    if (!silent) { setLoading(true); setError(null); }
+    try {
+      const data = await ncmWeapi('/v2/banner/get', { clientType: 'pc' });
+      if (!mountedRef.current) return;
+      const list = (Array.isArray(data.banners) ? data.banners : (data.data?.banners ?? [])) as WeapiRaw[];
+      setBannerList(list.map((b) => ({
+        id: String(b.bannerId ?? b.targetId ?? ''),
+        title: String(b.typeTitle ?? b.title ?? '推荐活动'),
+        pic: safeAvatar(String(b.imageUrl ?? b.bigImageUrl ?? '')),
+        targetType: Number(b.targetType ?? 0),
+        targetId: String(b.targetId ?? ''),
+      })));
+    } catch (e) {
+      if (!silent && mountedRef.current) setError(`活动加载失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      if (!silent && mountedRef.current) setLoading(false);
+    }
+  }
+
+  /** banner 点击：按官方 targetType 跳到对应真内容，不支持的类型如实提示（不造假页） */
+  function openBanner(b: { title: string; targetType: number; targetId: string }) {
+    if (b.targetType === 10) void openAlbum(b.targetId, b.title);
+    else if (b.targetType === 1000) {
+      setActiveNav(`pl-${b.targetId}`);
+      pushNav({ view: 'playlist', playlistId: b.targetId, playlistName: b.title });
+      void loadPlaylist(b.targetId);
+    } else {
+      showToast('该活动请在网易云音乐 App 中查看');
+    }
+  }
+
   /** 歌单分类广场 */
   async function loadCategories() {
     try {
@@ -1813,6 +1914,27 @@ export default function NeteaseMusic({ context }: AppProps) {
       setCategories(subs.map((s) => ({ name: String(s.name ?? ''), category: Number(s.category ?? 0), hot: !!s.hot })));
     } catch (e) {
       if (mountedRef.current) setError(`分类加载失败：${String((e as Error)?.message ?? e)}`);
+    }
+  }
+
+  /** 官方榜单总览（/toplist/detail，游客可读，约 65 个真实榜单） */
+  async function loadCharts() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await ncmWeapi('/toplist/detail');
+      if (!mountedRef.current) return;
+      const list = (Array.isArray(data.list) ? data.list : (data.data?.list ?? [])) as WeapiRaw[];
+      setChartList(list.map((c) => ({
+        id: String(c.id ?? ''),
+        name: String(c.name ?? '未知榜单'),
+        pic: safeAvatar(String(c.coverImgUrl ?? '')),
+        sub: String(c.updateFrequency ?? c.description ?? ''),
+      })));
+    } catch (e) {
+      if (mountedRef.current) setError(`榜单加载失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
   }
 
@@ -1933,6 +2055,11 @@ export default function NeteaseMusic({ context }: AppProps) {
     }
   }
 
+  /* 启动：静默预取官方活动 banner，替换首页的假活动卡（不闪 loading） */
+  useEffect(() => {
+    void loadBanners(true);
+  }, []);
+
   /* 启动：拉一份默认歌单让播放条有歌可点；同时分别预取三个榜单的前几首，
      否则首页三张榜单卡会共用同一组歌（都截自默认歌单），看着像没换内容。 */
   useEffect(() => {
@@ -1974,6 +2101,11 @@ export default function NeteaseMusic({ context }: AppProps) {
       // 快照这一份列表作为播放队列，之后切浏览列表不会污染正在播的歌
       setPlayQueue(source);
       setPlayIdx(idx);
+      // VIP 到期提示：只提示不截断（公共网关给的是完整音频，真实试听限制在数据层不存在）
+      if (track.vip && vipStatus(profile) === 'expired' && lastVipWarnRef.current !== track.id) {
+        lastVipWarnRef.current = track.id;
+        showToast('这是会员歌曲，你的会员已过期（当前仍可完整播放，数据来自公共网关）');
+      }
       setPlayUrl(null);
       setLoadingTrack(true);
       setLyrics([]);
@@ -1985,13 +2117,15 @@ export default function NeteaseMusic({ context }: AppProps) {
           mc.lyric(track.id),
           track.pic ? Promise.resolve(track.pic) : mc.pic(track.id),
         ]);
+        // 统一转 https：任一数据源漏了 http 封面，这里兜住，避免 https 页面混内容拦截导致播放页没图
+        pic = safeAvatar(pic);
         // 所选音质无可用地址时，自动降级到极高 320K 再试（对齐参考站行为）
         if (!url && styleRef.current.quality !== 320) {
           url = await mc.url(track.id, 320).catch(() => null);
         }
         if (stale()) return;
-        if (pic && !track.pic) {
-          // 按歌曲 id 补封面，不依赖下标（播放快照与浏览列表可能顺序不同）
+        if (pic && pic !== track.pic) {
+          // 按歌曲 id 补/修封面，不依赖下标（播放快照与浏览列表可能顺序不同）
           const patchById = (list: Track[]) =>
             list.map((t) => (t.id === track.id ? { ...t, pic } : t));
           // 播放快照总要更新；浏览列表仅在非内部切歌时同步，避免污染用户正在看的列表
@@ -2015,7 +2149,7 @@ export default function NeteaseMusic({ context }: AppProps) {
         if (!stale()) setLoadingTrack(false);
       }
     },
-    [activeTracks],
+    [activeTracks, profile, showToast],
   );
 
   const playPrev = useCallback(() => {
@@ -2034,26 +2168,58 @@ export default function NeteaseMusic({ context }: AppProps) {
   }, [playQueue, playIdx, repeatMode, playAt]);
 
   /* ---------------------- audio 同步 ---------------------- */
+  /**
+   * 切歌：设 src → load → 显式 play。
+   * 关键坑：a.load() 会触发 pause 事件，若不加 switching 标志，onPause 会把 playing
+   * 置 false，紧接着 effect 又调 a.pause()，新歌加载好也不播 —— 这就是「下一首不播 /
+   * 中途暂停且手动点播放没用」的根因。
+   */
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
     if (playUrl && a.src !== playUrl) {
+      switchingRef.current = true;
       a.src = playUrl;
       a.load();
+      if (playing) {
+        // load() 之后务必重新 play()：有些浏览器 load 会清掉自动播放意图
+        void a.play().catch((err) => {
+          // AbortError = 又被下一次切歌打断，属正常，不能因此把 playing 置 false
+          if ((err as DOMException)?.name !== 'AbortError' && mountedRef.current) {
+            setPlaying(false);
+          }
+        });
+      }
+      // load() 引发的 pause 事件可能异步到达，留 300ms 窗口再解除标志，
+      // 避免把内部 pause 误判成用户暂停；canplay 时提前解除
+      const release = () => { switchingRef.current = false; };
+      a.addEventListener('canplay', release, { once: true });
+      const t = window.setTimeout(release, 300);
+      return () => {
+        window.clearTimeout(t);
+        a.removeEventListener('canplay', release);
+      };
     } else if (!playUrl) {
       a.removeAttribute('src');
     }
+    // playing 故意不进依赖：切歌时的播放意图由上面的 play() 负责，
+    // 单纯暂停/继续交给下面的 effect，避免 load 与 pause 互相打架
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playUrl]);
 
+  /** 单纯暂停 / 继续（不涉及换 src） */
   useEffect(() => {
     const a = audioRef.current;
-    if (!a) return;
-    if (playing && playUrl) {
-      a.play().catch(() => setPlaying(false));
-    } else {
+    if (!a || !playUrl) return;
+    if (playing && a.paused) {
+      void a.play().catch((err) => {
+        if ((err as DOMException)?.name !== 'AbortError' && mountedRef.current) setPlaying(false);
+      });
+    } else if (!playing && !a.paused) {
       a.pause();
     }
-  }, [playing, playUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -2065,15 +2231,54 @@ export default function NeteaseMusic({ context }: AppProps) {
     if (!a) return;
     const onEnded = () => {
       if (repeatMode === 'one') {
-        a.currentTime = 0;
-        void a.play();
+        // 复用播放快照重播当前首，保持状态一致（比直接改 currentTime 更稳）
+        void playAt(playIdx, playQueue, true);
       } else {
         playNext();
       }
     };
     a.addEventListener('ended', onEnded);
     return () => a.removeEventListener('ended', onEnded);
-  }, [playNext, repeatMode]);
+  }, [playNext, repeatMode, playAt, playIdx, playQueue]);
+
+  /**
+   * 网络抖动自愈：GD Studio / CDN 偶发卡住会触发 stalled/waiting，浏览器未必自动续播。
+   * 缓冲超过 8 秒且用户仍处于「播放」意图、audio 却 paused 时，重试 load+play（最多 2 次）。
+   */
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const clearStall = () => {
+      if (stalledTimerRef.current !== null) {
+        window.clearTimeout(stalledTimerRef.current);
+        stalledTimerRef.current = null;
+      }
+    };
+    const onStalled = () => {
+      clearStall();
+      stalledTimerRef.current = window.setTimeout(() => {
+        stalledTimerRef.current = null;
+        if (!mountedRef.current || !playing || !a.paused || !a.src) return;
+        if (retryRef.current >= 2) return;
+        retryRef.current += 1;
+        // 重新拉取同一 URL 并尝试续播
+        a.load();
+        void a.play().catch(() => undefined);
+      }, 8000);
+    };
+    const onReady = () => { clearStall(); retryRef.current = 0; };
+    a.addEventListener('stalled', onStalled);
+    a.addEventListener('waiting', onStalled);
+    a.addEventListener('canplay', onReady);
+    a.addEventListener('playing', onReady);
+    return () => {
+      clearStall();
+      a.removeEventListener('stalled', onStalled);
+      a.removeEventListener('waiting', onStalled);
+      a.removeEventListener('canplay', onReady);
+      a.removeEventListener('playing', onReady);
+    };
+  }, [playing]);
 
   /* ---------------------- 歌词滚动 ---------------------- */
   useEffect(() => {
@@ -2405,6 +2610,36 @@ export default function NeteaseMusic({ context }: AppProps) {
     [loadPlaylist],
   );
 
+  /**
+   * 播放某张歌单的全部（推荐歌单卡片的圆形播放键 / 每日推荐「播放全部」用）。
+   * 直接取歌单 tracks 再 playAt(0)，与「点进详情」行为解耦：
+   * 游客态走官方 weapi 公开歌单（MusicClient 内部官方优先+失败回退），不强制登录。
+   */
+  const playPlaylist = async (id: string, name?: string) => {
+    setLoading(true);
+    try {
+      const { value, cfg } = await withFallback(config, (c) => new MusicClient(c).playlist(id));
+      if (!mountedRef.current) return;
+      setConfig(cfg);
+      setTrackIndex((prev) => {
+        const next = { ...prev };
+        for (const t of value.tracks) next[t.id] = t;
+        return next;
+      });
+      if (value.tracks.length === 0) {
+        showToast('这张歌单暂时没有可播放的歌曲');
+        return;
+      }
+      setActiveTracks(value.tracks);
+      await playAt(0, value.tracks);
+      showToast(`正在播放：${name ?? value.name}`);
+    } catch (e) {
+      if (mountedRef.current) showToast(`播放失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  };
+
   /** 打开某首歌的评论区：读官方公开热评 + 最新评论 */
   const openComments = useCallback(async (track: Track) => {
     if (!track?.id) return;
@@ -2464,6 +2699,8 @@ export default function NeteaseMusic({ context }: AppProps) {
     pushNav({ view: 'channel', channel: info });
     if (info.kind === 'dailySongs' || info.kind === 'dailyPl') void loadDailyData();
     if (info.kind === 'categories') void loadCategories();
+    if (info.kind === 'charts') void loadCharts();
+    if (info.kind === 'banners') void loadBanners();
   };
 
   const submitSearch = () => {
@@ -2550,6 +2787,8 @@ export default function NeteaseMusic({ context }: AppProps) {
       const pool = Object.values(trackIndex).map((t) => t.pic).filter(Boolean);
       if (pool.length) bg = pool[Math.abs(String(current?.id ?? '').length * 7) % pool.length];
     }
+    // 兜底转 https，避免任一来源的 http 封面在 https 页面被拦
+    bg = safeAvatar(bg);
     return (
       <div ref={immersiveRef} className="relative h-full min-h-0 overflow-hidden" style={{ isolation: 'isolate' }}>
         {/* 模糊背景层 */}
@@ -2818,8 +3057,12 @@ export default function NeteaseMusic({ context }: AppProps) {
         ref={audioRef}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onTimeUpdate={(e) => setPosition(e.currentTarget.currentTime)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPlay={() => { setPlaying(true); retryRef.current = 0; }}
+        onPause={() => {
+          // 切歌时 a.load() 会触发一次 pause，那是内部行为，不能当成用户暂停
+          if (switchingRef.current) return;
+          setPlaying(false);
+        }}
         onError={() => {
           setError('播放失败：链接失效 / 浏览器拒绝解码 / 歌曲下架。');
           setPlaying(false);
@@ -2939,8 +3182,20 @@ export default function NeteaseMusic({ context }: AppProps) {
                 {profile.nickname}
               </span>
               {profile.vipType > 0 && (
-                <span style={{ fontSize: 9, color: 'var(--nm-red)', border: '1px solid var(--nm-red)', borderRadius: 3, padding: '0 3px' }}>
-                  VIP
+                <span
+                  title={
+                    profile.vipExpire
+                      ? `${vipLabel(profile)} · ${Number(profile.vipExpire) > Date.now() ? '到期于 ' + new Date(Number(profile.vipExpire)).toLocaleDateString('zh-CN') : '已于 ' + new Date(Number(profile.vipExpire)).toLocaleDateString('zh-CN') + ' 到期'}`
+                      : vipLabel(profile)
+                  }
+                  style={{
+                    fontSize: 9, borderRadius: 3, padding: '0 3px', whiteSpace: 'nowrap',
+                    color: vipStatus(profile) === 'expired' ? 'var(--nm-muted)' : 'var(--nm-red)',
+                    border: `1px solid ${vipStatus(profile) === 'expired' ? 'var(--nm-border)' : 'var(--nm-red)'}`,
+                    textDecoration: vipStatus(profile) === 'expired' ? 'line-through' : 'none',
+                  }}
+                >
+                  {profile.isSvip ? 'SVIP' : 'VIP'}
                 </span>
               )}
             </button>
@@ -3220,6 +3475,7 @@ export default function NeteaseMusic({ context }: AppProps) {
                   <div className="mt-7">
                     <SectionTitle
                       title="推荐歌单"
+                      onClick={() => openChannel({ id: 'categories', title: '歌单分类', desc: '按语种 / 风格 / 场景 / 情感 / 主题挑歌单。', kind: 'categories' })}
                       extra={
                         <div className="flex items-center gap-1">
                           <IconButton title="歌单分类广场" onClick={() =>
@@ -3247,6 +3503,7 @@ export default function NeteaseMusic({ context }: AppProps) {
                               cover={p.pic}
                               count={p.sub}
                               onClick={() => { setActiveNav(`pl-${p.id}`); pushNav({ view: 'playlist', playlistId: p.id, playlistName: p.name }); if (profile) void loadOfficialPlaylist(p.id, p.name, true); else void loadPlaylist(p.id, false); }}
+                              onPlay={() => void playPlaylist(p.id, p.name)}
                             />
                           ))
                         : rotatedPlaylists.map((p, i) => (
@@ -3256,6 +3513,7 @@ export default function NeteaseMusic({ context }: AppProps) {
                               cover={coverPalette[i % Math.max(coverPalette.length, 1)] ?? ''}
                               count={p.count}
                               onClick={() => void loadPlaylist(p.id)}
+                              onPlay={() => void playPlaylist(p.id, p.name)}
                             />
                           ))}
                     </div>
@@ -3263,32 +3521,37 @@ export default function NeteaseMusic({ context }: AppProps) {
 
                   {/* 精选活动 */}
                   <div className="mt-7">
-                    <SectionTitle title="精选活动" />
+                    <SectionTitle
+                      title="精选活动"
+                      onClick={() => openChannel({ id: 'banners', title: '精选活动', desc: '网易云官方推荐活动与首发。', kind: 'banners' })}
+                    />
                     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
-                      {BANNERS.map((b) => (
-                        <div
-                          key={b.title}
+                      {(bannerList.length > 0 ? bannerList.slice(0, 4) : []).map((b) => (
+                        <button
+                          type="button"
+                          key={`${b.id}-${b.targetId}`}
+                          title={b.title}
+                          onClick={() => openBanner(b)}
                           style={{
-                            height: 96,
-                            borderRadius: 10,
-                            background: b.tone,
-                            padding: 12,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            color: '#fff',
+                            position: 'relative', height: 96, borderRadius: 10, overflow: 'hidden',
+                            border: '1px solid var(--nm-border)', cursor: 'pointer', padding: 0,
+                            background: b.pic ? `url(${b.pic}) center / cover no-repeat, var(--nm-card)` : 'var(--nm-card)',
                           }}
                         >
-                          <span style={{ fontSize: 15, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,.4)' }}>{b.title}</span>
-                          <span style={{ fontSize: 10, marginTop: 8, opacity: 0.85, alignSelf: 'flex-end' }}>{b.sub}</span>
-                        </div>
+                          <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 30%,rgba(0,0,0,.6))' }} />
+                          <span style={{ position: 'absolute', left: 12, bottom: 10, color: '#fff', fontSize: 13, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,.7)' }}>{b.title}</span>
+                        </button>
                       ))}
+                      {bannerList.length === 0 && <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>正在加载活动…</p>}
                     </div>
                   </div>
 
                   {/* 榜单 */}
                   <div className="mt-7 mb-4">
-                    <SectionTitle title="榜单精选" />
+                    <SectionTitle
+                      title="榜单精选"
+                      onClick={() => openChannel({ id: 'charts', title: '全部榜单', desc: '官方 65 个实时榜单，每日更新。', kind: 'charts' })}
+                    />
                     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
                       {CHARTS.map((c) => (
                         <button
@@ -3366,7 +3629,24 @@ export default function NeteaseMusic({ context }: AppProps) {
                   {/* 每日推荐歌曲（登录，官方每天刷新） */}
                   {channel.kind === 'dailySongs' && profile && (
                     <div className="mt-6 mb-4">
-                      <SectionTitle title={`每日推荐 · ${dailySongs.length} 首`} extra={<span style={{ fontSize: 10, color: 'var(--nm-muted)' }}>每天更新</span>} />
+                      <SectionTitle
+                        title={`每日推荐 · ${dailySongs.length} 首`}
+                        onClick={() => openChannel({ id: 'dailySongs', title: '每日推荐', desc: '根据你的口味每天生成。', kind: 'dailySongs' })}
+                        extra={
+                          <div className="flex items-center gap-3">
+                            <span style={{ fontSize: 10, color: 'var(--nm-muted)' }}>每天更新</span>
+                            <button
+                              type="button"
+                              title="播放每日推荐全部"
+                              onClick={() => { if (dailySongs.length) void playAt(0, dailySongs); }}
+                              className="flex items-center gap-1"
+                              style={{ height: 28, padding: '0 12px', borderRadius: 14, border: 'none', background: 'var(--nm-red)', color: '#fff', fontSize: 11, cursor: 'pointer' }}
+                            >
+                              <Play size={12} fill="currentColor" /> 播放全部
+                            </button>
+                          </div>
+                        }
+                      />
                       {dailySongs.length === 0 ? (
                         <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>正在拉取今天的推荐…</p>
                       ) : (
@@ -3440,6 +3720,54 @@ export default function NeteaseMusic({ context }: AppProps) {
                         );
                       })}
                       {categories.length === 0 && <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>正在加载分类…</p>}
+                    </div>
+                  )}
+
+                  {/* 官方榜单总览（/toplist/detail） */}
+                  {channel.kind === 'charts' && (
+                    <div className="mt-6 mb-4">
+                      <SectionTitle title={`全部榜单 · ${chartList.length} 个`} />
+                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(118px, 1fr))' }}>
+                        {chartList.map((c) => (
+                          <PlaylistCard
+                            key={c.id}
+                            title={c.name}
+                            cover={c.pic}
+                            count={c.sub}
+                            onClick={() => { setActiveNav(`pl-${c.id}`); pushNav({ view: 'playlist', playlistId: c.id, playlistName: c.name }); void loadPlaylist(c.id); }}
+                            onPlay={() => void playPlaylist(c.id, c.name)}
+                          />
+                        ))}
+                      </div>
+                      {chartList.length === 0 && <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>正在加载榜单…</p>}
+                    </div>
+                  )}
+
+                  {/* 官方推荐活动（/v2/banner/get） */}
+                  {channel.kind === 'banners' && (
+                    <div className="mt-6 mb-4">
+                      <SectionTitle title={`精选活动 · ${bannerList.length} 个`} />
+                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                        {bannerList.map((b) => {
+                          return (
+                            <button
+                              type="button"
+                              key={`${b.id}-${b.targetId}`}
+                              title={b.title}
+                              onClick={() => openBanner(b)}
+                              style={{
+                                position: 'relative', height: 108, borderRadius: 10, overflow: 'hidden',
+                                border: '1px solid var(--nm-border)', cursor: 'pointer', padding: 0,
+                                background: b.pic ? `url(${b.pic}) center / cover no-repeat, var(--nm-card)` : 'var(--nm-card)',
+                              }}
+                            >
+                              <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%,rgba(0,0,0,.65))' }} />
+                              <span style={{ position: 'absolute', left: 12, bottom: 10, color: '#fff', fontSize: 13, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,.7)' }}>{b.title}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {bannerList.length === 0 && <p style={{ fontSize: 12, color: 'var(--nm-muted)' }}>正在加载活动…</p>}
                     </div>
                   )}
 
@@ -3745,7 +4073,7 @@ export default function NeteaseMusic({ context }: AppProps) {
               padding: 0,
               cursor: 'pointer',
               background: current?.pic
-                ? `url(${current.pic}) center / cover no-repeat, var(--nm-card)`
+                ? `url(${safeAvatar(current.pic)}) center / cover no-repeat, var(--nm-card)`
                 : 'var(--nm-card)',
             }}
           />
@@ -4030,9 +4358,13 @@ export default function NeteaseMusic({ context }: AppProps) {
                       {profile.nickname}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--nm-muted)', marginTop: 4 }}>
-                      UID {profile.userId}
-                      {profile.vipType > 0 ? ' · 黑胶 VIP' : ' · 普通账号'}
+                      UID {profile.userId} · {vipLabel(profile)}
                     </div>
+                    {profile.vipType > 0 && Number(profile.vipExpire) > 0 && (
+                      <div style={{ fontSize: 10, marginTop: 3, color: vipStatus(profile) === 'expired' ? 'var(--nm-red)' : 'var(--nm-muted)' }}>
+                        {vipStatus(profile) === 'expired' ? '会员已过期' : '有效期至'} {new Date(Number(profile.vipExpire)).toLocaleDateString('zh-CN')}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <p style={{ fontSize: 11, color: 'var(--nm-sub)', lineHeight: 1.7, margin: '14px 0 0' }}>

@@ -608,6 +608,12 @@ interface NcmProfile {
   nickname: string;
   avatarUrl: string;
   vipType: number;
+  /** 黑胶 VIP/SVIP 套餐到期时间（毫秒时间戳，0=未知/未开） */
+  vipExpire: number;
+  /** 黑胶会员等级（vipLevel） */
+  vipLevel: number;
+  /** 是否 SVIP（vipCode 属黑胶 SVIP 档） */
+  isSvip: boolean;
 }
 
 interface NcmApiResult {
@@ -805,15 +811,36 @@ function getOrCreateNcmSid(request: Request): { sid: string; isNew: boolean } {
 }
 
 async function ncmFetchProfile(session: NcmSession): Promise<NcmProfile | null> {
-  const { json } = await ncmWeapiRequest("/w/nuser/account/get", {}, session);
+  // 账号信息 + VIP 套餐详情并行拉；VIP 接口失败不影响登录（用 account.vipType 兜底）
+  const [accRes, vipRes] = await Promise.allSettled([
+    ncmWeapiRequest("/w/nuser/account/get", {}, session),
+    ncmWeapiRequest("/music-vip-membership/client/vip/info", {}, session),
+  ]);
+  if (accRes.status !== "fulfilled") return null;
+  const json = accRes.value.json;
   const profile = json.profile as Record<string, unknown> | null | undefined;
   const account = json.account as Record<string, unknown> | null | undefined;
   if (!profile?.userId) return null;
+  const vipType = Number(account?.vipType ?? profile.vipType ?? 0);
+  let vipExpire = 0;
+  let vipLevel = 0;
+  let isSvip = false;
+  if (vipRes.status === "fulfilled" && Number(vipRes.value.json.code) === 200) {
+    const d = (vipRes.value.json.data ?? {}) as Record<string, unknown>;
+    const pkg = (d.musicPackage ?? {}) as Record<string, unknown>;
+    vipExpire = Number(pkg.expireTime ?? 0);
+    vipLevel = Number(pkg.vipLevel ?? d.redVipLevel ?? 0);
+    // vipCode 220 / vipLevel>=5 通常对应黑胶 SVIP；vipType 位标志 bit2(4) 也表示 SVIP
+    isSvip = vipLevel >= 5 || (vipType & 4) !== 0 || Number(pkg.vipCode ?? 0) >= 300;
+  }
   return {
     userId: Number(profile.userId),
     nickname: String(profile.nickname ?? "云村村民"),
     avatarUrl: String(profile.avatarUrl ?? "").replace(/^http:\/\//, "https://"),
-    vipType: Number(account?.vipType ?? profile.vipType ?? 0),
+    vipType,
+    vipExpire,
+    vipLevel,
+    isSvip,
   };
 }
 
@@ -1020,6 +1047,8 @@ const NCM_ALLOWED = new Set([
   "/song/like/get", // 我喜欢的音乐 id 列表（需登录）
   "/v3/song/detail", // 歌曲详情（批量补封面/艺人）
   "/song/lyric", // 歌词（游客可读，替代慢速公共网关）
+  "/toplist/detail", // 官方榜单总览（游客可读，65 个榜单）
+  "/v2/banner/get", // 官方推荐 banner / 活动（游客可读）
 ]);
 
 /** 形如 /v1/album/123 /v1/artist/456 /v1/user/detail/789 的路径 */
