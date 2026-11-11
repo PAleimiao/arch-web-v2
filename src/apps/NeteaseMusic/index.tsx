@@ -38,7 +38,6 @@ import {
   Search,
   Settings as SettingsIcon,
   Share2,
-  Shuffle,
   SkipBack,
   SkipForward,
   SlidersHorizontal,
@@ -2491,7 +2490,7 @@ export default function NeteaseMusic({ context }: AppProps) {
 
         {/* 主体：左封面信息 + 右歌词 */}
         <div className="flex h-full" style={{ padding: '4% 6%' }}>
-          {/* 左：封面 + 信息 + 控制 */}
+          {/* 左：封面 + 信息（播放控制统一交给窗口底部常驻条，避免上下两套重复） */}
           <div className="flex w-[42%] min-w-[280px] max-w-[420px] flex-col justify-center">
             <div
               style={{
@@ -2509,38 +2508,6 @@ export default function NeteaseMusic({ context }: AppProps) {
               <div style={{ fontSize: 12, opacity: 0.72, marginTop: 7 }} className="truncate">
                 {current?.artist || '未知艺人'} · {current?.album || '单曲'}
               </div>
-            </div>
-            {/* 极简进度条 */}
-            <div className="flex items-center gap-2" style={{ marginTop: 22 }}>
-              <span style={{ fontSize: 10, opacity: 0.7, width: 30 }}>{fmtTime(position)}</span>
-              <div onClick={seek} style={{ flex: 1, height: 3, borderRadius: 2, background: 'rgba(255,255,255,.28)', cursor: 'pointer' }}>
-                <div style={{ width: `${duration ? Math.min(100, (position / duration) * 100) : 0}%`, height: '100%', borderRadius: 2, background: playerStyle.accent }} />
-              </div>
-              <span style={{ fontSize: 10, opacity: 0.7, width: 30, textAlign: 'right' }}>{fmtTime(duration || current?.duration || 0)}</span>
-            </div>
-            {/* 控制条 */}
-            <div className="flex items-center justify-center gap-6" style={{ marginTop: 18 }}>
-              <button type="button" title={repeatMode === 'list' ? '列表循环' : repeatMode === 'one' ? '单曲循环' : '随机播放'} onClick={() => setRepeatMode((m) => (m === 'list' ? 'one' : m === 'one' ? 'shuffle' : 'list'))} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: repeatMode !== 'list' ? 1 : 0.55, cursor: 'pointer', padding: 4 }}>
-                {repeatMode === 'shuffle' ? <Shuffle size={16} /> : <Repeat size={16} />}
-              </button>
-              <button type="button" title="上一首" onClick={playPrev} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: 0.85, cursor: 'pointer', padding: 4 }}>
-                <SkipBack size={19} fill="currentColor" />
-              </button>
-              <button
-                type="button"
-                title={playing ? '暂停' : '播放'}
-                onClick={() => (current ? setPlaying((p) => !p) : void playAt(0))}
-                className="flex items-center justify-center"
-                style={{ width: 50, height: 50, borderRadius: '50%', border: 'none', background: '#fff', color: '#111', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}
-              >
-                {loadingTrack ? <Loader2 size={20} className="animate-spin" /> : playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
-              </button>
-              <button type="button" title="下一首" onClick={playNext} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: 0.85, cursor: 'pointer', padding: 4 }}>
-                <SkipForward size={19} fill="currentColor" />
-              </button>
-              <button type="button" title={muted ? '取消静音' : '静音'} onClick={() => setMuted((v) => !v)} style={{ border: 'none', background: 'transparent', color: '#fff', opacity: 0.7, cursor: 'pointer', padding: 4 }}>
-                {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
-              </button>
             </div>
           </div>
 
