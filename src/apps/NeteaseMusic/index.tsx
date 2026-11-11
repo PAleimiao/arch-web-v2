@@ -1516,6 +1516,17 @@ export default function NeteaseMusic({ context }: AppProps) {
   const [activeTracks, setActiveTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 即时反馈 toast（收藏等），浮在应用窗口右上角，任何视图都可见 */
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2800);
+  };
+  useEffect(() => () => {
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+  }, []);
 
   /* ---- 导航历史栈（前进 / 后退 / logo 回首页） ---- */
   const [navStack, setNavStack] = useState<NavEntry[]>([{ view: 'home' }]);
@@ -2119,13 +2130,57 @@ export default function NeteaseMusic({ context }: AppProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [playPrev, playNext, context.windowId]);
 
-  const toggleLike = (id: string) =>
+  /** 收藏 / 取消收藏单曲：登录态下真写账号，未登录只提示不假装收藏 */
+  const likeInFlight = useRef<Set<string>>(new Set());
+  const toggleLike = async (id: string) => {
+    if (!id) return;
+    if (likeInFlight.current.has(id)) return;
+    if (!profile) {
+      showToast('请先扫码登录，再收藏到网易云红心歌单');
+      return;
+    }
+    // 用户已开始手动操作，阻止迟到的初始化列表覆盖本地状态
+    likedTouchedRef.current = true;
+    const wasLiked = liked.has(id);
+    const nextLiked = !wasLiked;
+    // 乐观更新：先亮/灭，失败再回滚
+    setLiked((prev) => {
+      const next = new Set(prev);
+      if (nextLiked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    likeInFlight.current.add(id);
+    try {
+      await ncmApi<{ ok?: boolean }>('/like', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ trackId: Number(id), like: nextLiked }),
+      });
+      showToast(nextLiked ? '已收藏到红心歌单' : '已取消收藏');
+    } catch (e) {
+      // 回滚
+      setLiked((prev) => {
+        const next = new Set(prev);
+        if (wasLiked) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+      showToast(`收藏失败：${String((e as Error)?.message ?? e)}`);
+    } finally {
+      likeInFlight.current.delete(id);
+    }
+  };
+
+  /** 歌单收藏（与单曲红心分开）：官方走 /playlist/subscribe，本轮未接真写，暂留本地态 */
+  const togglePlaylistLike = (id: string) => {
     setLiked((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  };
 
   const seek = (e: MouseEvent<HTMLDivElement>) => {
     const a = audioRef.current;
@@ -2152,6 +2207,22 @@ export default function NeteaseMusic({ context }: AppProps) {
       setLikedPlaylistId(liked?.id ?? '');
     } catch {
       setUserPlaylists([]);
+    }
+  }, []);
+
+  /**
+   * 登录后拉取账号真实红心列表，初始化爱心状态（凭证只在 Worker 侧）。
+   * 竞态保护：若用户在列表返回前已手动点过红心（likedTouchedRef=true），
+   * 迟到的列表就不能覆盖，否则会把用户刚取消的歌又加回来、显示错乱。
+   */
+  const likedTouchedRef = useRef(false);
+  const loadLikedIds = useCallback(async () => {
+    try {
+      const data = await ncmApi<{ ids?: string[] }>('/liked-ids');
+      if (likedTouchedRef.current) return;
+      setLiked(new Set((data.ids ?? []).map(String)));
+    } catch {
+      if (!likedTouchedRef.current) setLiked(new Set());
     }
   }, []);
 
@@ -2232,6 +2303,17 @@ export default function NeteaseMusic({ context }: AppProps) {
   useEffect(() => {
     if (profile) void loadDailyData();
   }, [profile]);
+
+  /* 登录态变化时同步账号真实红心：登录拉真实列表，登出清空 */
+  useEffect(() => {
+    if (profile) {
+      likedTouchedRef.current = false;
+      void loadLikedIds();
+    } else {
+      likedTouchedRef.current = false;
+      setLiked(new Set());
+    }
+  }, [profile, loadLikedIds]);
 
   /* 扫码轮询：801 继续等 / 802 待确认 / 803 成功 / 800 过期 */
   useEffect(() => {
@@ -2718,6 +2800,20 @@ export default function NeteaseMusic({ context }: AppProps) {
 
   return (
     <div style={rootStyle}>
+      {/* 即时反馈 toast：任何视图（列表/播放页/设置）都能看到 */}
+      {toast && (
+        <div
+          style={{
+            position: 'absolute', top: 52, right: 16, zIndex: 60,
+            maxWidth: 280, padding: '9px 14px', borderRadius: 8,
+            background: 'rgba(20,24,34,.96)', color: 'var(--nm-text)',
+            border: '1px solid var(--nm-border)', boxShadow: '0 8px 28px rgba(0,0,0,.45)',
+            fontSize: 11, lineHeight: 1.5, pointerEvents: 'none',
+          }}
+        >
+          {toast}
+        </div>
+      )}
       <audio
         ref={audioRef}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
@@ -3502,7 +3598,7 @@ export default function NeteaseMusic({ context }: AppProps) {
                         >
                           <Play size={13} fill="currentColor" /> 播放全部
                         </button>
-                        <IconButton title="收藏" onClick={() => toggleLike(playlist.id)} active={liked.has(playlist.id)}>
+                        <IconButton title="收藏歌单" onClick={() => togglePlaylistLike(playlist.id)} active={liked.has(playlist.id)}>
                           <Heart size={15} fill={liked.has(playlist.id) ? 'currentColor' : 'none'} />
                         </IconButton>
                         <IconButton title="更多">

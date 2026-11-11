@@ -881,6 +881,49 @@ async function handleNeteaseLogin(request: Request, sid: string): Promise<Respon
       return jsonOk({ loggedIn: false });
     }
 
+    // 收藏 / 取消收藏单曲（写操作，必须登录；凭证只留服务端 jar）
+    if (path === "/like") {
+      if (request.method !== "POST") return jsonOk({ error: "仅支持 POST" }, 405);
+      const session = await readNcmJar(sid);
+      if (!session) return jsonOk({ error: "未登录，无法收藏" }, 401);
+      let body: { trackId?: unknown; like?: unknown };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return jsonOk({ error: "请求体不是合法 JSON" }, 400);
+      }
+      const trackId = Number(body.trackId);
+      const like = body.like;
+      if (!Number.isInteger(trackId) || trackId <= 0) {
+        return jsonOk({ error: "缺少合法的歌曲 ID" }, 400);
+      }
+      if (typeof like !== "boolean") {
+        return jsonOk({ error: "like 必须是布尔值" }, 400);
+      }
+      const { json } = await ncmWeapiRequest(
+        "/song/like",
+        { trackId, like },
+        session,
+      );
+      // 官方 code 200 = 成功；其余（如 -462 风控 / 无版权）如实回传
+      if (Number(json.code) !== 200) {
+        return jsonOk(
+          { error: `收藏失败：${json.message ?? json.msg ?? `code ${json.code ?? "?"}`}` },
+          502,
+        );
+      }
+      return jsonOk({ ok: true, trackId, like });
+    }
+
+    // 读取当前账号红心歌曲 id 列表（登录后初始化爱心状态用）
+    if (path === "/liked-ids") {
+      const session = await readNcmJar(sid);
+      if (!session) return jsonOk({ error: "未登录" }, 401);
+      const { json } = await ncmWeapiRequest("/song/like/get", {}, session);
+      const ids = Array.isArray(json.ids) ? json.ids.map((n) => String(n)) : [];
+      return jsonOk({ ids });
+    }
+
     if (path === "/playlists") {
       const session = await readNcmJar(sid);
       if (!session) return jsonOk({ error: "未登录" }, 401);
