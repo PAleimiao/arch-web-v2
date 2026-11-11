@@ -2801,9 +2801,6 @@ export default function NeteaseMusic({ context }: AppProps) {
             {dark ? <Sun size={13} /> : <Moon size={13} />}
             {dark ? '亮色' : '暗色'}
           </button>
-          <IconButton title="播放外观与音质" onClick={() => { setShowPlayerSettings((v) => !v); setShowPlayer(true); }} active={showPlayerSettings}>
-            <SlidersHorizontal size={15} />
-          </IconButton>
           <IconButton title="API 设置" onClick={() => setShowSettings((v) => !v)} active={showSettings}>
             <SettingsIcon size={15} />
           </IconButton>
@@ -2972,9 +2969,17 @@ export default function NeteaseMusic({ context }: AppProps) {
                   <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>{current?.name ?? '暂无播放'}</h2>
                   <button
                     type="button"
+                    onClick={() => setShowPlayerSettings((v) => !v)}
+                    title="外观与音质设置"
+                    style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: showPlayerSettings ? 'var(--nm-red)' : 'var(--nm-muted)', cursor: 'pointer', padding: 2 }}
+                  >
+                    <SlidersHorizontal size={16} />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setShowPlayer(false)}
                     title="收起播放页"
-                    style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--nm-muted)', cursor: 'pointer' }}
+                    style={{ border: 'none', background: 'transparent', color: 'var(--nm-muted)', cursor: 'pointer', padding: 2 }}
                   >
                     <ChevronRight size={18} />
                   </button>
