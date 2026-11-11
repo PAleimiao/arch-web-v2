@@ -52,6 +52,8 @@ import qrcode from 'qrcode-generator';
 import type { AppProps } from '@/shell/types';
 import { isWindowActive } from '@/shell/window/windowKeys';
 import { useOSStore } from '@/stores/useOSStore';
+import { useDesktopLyricsStore } from '@/stores/useDesktopLyricsStore';
+import DesktopLyricsLayer from './DesktopLyricsLayer';
 
 /* ============================ 配置与类型 ============================ */
 
@@ -2083,6 +2085,19 @@ export default function NeteaseMusic({ context }: AppProps) {
     }
   }, [position, lyrics]);
 
+  /* ---------------------- 桌面歌词：把当前行/下一行推给挂件 store ---------------------- */
+  useEffect(() => {
+    // 无论有无歌词都同步，保证无歌词/切歌时挂件能显示歌名或清空
+    const line = activeLyricIdx >= 0 ? (lyrics[activeLyricIdx]?.text ?? '') : '';
+    const nextLine = activeLyricIdx >= 0 ? (lyrics[activeLyricIdx + 1]?.text ?? '') : '';
+    useDesktopLyricsStore.getState().setLyrics(line, nextLine, playing, current?.name ?? '');
+  }, [activeLyricIdx, lyrics, playing, current?.name]);
+
+  // 本应用卸载时关掉桌面歌词，避免残留一个飘着的挂件
+  useEffect(() => () => {
+    useDesktopLyricsStore.getState().patch({ enabled: false });
+  }, []);
+
   /* ---------------------- 快捷键 ---------------------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -2669,9 +2684,37 @@ export default function NeteaseMusic({ context }: AppProps) {
             {sliderRow('歌词高亮放大度', playerStyle.lyricHighlight.toFixed(2), 1, 1.6, 0.05, playerStyle.lyricHighlight, (n) => patchPlayerStyle({ lyricHighlight: n }))}
           </>
         )}
+
+        {/* 桌面歌词（跨主题，两种播放样式下都能开） */}
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--nm-text)', marginBottom: 10, paddingTop: 12, borderTop: '1px solid var(--nm-border)' }}>桌面歌词</div>
+        <div className="flex items-center justify-between" style={{ fontSize: 11, color: 'var(--nm-sub)', marginBottom: 12 }}>
+          <span>开启桌面歌词（底部「词」按钮）</span>
+          <button type="button" onClick={() => useDesktopLyricsStore.getState().toggle()}
+            style={{ width: 34, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer', position: 'relative', background: dlConfig.enabled ? 'var(--nm-red)' : 'var(--nm-border)' }}>
+            <span style={{ position: 'absolute', top: 2, left: dlConfig.enabled ? 18 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left .15s' }} />
+          </button>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--nm-muted)', marginBottom: 8 }}>显示行数</div>
+        <div className="flex gap-1 mb-3" style={{ padding: 3, borderRadius: 8, background: 'var(--nm-hover)' }}>
+          {segmentBtn(dlConfig.lineCount === 1, '仅当前行', () => useDesktopLyricsStore.getState().patch({ lineCount: 1 }))}
+          {segmentBtn(dlConfig.lineCount === 2, '当前+下一行', () => useDesktopLyricsStore.getState().patch({ lineCount: 2 }))}
+        </div>
+        {sliderRow('背景透明度', `${Math.round(dlConfig.bgOpacity * 100)}%`, 0, 0.85, 0.05, dlConfig.bgOpacity, (n) => useDesktopLyricsStore.getState().patch({ bgOpacity: n }))}
+        <button type="button" onClick={() => useDesktopLyricsStore.getState().resetPosition()}
+          style={{ width: '100%', height: 30, borderRadius: 6, border: '1px solid var(--nm-border)', background: 'transparent', color: 'var(--nm-sub)', fontSize: 11, cursor: 'pointer', marginBottom: 6 }}>
+          重置歌词位置
+        </button>
+        <div style={{ fontSize: 10, color: 'var(--nm-muted)', lineHeight: 1.5, marginBottom: 12 }}>主题色 / 字号 / 高亮放大度跟随上方播放器设置；歌词条可直接用鼠标拖动。</div>
       </div>
     </div>
   );
+
+  /* 桌面歌词：主组件只订阅配置字段（歌词行高频变化交给浮层组件内部订阅，不牵连这里）。
+   * 用返回原始值的选择器，避免每次渲染生成新对象导致 zustand 误判为变化。 */
+  const dlEnabled = useDesktopLyricsStore((s) => s.enabled);
+  const dlLineCount = useDesktopLyricsStore((s) => s.lineCount);
+  const dlBgOpacity = useDesktopLyricsStore((s) => s.bgOpacity);
+  const dlConfig = { enabled: dlEnabled, lineCount: dlLineCount, bgOpacity: dlBgOpacity };
 
   return (
     <div style={rootStyle}>
@@ -3660,7 +3703,12 @@ export default function NeteaseMusic({ context }: AppProps) {
             <IconButton title="下一首" onClick={playNext} size={26}>
               <SkipForward size={16} fill="currentColor" />
             </IconButton>
-            <IconButton title="歌词" onClick={() => setShowPlayer((v) => !v)} size={26} active={showPlayer}>
+            <IconButton
+              title={dlConfig.enabled ? '关闭桌面歌词' : '开启桌面歌词'}
+              onClick={() => useDesktopLyricsStore.getState().toggle()}
+              size={26}
+              active={dlConfig.enabled}
+            >
               <span style={{ fontSize: 12 }}>词</span>
             </IconButton>
           </div>
@@ -4007,6 +4055,11 @@ export default function NeteaseMusic({ context }: AppProps) {
           </div>
         </div>
       )}
+        {/* 桌面歌词：独立组件，portal 到 document.body，浮在桌面所有窗口之上 */}
+        <DesktopLyricsLayer
+          style={{ accent: playerStyle.accent, lyricSize: playerStyle.lyricSize, lyricHighlight: playerStyle.lyricHighlight }}
+          onOpenPlayer={() => setShowPlayer(true)}
+        />
     </div>
   );
 }
